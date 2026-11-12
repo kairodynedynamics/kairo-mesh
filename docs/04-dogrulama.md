@@ -84,6 +84,7 @@ Aşağıdaki güvenlik testlerinden sonra düğüm kuralı sertleştirildi: puan
 | Eski mesaj | Bir günden eski ya da gelecekten gelen zarf teslim ediliyordu | Zarfın içinde mühürlü gönderim zamanı |
 | Yeniden başlatma sonrası tekrar | Havadan kaydedilen çerçeveler, uygulama yeniden açılınca mesajı ikinci kez gösteriyordu | Teslim edilenler listesi diske yazılır (`delivered`) |
 | Zaman damgası taşması (Kotlin) | Kötü niyetli bir kişi, "şimdi + 2^63" mühürlediğinde tazelik kontrolü taşıyor ve mesaj süresiz tekrar oynatılabilir oluyordu | Çıkarma yerine sınırlarla karşılaştırma; üç uygulamada da test |
+| Kişi anahtarı enjeksiyonu (Android) | Dışa açık ana ekran, test için konan `add` alanını her uygulamadan kabul ediyordu: telefondaki herhangi bir uygulama "bora"nın anahtarını kendi anahtarıyla değiştirip Bora'ya giden mesajları okuyabilirdi | Bu alanlar yalnız hata ayıklama (debug) sürümünde kabul edilir; yayın sürümünde emülatörde denendi, reddedildi |
 
 ## Android
 

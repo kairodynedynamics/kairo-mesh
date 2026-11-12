@@ -17,7 +17,8 @@ import android.widget.ScrollView
 import android.widget.TextView
 
 /**
- * A minimal chat screen over the mesh, which runs in MeshService. Test automation drives the same actions through intent extras:
+ * A minimal chat screen over the mesh, which runs in MeshService. In debug builds only, test automation drives the same actions
+ * through intent extras:
  *   adb shell am start -n com.kairodyne.mesh/.MainActivity --es add "bora=<pairing code>"
  *   adb shell am start -n com.kairodyne.mesh/.MainActivity --es send "bora=hello"
  * and reads the "Kairo" log tag: READY, PAIRED, QUEUED, RECV, STATUS lines.
@@ -31,19 +32,24 @@ class MainActivity : Activity() {
         buildUi(Profile(this).code)
         MeshService.lines.forEach { log.append(it + "\n") }
         MeshService.listener = { log.append(it + "\n") }
-        waiting = intent
+        waiting = automation(intent)
         requestBluetooth()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        toService(intent)
+        automation(intent)?.let(::toService)
     }
 
     override fun onDestroy() {
         MeshService.listener = null
         super.onDestroy()
     }
+
+    // This activity is exported, so any installed app can start it with extras. Honouring "add" there would let it
+    // swap a contact's key for its own and read that contact's mail: the extras exist for test automation only.
+    private fun automation(intent: Intent?) =
+        intent?.takeIf { applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0 }
 
     private fun granted() = BLUETOOTH.all { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
 
