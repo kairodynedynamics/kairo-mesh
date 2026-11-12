@@ -14,6 +14,7 @@ built for disaster, event and field apps.
 ![dependencies](https://img.shields.io/badge/dependencies-0-2da77a)
 ![node](https://img.shields.io/badge/node-24-8b949e)
 ![licence](https://img.shields.io/badge/licence-AGPL--3.0-8b949e)
+[![ci](https://github.com/kairodynedynamics/kairo-mesh/actions/workflows/ci.yml/badge.svg)](https://github.com/kairodynedynamics/kairo-mesh/actions/workflows/ci.yml)
 
 <img src="assets/courier.svg" alt="A sealed message is handed to a passer-by, carried between two neighbourhoods and delivered" width="760">
 
@@ -94,7 +95,8 @@ Or skip the install and [run the simulation in your browser](https://kairodynedy
 | ✅ | Android app with Bluetooth LE transport, byte-compatible with the JS node; courier delivery verified on three emulators |
 | ✅ | Swift core for iOS (`ios/`), byte-compatible with the JS and Kotlin nodes |
 | ✅ | 18 tests in JS (10 are attacks that worked on an earlier version), 10 in Kotlin, 10 in Swift |
-| ⬜ | iOS app layer: Bluetooth and screens (needs macOS / Xcode) |
+| ✅ | iOS app (SwiftUI + CoreBluetooth): builds and passes core and UI tests on iPhone and iPad simulators in CI |
+| ⬜ | Bluetooth between iPhones (simulators have no Bluetooth; needs real devices) |
 | ⬜ | Field test on real phones |
 | ⬜ | Independent security audit |
 

@@ -104,7 +104,9 @@ Aşağıdaki güvenlik testlerinden sonra düğüm kuralı sertleştirildi: puan
 
 - Bu bilgisayarda: Windows içindeki Ubuntu'da (WSL) Swift 6.0.3, `D:\Android\swift` altında. Çalıştırma: `wsl -e bash -c ". /mnt/d/Android/swift/env.sh && cd /mnt/d/Kairodyne-Dynamics/ios && swift test"`.
 - 10 test geçiyor: JavaScript test vektörleriyle bayt bayt aynı çıktı, JavaScript'in mühürlediği zarfı açma ve JavaScript düğümünün mesajını alma; ters yönde JavaScript, Swift düğümünün çerçevelerini okur (`node android/interop-check.mjs ios/.build/interop-from-swift.json`). Kurye, rastgele çerçeve (Swift'te dizi taşması çökme demektir, bu yüzden her uzunluk sınanır), yeniden başlatma sonrası tekrar ve zaman damgası taşması testleri.
-- Yapılamayan: iPhone uygulama katmanı (CoreBluetooth, arayüz) ve iOS simülatörü Xcode ister, Xcode yalnız macOS'ta çalışır. Yol: bir Mac ya da GitHub Actions macOS makineleri (hesabın `workflow` yetkisi gerekir).
+- iPhone uygulaması (`ios/App`, SwiftUI + CoreBluetooth): Android ile aynı Bluetooth düzeni, kimlik Keychain'de (yalnız bu cihaz), teslim edilenler gösterilmeden önce kaydedilir.
+- Bulut testi (`.github/workflows/ci.yml`, her gönderimde): GitHub'ın macOS makinesinde çekirdek CryptoKit ile test edilir, uygulama derlenir ve **iPhone 16 Pro ile iPad Pro simülatörlerinde** hem 10 çekirdek testi hem arayüz testi geçer. Arayüz testi: eşleşme kodunun gösterilmesi, hatalı kodun reddi, mesajın mühürlenip kuyruğa alınması, uygulama yeniden açılınca kimliğin korunması.
+- Doğrulanmayan: iPhone'lar arası Bluetooth. iOS simülatörlerinde Bluetooth yoktur; gerçek iPhone gerekir.
 
 ## Doğrulanmayanlar
 
