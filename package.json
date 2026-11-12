@@ -1,0 +1,11 @@
+{
+  "name": "kairo-mesh",
+  "version": "0.1.0",
+  "description": "Delay-tolerant mesh messaging engine: utility-routed couriers, fountain-coded fragments, rotating on-air IDs",
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "test": "node --test",
+    "bench": "node src/bench.js"
+  }
+}

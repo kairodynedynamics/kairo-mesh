@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kairo Mesh</title>
+<style>
+  :root { --bg: #fbfaf7; --fg: #1c1b19; --muted: #6b675f; --line: #dedad2; --accent: #0b6e4f; --bar: #c9c4b8; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #151614; --fg: #ecebe6; --muted: #a09c92; --line: #33342f; --accent: #5fd0a5; --bar: #4a4b45; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.55 Georgia, 'Times New Roman', serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 48px 16px 80px; }
+  h1 { font-size: 2.4rem; line-height: 1.15; margin: 0 0 12px; letter-spacing: -0.01em; }
+  h2 { font-size: 1.25rem; margin: 44px 0 10px; }
+  p { margin: 0 0 14px; }
+  .lede { font-size: 1.15rem; color: var(--muted); }
+  .ui, button, input, table { font: 15px/1.4 system-ui, sans-serif; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin: 16px 0; }
+  label { display: grid; gap: 4px; color: var(--muted); font: 13px system-ui, sans-serif; }
+  input { width: 110px; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--fg); }
+  button { padding: 9px 16px; border: 0; border-radius: 6px; background: var(--accent); color: var(--bg); font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: 0.5; cursor: progress; }
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; }
+  td.bar { width: 40%; min-width: 120px; }
+  .track { background: var(--bar); border-radius: 3px; height: 10px; }
+  .fill { background: var(--accent); border-radius: 3px; height: 10px; }
+  tr.kairo td:first-child { font-weight: 700; }
+  .note { color: var(--muted); font-size: 0.95rem; }
+  a { color: var(--accent); }
+  code { font: 14px ui-monospace, Consolas, monospace; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Messages that still arrive when the network is gone.</h1>
+  <p class="lede">Kairo Mesh is an embeddable engine that lets phones carry each other's encrypted messages with no internet, built for disaster, event and field apps.</p>
+
+  <h2>Try the measurement yourself</h2>
+  <p>Eighty people move between six neighbourhoods for eight hours. Three hundred messages are sent to people who are out of radio range, so they must be carried by passers-by. The simulation below runs in your browser on the same code as the repository.</p>
+  <div class="controls ui">
+    <label>World seed <input id="seed" type="number" value="1" min="1"></label>
+    <label>Area side (m) <input id="world" type="number" value="4000" min="1000" max="8000" step="500"></label>
+    <button id="run">Run simulation</button>
+  </div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Courier rule</th><th>Stored copies</th><th>Delivered</th><th></th><th>Transmissions / message</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="5" class="note">Press run. It takes a few seconds.</td></tr></tbody>
+    </table>
+  </div>
+  <p class="note">"Spray-and-wait" with 4 copies is the courier rule published in the Bitchat whitepaper, reimplemented by us; it is not Bitchat's code. Kairo hands copies to carriers that meet the recipient more often. A single seed is noisy: the repository reports the mean of twenty.</p>
+
+  <h2>What it does</h2>
+  <p><strong>Carriers chosen by encounter history.</strong> Matches the delivery rate of blind spraying while storing half as many copies, at the cost of somewhat longer delay.</p>
+  <p><strong>Fountain-coded fragments.</strong> A photo is rebuilt from any sufficient set of packets from any relays; over a lossy link without feedback this needs 2 to 4.6 times fewer packets than plain fragments.</p>
+  <p><strong>Rotating on-air identifiers and delivery receipts.</strong> Devices change their radio identity every fifteen minutes, and only the true recipient can make carriers drop their copies.</p>
+
+  <h2>Where it stands</h2>
+  <p>A research prototype: the algorithms, a working node that chats over a local network, tests and reproducible measurements. There is no phone SDK yet, no field test and no independent security audit, so do not rely on it for safety.</p>
+
+  <h2>Pilot partners</h2>
+  <p>We are looking for one disaster-response, operator or event app to field-test with. <a href="https://github.com/kairodynedynamics/kairo-mesh/issues/new?title=Pilot%20enquiry">Open a pilot enquiry</a> or read the <a href="https://github.com/kairodynedynamics/kairo-mesh">code and measurements</a>.</p>
+</main>
+<script type="module">
+  import { simulate } from './src/sim.js';
+  const rules = [['wait', 4, 'Spray-and-wait (Bitchat rule)'], ['focus', 4, 'Kairo'], ['wait', 8, 'Spray-and-wait'], ['focus', 8, 'Kairo'], ['wait', 16, 'Spray-and-wait']];
+  const rows = document.getElementById('rows'), button = document.getElementById('run');
+  button.addEventListener('click', run);
+  if (location.hash === '#run') run();
+  async function run() {
+    const seed = Math.max(1, Math.floor(+document.getElementById('seed').value) || 1);
+    const world = Math.min(8000, Math.max(1000, +document.getElementById('world').value || 4000));
+    button.disabled = true;
+    rows.replaceChildren();
+    for (const [policy, L, label] of rules) {
+      await new Promise((r) => setTimeout(r)); // let the row paint before the next run blocks
+      const res = simulate({ policy, L, seed, world });
+      const tr = rows.insertRow();
+      if (policy === 'focus') tr.className = 'kairo';
+      const pct = (res.delivery * 100).toFixed(1);
+      tr.insertCell().textContent = label;
+      tr.insertCell().textContent = L;
+      tr.insertCell().textContent = pct + '%';
+      const bar = tr.insertCell();
+      bar.className = 'bar';
+      bar.innerHTML = '<div class="track"><div class="fill"></div></div>';
+      bar.querySelector('.fill').style.width = pct + '%';
+      tr.insertCell().textContent = res.txPerMessage.toFixed(1);
+    }
+    button.disabled = false;
+  }
+</script>
+</body>
+</html>

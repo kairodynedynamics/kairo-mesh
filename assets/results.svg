@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" role="img" aria-label="Bar chart: share of messages delivered in a sparse 4 by 4 km area. Bitchat rule with 4 copies 68.6%, Kairo with 4 copies 85.1%, spray-and-wait with 8 copies 85.1%, Kairo with 8 copies 94.1%, spray-and-wait with 16 copies 95.2%">
+  <style>
+    .fg { fill: #6e7781; } .muted { fill: #8b949e; } .track { fill: #8b949e; fill-opacity: .16; }
+    .base { fill: #8b949e; } .kairo { fill: #2da77a; } .grid { stroke: #8b949e; stroke-opacity: .35; }
+    text { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 13px; }
+    .num { font-variant-numeric: tabular-nums; font-weight: 600; }
+  </style>
+  <text class="fg" x="0" y="20" font-size="15" font-weight="600" style="font-size:15px">Messages delivered within 3 hours · sparse area, 80 people, 4×4 km</text>
+  <text class="muted" x="0" y="40">Mean of 20 simulated worlds. "Copies" is how many devices store one message at a time.</text>
+
+  <g transform="translate(0,66)">
+    <!-- 100% = 400px, bars start at x=230 -->
+    <line class="grid" x1="430" y1="-6" x2="430" y2="196"/><line class="grid" x1="630" y1="-6" x2="630" y2="196"/>
+    <text class="muted" x="430" y="212" text-anchor="middle">50%</text><text class="muted" x="630" y="212" text-anchor="middle">100%</text>
+
+    <text class="fg" x="0" y="18">Bitchat rule · 4 copies</text>
+    <rect class="track" x="230" y="4" width="400" height="20" rx="3"/><rect class="base" x="230" y="4" width="274" height="20" rx="3"/>
+    <text class="fg num" x="640" y="19">68.6%</text><text class="muted" x="700" y="19">2.9 tx</text>
+
+    <text class="fg" x="0" y="58" font-weight="700">Kairo · 4 copies</text>
+    <rect class="track" x="230" y="44" width="400" height="20" rx="3"/><rect class="kairo" x="230" y="44" width="340" height="20" rx="3"/>
+    <text class="fg num" x="640" y="59">85.1%</text><text class="muted" x="700" y="59">5.8 tx</text>
+
+    <text class="fg" x="0" y="98">Spray-and-wait · 8 copies</text>
+    <rect class="track" x="230" y="84" width="400" height="20" rx="3"/><rect class="base" x="230" y="84" width="340" height="20" rx="3"/>
+    <text class="fg num" x="640" y="99">85.1%</text><text class="muted" x="700" y="99">6.5 tx</text>
+
+    <text class="fg" x="0" y="138" font-weight="700">Kairo · 8 copies</text>
+    <rect class="track" x="230" y="124" width="400" height="20" rx="3"/><rect class="kairo" x="230" y="124" width="376" height="20" rx="3"/>
+    <text class="fg num" x="640" y="139">94.1%</text><text class="muted" x="700" y="139">10.0 tx</text>
+
+    <text class="fg" x="0" y="178">Spray-and-wait · 16 copies</text>
+    <rect class="track" x="230" y="164" width="400" height="20" rx="3"/><rect class="base" x="230" y="164" width="381" height="20" rx="3"/>
+    <text class="fg num" x="640" y="179">95.2%</text><text class="muted" x="700" y="179">12.6 tx</text>
+  </g>
+</svg>
