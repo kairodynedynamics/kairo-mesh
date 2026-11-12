@@ -15,7 +15,8 @@ final class Mesh: ObservableObject {
 
     init() {
         let identity: Identity
-        do { identity = try Identity.create(Keychain.secret()) } catch { fatalError("cannot load identity: \(error)") }
+        // no identity means no mesh; refusing to start beats inventing a key that is not kept safely
+        do { identity = try Identity.create(Keychain.secret()) } catch { fatalError("cannot load identity from the Keychain: \(error)") }
         code = Data(identity.pub).base64EncodedString()
         let delivered = (defaults.stringArray(forKey: "delivered") ?? []).compactMap { entry -> (String, String)? in
             let parts = entry.split(separator: ":")

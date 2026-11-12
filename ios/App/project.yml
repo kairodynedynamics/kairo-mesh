@@ -11,7 +11,10 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "5"
-    CODE_SIGNING_ALLOWED: "NO"
+    # ad-hoc "sign to run locally": the simulator refuses Keychain access to unsigned apps
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
 targets:
   KairoMesh:
     type: application
