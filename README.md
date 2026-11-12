@@ -10,7 +10,7 @@ built for disaster, event and field apps.
 [![Live demo](https://img.shields.io/badge/live_demo-run_the_simulation-2da77a?style=for-the-badge)](https://kairodynedynamics.github.io/kairo-mesh/#run)
 
 ![status](https://img.shields.io/badge/status-research_prototype-f2b134)
-![tests](https://img.shields.io/badge/tests-8_passing-2da77a)
+![tests](https://img.shields.io/badge/tests-57_passing-2da77a)
 ![dependencies](https://img.shields.io/badge/dependencies-0-2da77a)
 ![node](https://img.shields.io/badge/node-24-8b949e)
 ![licence](https://img.shields.io/badge/licence-AGPL--3.0-8b949e)
@@ -76,7 +76,7 @@ Tag `T` changes daily and only the recipient's contacts can compute it. A strang
 Node 24, no dependencies.
 
 ```bash
-npm test          # 8 tests
+npm test          # 31 tests
 npm run bench     # the measurement tables (a few minutes)
 node src/cli.js   # chat over the local network
 ```
@@ -94,7 +94,8 @@ Or skip the install and [run the simulation in your browser](https://kairodynedy
 | ✅ | Working node that chats over a local network |
 | ✅ | Android app with Bluetooth LE transport, byte-compatible with the JS node; courier delivery verified on three emulators |
 | ✅ | Swift core for iOS (`ios/`), byte-compatible with the JS and Kotlin nodes |
-| ✅ | 18 tests in JS (10 are attacks that worked on an earlier version), 10 in Kotlin, 10 in Swift |
+| ✅ | 31 tests in JS (11 attacks, 11 real-world courier scenarios), 13 in Kotlin, 13 in Swift |
+| ✅ | Battery-aware courier duty: below 20% battery or in power-saving mode a phone carries only its own mail (low battery verified on Android emulators) |
 | ✅ | iOS app (SwiftUI + CoreBluetooth): builds and passes core and UI tests on iPhone and iPad simulators in CI |
 | ⬜ | Bluetooth between iPhones (simulators have no Bluetooth; needs real devices) |
 | ⬜ | Field test on real phones |
