@@ -68,4 +68,25 @@ class NodeTest {
         recipient(emptyList()).let { forgetful -> heard.forEach(forgetful::receive) }
         assertEquals(listOf("bir kez", "bir kez"), inbox)
     }
+
+    // A contact seals a timestamp that wrapped arithmetic would read as "now": it must be refused like any stale one.
+    @Test fun sealedTimestampCannotOverflowTheFreshnessCheck() {
+        val ali = Identity.create(); val bora = Identity.create()
+        val t = 1_800_000_000_000L
+        val inbox = mutableListOf<String>()
+        val node = Node(bora, {}, { _, text -> inbox += text }, now = { t }).apply { addContact("ali", ali.pub) }
+        fun deliver(sentAt: Long, text: String) {
+            val receipt = ByteArray(16) { it.toByte() }
+            val rh = sha256(receipt).sub(0, 16)
+            val env = seal(ali, bora.pub, cat(receipt, be64(sentAt), text.toByteArray()))
+            val enc = Encoder(env, 400)
+            val head = cat(u8(3), ByteArray(8), ephemeralId(recognitionKey(bora.pub), t), sha256(env, rh).sub(0, 8),
+                recipientTag(bora.pub, t), rh, u8(1, enc.k shr 8, enc.k and 255))
+            for (i in 0 until enc.k) node.receive(cat(head, be32(i.toLong()), enc.packet(i.toLong())))
+        }
+        deliver(t + Long.MIN_VALUE, "wrapped")
+        deliver(Long.MAX_VALUE, "far future")
+        deliver(t, "fresh")
+        assertEquals(listOf("fresh"), inbox)
+    }
 }

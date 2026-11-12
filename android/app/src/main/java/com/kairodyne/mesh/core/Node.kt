@@ -190,7 +190,8 @@ class Node(
         val msg = runCatching { open(identity, env) }.getOrNull() ?: return
         if (msg.body.size < 24) return
         val sentAt = msg.body.u64(16)
-        if (now() - sentAt > TTL_MS + SKEW_MS || sentAt - now() > SKEW_MS) return
+        // compared against bounds, not subtracted: a sender-chosen timestamp must not overflow the arithmetic
+        if (sentAt < now() - TTL_MS - SKEW_MS || sentAt > now() + SKEW_MS) return
         val receipt = msg.body.sub(0, 16)
         if (seen.size >= MAX_SEEN) seen.remove(seen.keys.first())
         seen[key] = receipt

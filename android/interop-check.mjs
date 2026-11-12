@@ -1,11 +1,13 @@
-// Checks frames produced by the Kotlin port (written by InteropTest) against the JavaScript node.
-//   node android/interop-check.mjs
+// Checks frames produced by a port (Kotlin's InteropTest, Swift's InteropTests) against the JavaScript node.
+//   node android/interop-check.mjs                                  # Kotlin
+//   node android/interop-check.mjs ios/.build/interop-from-swift.json # Swift
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createIdentity, open } from '../src/crypto.js';
 import { createNode } from '../src/node.js';
 
-const x = JSON.parse(readFileSync(new URL('./app/build/interop-from-kotlin.json', import.meta.url), 'utf8'));
+const file = process.argv[2] ?? new URL('./app/build/interop-from-kotlin.json', import.meta.url);
+const x = JSON.parse(readFileSync(file, 'utf8'));
 const ali = createIdentity(Buffer.from('11'.repeat(32), 'hex'));
 const bora = createIdentity(Buffer.from('22'.repeat(32), 'hex'));
 
@@ -19,4 +21,4 @@ const node = createNode({ identity: bora, now: () => x.time, contacts: new Map([
 for (const f of x.frames) node.receive(Buffer.from(f, 'hex'));
 assert.deepEqual(inbox, [['ali', x.text]]);
 assert.ok(out.some((f) => f[0] === 4), 'delivery receipt sent');
-console.log('interop ok: JavaScript opened the Kotlin envelope and received the Kotlin node\'s message');
+console.log(`interop ok: JavaScript opened the envelope and received the message in ${file}`);

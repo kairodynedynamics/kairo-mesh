@@ -67,7 +67,7 @@ Aşağıdaki güvenlik testlerinden sonra düğüm kuralı sertleştirildi: puan
 
 ## Testler
 
-`npm test`: 17 test, hepsi geçiyor.
+`npm test`: 18 test, hepsi geçiyor.
 
 - İşlev: fountain kodun 0–40.000 baytlık mesajları kayıp altında birebir geri kurduğu ve bozuk paketi reddettiği; kimliğin her 15 dakikada değiştiği ve yalnız anahtarla tanındığı; zarfı yalnız alıcının açtığı ve değiştirilen zarfın reddedildiği; birbirini hiç görmeyen iki kişi arasında kuryenin mesajı taşıdığı, içeriği okuyamadığı ve makbuzdan sonra kopyasını sildiği; 20 KB'lık mesajın %30 çerçeve kaybında ulaştığı; simülatörün belirlenimci olduğu.
 - Saldırı (`test/attacks.test.js`): her test, düğümün önceki bir sürümünde **işe yarayan** bir saldırıdır ve şimdi başarısız olduğunu doğrular.
@@ -83,12 +83,13 @@ Aşağıdaki güvenlik testlerinden sonra düğüm kuralı sertleştirildi: puan
 | Yük katlama | Tek sahte çerçeve yüzlerce gönderim tetikliyordu | Her 2 sn'de sınırlı SCORE/DATA bütçesi, mesaj başına tek servis |
 | Eski mesaj | Bir günden eski ya da gelecekten gelen zarf teslim ediliyordu | Zarfın içinde mühürlü gönderim zamanı |
 | Yeniden başlatma sonrası tekrar | Havadan kaydedilen çerçeveler, uygulama yeniden açılınca mesajı ikinci kez gösteriyordu | Teslim edilenler listesi diske yazılır (`delivered`) |
+| Zaman damgası taşması (Kotlin) | Kötü niyetli bir kişi, "şimdi + 2^63" mühürlediğinde tazelik kontrolü taşıyor ve mesaj süresiz tekrar oynatılabilir oluyordu | Çıkarma yerine sınırlarla karşılaştırma; üç uygulamada da test |
 
 ## Android
 
 `android/` altında protokolün Kotlin sürümü ve en küçük bir sohbet uygulaması (minSdk 33). Derleme Windows'ta Gradle 8.9, AGP 8.5.2, JDK 17 ile.
 
-- **Birlikte çalışma:** `./gradlew testDebugUnitTest`, 9 test. JavaScript'in ürettiği test vektörleri (zarf, kimlik, fountain paketleri) Kotlin'de birebir aynı çıkar; Kotlin'in mühürlediği zarfı JavaScript açar (`node android/interop-check.mjs`). İki düğüm aynı ağda konuşabilir.
+- **Birlikte çalışma:** `./gradlew testDebugUnitTest`, 10 test. JavaScript'in ürettiği test vektörleri (zarf, kimlik, fountain paketleri) Kotlin'de birebir aynı çıkar; Kotlin'in mühürlediği zarfı JavaScript açar (`node android/interop-check.mjs`). İki düğüm aynı ağda konuşabilir.
 - **Düğüm:** kurye senaryosu, rastgele çerçeve dayanıklılığı ve yeniden başlatma sonrası tekrar saldırısı Kotlin'de de test edilir.
 - **Üç emülatörde uçtan uca:** `bash android/emulators.sh` üç sanal telefon açar, `bash android/emulator-test.sh` gerçek uygulamayı sanal Bluetooth (netsim) üzerinden sınar:
   1. Ali ve Bora açıkken doğrudan mesaj ulaşır.
@@ -99,7 +100,11 @@ Aşağıdaki güvenlik testlerinden sonra düğüm kuralı sertleştirildi: puan
 
 ## iOS
 
-Kurulamadı: iOS derlemesi Xcode ister, Xcode yalnız macOS'ta çalışır. Bu bilgisayar Windows. Yol: bir Mac ya da GitHub Actions macOS makineleri (hesabın `workflow` yetkisi gerekir).
+`ios/` altında protokolün Swift sürümü (`KairoCore`, Swift paketi). Apple cihazlarında CryptoKit'i, diğer sistemlerde aynı arayüzlü swift-crypto'yu kullanır; bu sayede çekirdek Mac olmadan da derlenip test edilir.
+
+- Bu bilgisayarda: Windows içindeki Ubuntu'da (WSL) Swift 6.0.3, `D:\Android\swift` altında. Çalıştırma: `wsl -e bash -c ". /mnt/d/Android/swift/env.sh && cd /mnt/d/Kairodyne-Dynamics/ios && swift test"`.
+- 10 test geçiyor: JavaScript test vektörleriyle bayt bayt aynı çıktı, JavaScript'in mühürlediği zarfı açma ve JavaScript düğümünün mesajını alma; ters yönde JavaScript, Swift düğümünün çerçevelerini okur (`node android/interop-check.mjs ios/.build/interop-from-swift.json`). Kurye, rastgele çerçeve (Swift'te dizi taşması çökme demektir, bu yüzden her uzunluk sınanır), yeniden başlatma sonrası tekrar ve zaman damgası taşması testleri.
+- Yapılamayan: iPhone uygulama katmanı (CoreBluetooth, arayüz) ve iOS simülatörü Xcode ister, Xcode yalnız macOS'ta çalışır. Yol: bir Mac ya da GitHub Actions macOS makineleri (hesabın `workflow` yetkisi gerekir).
 
 ## Doğrulanmayanlar
 

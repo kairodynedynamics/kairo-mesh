@@ -163,3 +163,20 @@ test('replay: frames recorded on the air are not delivered again after the recip
   assert.deepEqual(b.inbox, [['ali', 'bir kez']]);
   assert.deepEqual(inbox, []);
 });
+
+test('timestamp: a sealed send time chosen to overflow the freshness check is refused', () => {
+  const sender = createIdentity(), b = bench(['ali']);
+  b.node.addContact('ali', sender.pub);
+  b.tick();
+  const deliver = (sentAt, text) => {
+    const receipt = randomBytes(16), stamp = Buffer.alloc(8);
+    stamp.writeBigUInt64BE(sentAt);
+    const env = seal(sender, b.ids.self.pub, Buffer.concat([receipt, stamp, Buffer.from(text)]));
+    for (const f of dataFrames(randomBytes(8), b.eid(), env, recipientTag(b.ids.self.pub, b.clock.t), sha256(receipt).subarray(0, 16)))
+      b.node.receive(f);
+  };
+  deliver((BigInt(b.clock.t) + 2n ** 63n) % 2n ** 64n, 'wrapped');
+  deliver(2n ** 64n - 1n, 'far future');
+  deliver(BigInt(b.clock.t), 'fresh');
+  assert.deepEqual(b.inbox, [['ali', 'fresh']]);
+});
