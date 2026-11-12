@@ -15,15 +15,17 @@ const file = process.argv[2] ?? 'kairo-profile.json';
 // shortcut: the private key sits unencrypted in this file; use the OS keystore before real use.
 const saved = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : { contacts: {} };
 const identity = createIdentity(saved.secret && Buffer.from(saved.secret, 'base64'));
-const save = () => writeFileSync(file, JSON.stringify({ ...saved, secret: identity.secret.toString('base64') }, null, 2), { mode: 0o600 });
+let node;
+const save = () => writeFileSync(file, JSON.stringify({ ...saved, secret: identity.secret.toString('base64'), delivered: node?.delivered ?? saved.delivered }, null, 2), { mode: 0o600 });
 save();
 
 const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
-const node = createNode({
+node = createNode({
   identity,
+  delivered: saved.delivered ?? [],
   contacts: new Map(Object.entries(saved.contacts).map(([n, c]) => [n, Buffer.from(c, 'base64')])),
   send: (frame) => socket.send(frame, PORT, GROUP),
-  onMessage: (from, text) => console.log(`\n[${from}] ${text}`),
+  onMessage: (from, text) => { console.log(`\n[${from}] ${text}`); save(); },
 });
 socket.on('message', (frame) => node.receive(frame));
 socket.bind(PORT, () => {

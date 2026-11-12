@@ -91,7 +91,9 @@ Or skip the install and [run the simulation in your browser](https://kairodynedy
 | ✅ | Courier routing rule, simulator and reproducible measurements |
 | ✅ | Fountain codec, rotating identifiers, sealed envelopes, delivery receipts |
 | ✅ | Working node that chats over a local network |
-| ⬜ | Bluetooth transport and Android / iOS SDK |
+| ✅ | Android app with Bluetooth LE transport, byte-compatible with the JS node; courier delivery verified on three emulators |
+| ✅ | 17 tests in JS (9 are attacks that worked on an earlier version) + 9 in Kotlin |
+| ⬜ | iOS (needs macOS / Xcode) |
 | ⬜ | Field test on real phones |
 | ⬜ | Independent security audit |
 

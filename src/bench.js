@@ -7,15 +7,16 @@ const SEEDS = 20;
 const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
 const sd = (xs) => { const m = mean(xs); return Math.sqrt(mean(xs.map((x) => (x - m) ** 2))); };
 
-function routing(title, world) {
+function routing(title, world, social = false) {
   console.log(`\n### ${title}\n`);
   console.log('| Politika | Teslim oranı | Medyan gecikme (dk) | İletim / mesaj |');
   console.log('|---|---|---|---|');
   const rows = [['wait', 4, 'Bitchat kuralı (spray-and-wait, L=4)'], ['focus', 4, '**Kairo, L=4**'],
     ['wait', 8, 'spray-and-wait, L=8 (Bitchat üst sınırı)'], ['focus', 8, '**Kairo, L=8**'],
     ['wait', 16, 'spray-and-wait, L=16'], ['epidemic', 0, 'Salgın (teorik tavan)']];
+  if (social) rows.splice(2, 0, ['hard', 4, '**Kairo düğüm kuralı, L=4**']), rows.splice(5, 0, ['hard', 8, '**Kairo düğüm kuralı, L=8**']);
   for (const [policy, L, label] of rows) {
-    const rs = Array.from({ length: SEEDS }, (_, i) => simulate({ policy, L, world, seed: i + 1 }));
+    const rs = Array.from({ length: SEEDS }, (_, i) => simulate({ policy: policy === 'hard' ? 'focus' : policy, hardened: policy === 'hard', proofs: policy === 'hard', social, L, world, seed: i + 1 }));
     const d = rs.map((r) => r.delivery * 100);
     console.log(`| ${label} | %${mean(d).toFixed(1)} ± ${sd(d).toFixed(1)} | ${mean(rs.map((r) => r.medianLatencyMin)).toFixed(0)} | ${mean(rs.map((r) => r.txPerMessage)).toFixed(1)} |`);
   }
@@ -53,4 +54,6 @@ function fragments() {
 
 routing('Kurye yönlendirme: 80 kişi, 6 mahalle, 2×2 km, 8 saat', 2000);
 routing('Kurye yönlendirme: aynı nüfus, 4×4 km (daha seyrek)', 4000);
+routing('Kişiler arası trafik, 2×2 km (düğümün gerçek kuralı dahil)', 2000, true);
+routing('Kişiler arası trafik, 4×4 km (düğümün gerçek kuralı dahil)', 4000, true);
 fragments();

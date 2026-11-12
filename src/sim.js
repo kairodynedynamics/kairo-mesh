@@ -7,12 +7,18 @@
 //            the recipient more often (encounter-history score)
 //   epidemic copy to everyone: the delivery ceiling, at unbounded cost
 //
+// `social: true` gives everyone a contact list and only sends messages between contacts.
+// `hardened: true` applies the rules the real node uses against liars: a device only knows scores for
+// its own contacts, a stranger gets at most half the copies, the last copy only moves to a contact,
+// and the sender never gives up its own last copy. `proofs: true` also trusts anyone who proves they are
+// a contact of the recipient (the node's SCORE proof).
+//
 // shortcut: ignores per-contact bandwidth and storage caps and the 7-hop flood limit
 // (all favour every policy equally); upgrade before using it for capacity planning.
 import { rng } from './rng.js';
 
 const DEFAULTS = {
-  seed: 1, policy: 'focus', L: 4,
+  seed: 1, policy: 'focus', L: 4, social: false, hardened: false, proofs: false, extraContacts: 5,
   N: 80, clusters: 6, world: 2000, spread: 60, range: 30, dt: 2,
   hours: 8, warmupH: 1, sendUntilH: 5, ttlH: 3, messages: 300,
   halfLifeS: 7200, pEncounter: 0.75, beta: 0.25, minGain: 0.3, reencounterS: 300,
@@ -41,10 +47,22 @@ export function simulate(opts = {}) {
     n.speed = 1 + r() * 0.5; n.pause = r() * 300;
   }
 
+  // Contacts: everyone from the same neighbourhood plus a few people elsewhere.
+  const friend = new Uint8Array(N * N);
+  const contactsOf = Array.from({ length: N }, () => []);
+  if (o.social || o.hardened) {
+    const link = (a, b) => { if (a !== b && !friend[a * N + b]) { friend[a * N + b] = friend[b * N + a] = 1; contactsOf[a].push(b); contactsOf[b].push(a); } };
+    for (let a = 0; a < N; a++) {
+      for (let b = a + 1; b < N; b++) if (nodes[a].home === nodes[b].home) link(a, b);
+      for (let i = 0; i < o.extraContacts; i++) link(a, Math.floor(r() * N));
+    }
+  }
+
   const T = o.hours * 3600;
   const msgs = Array.from({ length: o.messages }, () => {
     const src = Math.floor(r() * N);
     let dst = Math.floor(r() * (N - 1)); if (dst >= src) dst++;
+    if (o.social) dst = contactsOf[src][Math.floor(r() * contactsOf[src].length)];
     return { src, dst, at: (o.warmupH + r() * (o.sendUntilH - o.warmupH)) * 3600, done: -1 };
   }).sort((a, b) => a.at - b.at);
 
@@ -74,6 +92,17 @@ export function simulate(opts = {}) {
       if (msg.done >= 0 || t - msg.at > o.ttlH * 3600) { hold[a].delete(m); continue; }
       if (hold[b].has(m)) continue;
       if (o.policy === 'epidemic') { hold[b].set(m, Infinity); tx++; }
+      else if (o.policy === 'focus' && o.hardened) {
+        // Scores as the node sees them: only for the recipient's own contacts, in four coarse levels.
+        const q = (x) => (x === msg.dst || friend[x * N + msg.dst] ? Math.round(P[x][msg.dst] * 3) : 0);
+        const qa = q(a), qb = q(b), known = friend[a * N + b] || (o.proofs && qb > 0);
+        if (tokens > 1) {
+          let give = qa + qb > 0 ? Math.min(tokens - 1, Math.round((tokens * qb) / (qa + qb))) : tokens >> 1;
+          if (!known) give = Math.min(give, tokens >> 1);
+          if (give < 1) continue;
+          hold[a].set(m, tokens - give); hold[b].set(m, give); tx++;
+        } else if (known && a !== msg.src && qb > qa) { hold[a].delete(m); hold[b].set(m, 1); tx++; }
+      }
       else if (tokens > 1) {
         // Kairo splits copies in proportion to who meets the recipient more; Bitchat's rule is always half.
         const pa = P[a][msg.dst], pb = P[b][msg.dst];

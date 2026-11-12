@@ -1,6 +1,6 @@
 # Doğrulama
 
-Tekrar üretmek için: `npm test` ve `npm run bench` (Node 24, bağımlılık yok). Tüm rakamlar **simülasyondur**; gerçek telefonla saha testi yapılmadı.
+Tekrar üretmek için: `npm test` ve `npm run bench` (Node 24, bağımlılık yok); Android tarafı için `android/` altındaki betikler. Yönlendirme rakamları **simülasyondur**; gerçek telefonla saha testi yapılmadı, Bluetooth yalnız Android emülatörlerinin sanal radyosunda denendi.
 
 ## Yöntem
 
@@ -42,6 +42,16 @@ L = bir mesajın aynı anda depolanan en çok kopya sayısı.
 - Bedeli: medyan gecikme %5–25 daha uzun.
 - Kazanç, insanların düzenli hareket ettiği varsayımına dayanır. Tamamen rastgele harekette (ör. ilk kez gidilen festival alanı) puanın bilgi değeri yoktur ve fark kapanır; bunu ölçmedim.
 
+### Saldırıya dayanıklı kuralın bedeli
+
+Aşağıdaki güvenlik testlerinden sonra düğüm kuralı sertleştirildi: puan yalnız kendi kişilerin için ve 0–3 arası verilir, yabancı en çok kopyaların yarısını alır, son kopya yalnız kişiye geçer, gönderici kendi son kopyasını hiç bırakmaz. Bu, simülasyonda sosyal trafikte (insanlar tanıdıklarına yazar) teslim oranını düşürdü; puana "alıcıyı tanıyorum" kanıtı eklemek kaybın çoğunu geri aldı.
+
+| Kural (Kairo, sosyal trafik) | 2×2 km, L=4 | 4×4 km, L=4 | 2×2 km, L=8 | 4×4 km, L=8 |
+|---|---|---|---|---|
+| Sertleştirilmemiş | %99,4 | %88,8 | | |
+| Sertleştirilmiş | %97,9 | %84,4 | | |
+| **Sertleştirilmiş + tanıma kanıtı (uygulamadaki kural)** | **%99,5** | **%88,3** | **%100,0** | **%94,3** |
+
 ## Sonuç 2: parçalı aktarım
 
 64 parça (~30 KB). Gönderilmesi/duyulması gereken paket sayısı: ortalama / %95'lik.
@@ -57,15 +67,43 @@ L = bir mesajın aynı anda depolanan en çok kopya sayısı.
 
 ## Testler
 
-`npm test`: 8 test, hepsi geçiyor. Fountain kodun 0–40.000 baytlık mesajları kayıp altında birebir geri kurduğu, bozuk paketi reddettiği; kimliğin her dönemde değiştiği ve yalnız anahtarla tanındığı; simülatörün belirlenimci olduğu doğrulanır.
+`npm test`: 17 test, hepsi geçiyor.
 
-Düğüm testleri: zarfı yalnız alıcının açtığı, göndericinin doğrulandığı ve değiştirilen zarfın reddedildiği; birbirini hiç görmeyen iki kişi arasında kuryenin mesajı taşıdığı, kuryenin içeriği okuyamadığı ve makbuzdan sonra kopyasını sildiği; 20 KB'lık mesajın %30 çerçeve kaybında ulaştığı; sahte ve rastgele çerçevelerin kuryeyi çökertmediği ve mesaj düşürtmediği.
+- İşlev: fountain kodun 0–40.000 baytlık mesajları kayıp altında birebir geri kurduğu ve bozuk paketi reddettiği; kimliğin her 15 dakikada değiştiği ve yalnız anahtarla tanındığı; zarfı yalnız alıcının açtığı ve değiştirilen zarfın reddedildiği; birbirini hiç görmeyen iki kişi arasında kuryenin mesajı taşıdığı, içeriği okuyamadığı ve makbuzdan sonra kopyasını sildiği; 20 KB'lık mesajın %30 çerçeve kaybında ulaştığı; simülatörün belirlenimci olduğu.
+- Saldırı (`test/attacks.test.js`): her test, düğümün önceki bir sürümünde **işe yarayan** bir saldırıdır ve şimdi başarısız olduğunu doğrular.
 
-Elle deneme: aynı bilgisayarda iki `src/cli.js` süreci UDP çoklu yayın üzerinden eşleşip mesajlaştı; alıcıda geri çağrı bir kez çalıştı. İki ayrı bilgisayar arasında denenmedi.
+| Saldırı | Önceki sürümde ne oluyordu | Kapatan değişiklik |
+|---|---|---|
+| İzleme | HELLO'daki mesaj kimlikleri kimlik değişse de aynıydı; cihaz bağlanabiliyordu | Her alan o anki geçici kimlikle körleştirilir |
+| Kara delik | "Alıcıyı sık görüyorum" diyen sahte kurye göndericinin son kopyasını alıyordu | Puan yalnız kişilere; son kopya hiç bırakılmaz |
+| Sahte onay | Devri dinleyen biri onay uydurup kuryeye kopya sildirebiliyordu | Onay, zarfın tamamına sahip olunduğunun kanıtını ister |
+| Alıcı taklidi | "Alıcı benim" diyene kurye kopyasını siliyordu | Silme yalnız alıcının üretebileceği makbuzla |
+| Depo doldurma | Yabancıların çöp zarfları kişilerin postasını siliyordu | Yabancılara deponun yarısı |
+| Yarım aktarım doldurma | Tamamlanmayan aktarımlar yeni aktarımı engelliyordu | Yabancılara yarım aktarımların yarısı |
+| Yük katlama | Tek sahte çerçeve yüzlerce gönderim tetikliyordu | Her 2 sn'de sınırlı SCORE/DATA bütçesi, mesaj başına tek servis |
+| Eski mesaj | Bir günden eski ya da gelecekten gelen zarf teslim ediliyordu | Zarfın içinde mühürlü gönderim zamanı |
+| Yeniden başlatma sonrası tekrar | Havadan kaydedilen çerçeveler, uygulama yeniden açılınca mesajı ikinci kez gösteriyordu | Teslim edilenler listesi diske yazılır (`delivered`) |
+
+## Android
+
+`android/` altında protokolün Kotlin sürümü ve en küçük bir sohbet uygulaması (minSdk 33). Derleme Windows'ta Gradle 8.9, AGP 8.5.2, JDK 17 ile.
+
+- **Birlikte çalışma:** `./gradlew testDebugUnitTest`, 9 test. JavaScript'in ürettiği test vektörleri (zarf, kimlik, fountain paketleri) Kotlin'de birebir aynı çıkar; Kotlin'in mühürlediği zarfı JavaScript açar (`node android/interop-check.mjs`). İki düğüm aynı ağda konuşabilir.
+- **Düğüm:** kurye senaryosu, rastgele çerçeve dayanıklılığı ve yeniden başlatma sonrası tekrar saldırısı Kotlin'de de test edilir.
+- **Üç emülatörde uçtan uca:** `bash android/emulators.sh` üç sanal telefon açar, `bash android/emulator-test.sh` gerçek uygulamayı sanal Bluetooth (netsim) üzerinden sınar:
+  1. Ali ve Bora açıkken doğrudan mesaj ulaşır.
+  2. Bora kapalıyken Ali mesajı Kurye'ye bırakır, Ali kapanır, Bora açılır: mesaj Kurye üzerinden ulaşır, Kurye makbuzla kopyasını siler ve mesajı hiçbir zaman okuyamaz.
+  Son çalıştırma: hepsi geçti.
+
+## iOS
+
+Kurulamadı: iOS derlemesi Xcode ister, Xcode yalnız macOS'ta çalışır. Bu bilgisayar Windows. Yol: bir Mac ya da GitHub Actions macOS makineleri (hesabın `workflow` yetkisi gerekir).
 
 ## Doğrulanmayanlar
 
-- Gerçek BLE davranışı: bağlantı kurma süresi, arka plan kısıtları, pil tüketimi, bant genişliği sınırı.
-- Kötü niyetli kurye (mesaj düşürme, puan şişirme). Puan şişirme bu tasarımda yeni bir saldırı yüzeyidir.
+- Gerçek BLE davranışı: emülatörün sanal radyosu kayıpsız ve sınırsız menzilli; gerçek telefonlarda bağlantı süresi, arka plan kısıtları, pil tüketimi ve bant genişliği ölçülmedi.
+- Uygulama arka planda çalışmıyor (ön plan servisi yok); ekran kapanınca kurye işlevi durur.
+- Özel anahtar uygulama deposunda şifresiz duruyor; yayından önce Android Keystore'a taşınmalı.
+- Mesajı sessizce düşüren kurye engellenemez, yalnız etkisi sınırlanır: göndericinin kopyası kalır, diğer kopyalar başka kuryelerdedir.
 - 7 atlama sınırı ve kutu kapasitesi simülatörde modellenmedi (tüm politikaları eşit etkiler).
 - Güvenlik: bağımsız denetim yok.
