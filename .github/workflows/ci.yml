@@ -37,7 +37,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Core on macOS (CryptoKit)
         run: swift test
-      - name: Interop: JavaScript reads the Swift node's frames
+      - name: "Interop: JavaScript reads the Swift node's frames"
         run: node ../android/interop-check.mjs .build/interop-from-swift.json
       - name: Generate the Xcode project
         run: brew install xcodegen && cd App && xcodegen generate
