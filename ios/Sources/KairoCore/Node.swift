@@ -82,6 +82,11 @@ public final class Node {
     private var scoreBudget = SCORE_BUDGET
     private var dataBudget = DATA_BUDGET
     private let myRk: Bytes
+    // peer id -> delivered handles blinded for that peer; rebuilding it costs a hash per entry on every HELLO
+    private var doneCache: [String: [String: (Bytes, Bytes)]] = [:]
+
+    /// False on low battery: the phone still sends and receives its own mail but takes on nobody else's.
+    public var relay = true
 
     /// `delivered` is what a previous run returned from `delivered`: persist it so a restart does not reopen replays.
     public init(identity: Identity, send: @escaping (Bytes) -> Void, onMessage: @escaping (String, String) -> Void = { _, _ in },
@@ -135,6 +140,16 @@ public final class Node {
     private func remember(_ table: inout Ordered<Bytes>, _ key: String, _ receipt: Bytes) {
         if table.count >= MAX_SEEN, let first = table.keys.first { table[first] = nil }
         table[key] = receipt
+        doneCache = [:]
+    }
+
+    private func doneFor(_ peer: Bytes) -> [String: (Bytes, Bytes)] {
+        if let done = doneCache[peer.hex] { return done }
+        if doneCache.count >= 16 { doneCache = [:] } // peers rotate their ids every 15 minutes
+        var done: [String: (Bytes, Bytes)] = [:]
+        for (key, receipt) in seen.pairs + cleared.pairs { if let id = key.unhex { done[blind(id, peer).hex] = (id, receipt) } }
+        doneCache[peer.hex] = done
+        return done
     }
 
     private func ack(_ to: Bytes, _ id: Bytes, _ proof: Bytes) { send(cat(u8(Int(ACK)), eid(), to, id, proof)) }
@@ -146,17 +161,18 @@ public final class Node {
         if let name = recognise(from, recognition.pairs, now()) { met(name) }
         if n == 0 { return }
         let have = Set(store.values.map { blind($0.id, from).hex })
-        var done: [String: (Bytes, Bytes)] = [:]
-        for (key, receipt) in seen.pairs + cleared.pairs { if let id = key.unhex { done[blind(id, from).hex] = (id, receipt) } }
+        let done = doneFor(from)
         let mine = Set(tagsOf(identity.pub).map { blind($0, from).hex })
         for i in 0..<n {
             let h = b.sub(10 + i * 16, 18 + i * 16)
             let bt = b.sub(18 + i * 16, 26 + i * 16)
             if have.contains(h.hex) { continue }
             if let d = done[h.hex] { ack(from, d.0, d.1); continue }
+            let forMe = mine.contains(bt.hex)
+            if !forMe && !relay { continue }
             scoreBudget -= 1
             if scoreBudget < 0 { return }
-            let hit = mine.contains(bt.hex) ? (tag: nil, q: MINE) : lookup { same(blind($0, from), bt) }
+            let hit = forMe ? (tag: nil, q: MINE) : lookup { same(blind($0, from), bt) }
             let proof = hit.tag.flatMap { hit.q > 0 ? knows($0, from) : nil } ?? Bytes(repeating: 0, count: 8)
             send(cat(u8(Int(SCORE)), eid(), from, h, u8(hit.q), proof))
         }
@@ -207,6 +223,8 @@ public final class Node {
         let k = b.u16(58)
         if store[key] != nil { return }
         if let receipt = seen[key] ?? cleared[key] { return ack(from, id, receipt) }
+        let forMe = { self.tagsOf(self.identity.pub).contains(where: { same($0, tag) }) }
+        if !relay && !forMe() { return }
         let trusted = known(from)
         let p: Partial
         if let existing = partial[key] {
@@ -221,7 +239,7 @@ public final class Node {
         guard p.dec.done else { return }
         partial[key] = nil
         guard let env = try? p.dec.result(), same(sha256(env, rh).sub(0, 8), id) else { return } // corrupted or forged packets
-        if !tagsOf(identity.pub).contains(where: { same($0, tag) }) {
+        if !forMe() {
             guard makeRoom(&store, MAX_STORE, STRANGER_STORE, trusted) else { return }
             store[key] = Msg(id, tag, rh, env, tokens: min(max(tokens, 1), MAX_TOKENS), at: now(), own: false, trusted: trusted)
             return ack(from, id, proofOf(env, eid()))

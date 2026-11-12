@@ -62,6 +62,11 @@ class Node(
     private var cursor = 0
     private var scoreBudget = SCORE_BUDGET
     private var dataBudget = DATA_BUDGET
+    // peer id -> delivered handles blinded for that peer; rebuilding it costs a hash per entry on every HELLO
+    private val doneCache = HashMap<String, Map<String, Map.Entry<String, ByteArray>>>()
+
+    /** False on low battery: the phone still sends and receives its own mail but takes on nobody else's. */
+    var relay = true
 
     private val myRk = recognitionKey(identity.pub)
     private fun eid() = ephemeralId(myRk, now())
@@ -107,6 +112,12 @@ class Node(
     private fun remember(table: LinkedHashMap<String, ByteArray>, key: String, receipt: ByteArray) {
         if (table.size >= MAX_SEEN) table.remove(table.keys.first())
         table[key] = receipt
+        doneCache.clear()
+    }
+
+    private fun doneFor(peer: ByteArray) = doneCache.getOrPut(peer.hex()) {
+        if (doneCache.size >= 16) doneCache.clear() // peers rotate their ids every 15 minutes
+        (seen.entries + cleared.entries).associate { blind(it.key.unhex(), peer).hex() to it }
     }
 
     private fun ack(to: ByteArray, id: ByteArray, proof: ByteArray) = send(cat(u8(ACK), eid(), to, id, proof))
@@ -118,7 +129,7 @@ class Node(
         recognise(from, recognition, now())?.let { met(it) }
         if (n == 0) return
         val have = store.values.map { blind(it.id, from).hex() }.toSet()
-        val done = (seen.entries + cleared.entries).associate { blind(it.key.unhex(), from).hex() to it }
+        val done = doneFor(from)
         val mine = tagsOf(identity.pub).map { blind(it, from).hex() }
         for (i in 0 until n) {
             val h = b.sub(10 + i * 16, 18 + i * 16)
@@ -126,8 +137,10 @@ class Node(
             if (h.hex() in have) continue
             val delivered = done[h.hex()]
             if (delivered != null) { ack(from, delivered.key.unhex(), delivered.value); continue }
+            val forMe = bt.hex() in mine
+            if (!forMe && !relay) continue
             if (scoreBudget-- <= 0) return
-            val hit = if (bt.hex() in mine) Hit(null, MINE) else lookup { same(blind(it, from), bt) }
+            val hit = if (forMe) Hit(null, MINE) else lookup { same(blind(it, from), bt) }
             val proof = if (hit.tag != null && hit.q > 0) knows(hit.tag, from) else ByteArray(8)
             send(cat(u8(SCORE), eid(), from, h, u8(hit.q), proof))
         }
@@ -178,6 +191,8 @@ class Node(
         val k = b.u16(58)
         if (key in store) return
         (seen[key] ?: cleared[key])?.let { return ack(from, id, it) }
+        val forMe = { tagsOf(identity.pub).any { same(it, tag) } }
+        if (!relay && !forMe()) return
         val trusted = known(from)
         var p = partial[key]
         if (p == null) {
@@ -190,7 +205,7 @@ class Node(
         partial.remove(key)
         val env = runCatching { p.dec.result() }.getOrNull() ?: return
         if (!same(sha256(env, rh).sub(0, 8), id)) return // corrupted or forged packets
-        if (tagsOf(identity.pub).none { same(it, tag) }) {
+        if (!forMe()) {
             if (!makeRoom(store, MAX_STORE, STRANGER_STORE, trusted)) return
             store[key] = Msg(id, tag, rh, env, tokens.coerceIn(1, MAX_TOKENS), now(), own = false, trusted = trusted)
             return ack(from, id, proofOf(env, eid()))

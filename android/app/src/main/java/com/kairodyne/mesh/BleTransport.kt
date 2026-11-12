@@ -34,12 +34,16 @@ class BleTransport(private val context: Context, private val onFrame: (ByteArray
         var characteristic: BluetoothGattCharacteristic? = null
         val queue = ArrayDeque<ByteArray>()
         var busy = false
+        var fast = false // connection interval shortened for a transfer
     }
 
     private val manager = context.getSystemService(BluetoothManager::class.java)
     private val adapter = manager.adapter
     private val peers = HashMap<String, Peer>()
     private var server: BluetoothGattServer? = null
+    private var lowPower: Boolean? = null
+    /** Called when a new peer is ready, so the node can greet it without waiting for its next tick. */
+    var onPeer: () -> Unit = {}
 
     val peerCount get() = synchronized(peers) { peers.values.count { it.characteristic != null } }
 
@@ -49,16 +53,28 @@ class BleTransport(private val context: Context, private val onFrame: (ByteArray
             BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
             BluetoothGattCharacteristic.PERMISSION_WRITE))
         server = manager.openGattServer(context, serverCallback).apply { addService(service) }
+        setLowPower(false)
+        Log.i(TAG, "transport started")
+    }
 
+    /**
+     * Scanning and advertising are most of the radio's battery cost. Low power scans about a tenth of the time and
+     * advertises once a second: a passing phone is still found, a few seconds later.
+     */
+    fun setLowPower(on: Boolean) {
+        if (on == lowPower) return
+        lowPower = on
+        adapter.bluetoothLeScanner?.stopScan(scanCallback)
+        adapter.bluetoothLeAdvertiser?.stopAdvertising(advertiseCallback)
         adapter.bluetoothLeAdvertiser.startAdvertising(
-            AdvertiseSettings.Builder().setConnectable(true).setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED).build(),
+            AdvertiseSettings.Builder().setConnectable(true)
+                .setAdvertiseMode(if (on) AdvertiseSettings.ADVERTISE_MODE_LOW_POWER else AdvertiseSettings.ADVERTISE_MODE_BALANCED).build(),
             AdvertiseData.Builder().addServiceUuid(ParcelUuid(SERVICE)).setIncludeDeviceName(false).build(),
             advertiseCallback)
         adapter.bluetoothLeScanner.startScan(
             listOf(ScanFilter.Builder().setServiceUuid(ParcelUuid(SERVICE)).build()),
-            ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_BALANCED).build(),
+            ScanSettings.Builder().setScanMode(if (on) ScanSettings.SCAN_MODE_LOW_POWER else ScanSettings.SCAN_MODE_BALANCED).build(),
             scanCallback)
-        Log.i(TAG, "transport started")
     }
 
     fun stop() {
@@ -74,6 +90,7 @@ class BleTransport(private val context: Context, private val onFrame: (ByteArray
                 if (peer.characteristic == null) continue
                 if (peer.queue.size >= MAX_QUEUE) peer.queue.removeFirst() // the fountain code tolerates loss
                 peer.queue.addLast(frame)
+                if (!peer.fast && peer.queue.size > BURST) peer.fast = priority(peer, BluetoothGatt.CONNECTION_PRIORITY_HIGH)
                 pump(peer)
             }
         }
@@ -88,11 +105,14 @@ class BleTransport(private val context: Context, private val onFrame: (ByteArray
         if (!peer.busy) peer.queue.addFirst(frame) // the stack is busy: retried on the next send
     }
 
+    private fun priority(peer: Peer, level: Int) = peer.gatt.requestConnectionPriority(level) && level == BluetoothGatt.CONNECTION_PRIORITY_HIGH
+
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             val address = result.device.address
             synchronized(peers) {
-                if (address in peers) return
+                // each open connection wakes the radio every interval; a crowd would drain the battery for little gain
+                if (address in peers || peers.size >= MAX_PEERS) return
                 peers[address] = Peer(result.device.connectGatt(context, false, clientCallback, BluetoothDevice.TRANSPORT_LE))
             }
             Log.i(TAG, "connecting $address")
@@ -117,10 +137,19 @@ class BleTransport(private val context: Context, private val onFrame: (ByteArray
             val c = gatt.getService(SERVICE)?.getCharacteristic(FRAME)
             if (c == null) { gatt.disconnect(); return }
             synchronized(peers) { peers[gatt.device.address]?.characteristic = c }
+            // idle connections only carry a HELLO every few seconds: the slowest interval costs least
+            gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER)
             Log.i(TAG, "peer ready ${gatt.device.address}")
+            onPeer()
         }
         override fun onCharacteristicWrite(gatt: BluetoothGatt, c: BluetoothGattCharacteristic, status: Int) {
-            synchronized(peers) { peers[gatt.device.address]?.let { it.busy = false; pump(it) } }
+            synchronized(peers) {
+                peers[gatt.device.address]?.let {
+                    it.busy = false
+                    pump(it)
+                    if (it.fast && it.queue.isEmpty()) it.fast = priority(it, BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER)
+                }
+            }
         }
     }
 
@@ -142,5 +171,7 @@ class BleTransport(private val context: Context, private val onFrame: (ByteArray
         val FRAME: UUID = UUID.fromString("6b616972-6f00-4d65-7368-000000000002")
         private const val MIN_MTU = 467 // largest frame (464 bytes) plus the 3-byte ATT header
         private const val MAX_QUEUE = 600
+        private const val MAX_PEERS = 7
+        private const val BURST = 20 // queued frames that make a transfer worth a faster connection
     }
 }

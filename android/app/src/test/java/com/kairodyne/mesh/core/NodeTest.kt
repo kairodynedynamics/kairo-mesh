@@ -46,6 +46,19 @@ class NodeTest {
         assertEquals(0, w.nodes["ali"]!!.carrying)
     }
 
+    @Test fun lowBatteryPhoneCarriesOnlyItsOwnMail() {
+        val w = World(listOf("ali", "k1", "bora"))
+        w.nodes["k1"]!!.relay = false
+        w.nodes["ali"]!!.sendMessage("bora", "başkasının")
+        w.meet("ali", "k1")
+        assertEquals(0, w.nodes["k1"]!!.carrying)
+        w.nodes["ali"]!!.sendMessage("k1", "sana")
+        w.nodes["k1"]!!.sendMessage("bora", "kendi mesajım")
+        w.meet("ali", "k1"); w.meet("k1", "bora")
+        assertEquals(listOf("ali" to "sana"), w.inbox["k1"])
+        assertEquals(listOf("k1" to "kendi mesajım"), w.inbox["bora"])
+    }
+
     @Test fun courierCarriesBetweenPeopleWhoNeverMeet() {
         val w = World(listOf("ali", "kurye", "bora"))
         w.nodes["ali"]!!.sendMessage("bora", "okul bahçesinde buluşalım")

@@ -56,6 +56,19 @@ final class NodeTests: XCTestCase {
         XCTAssertEqual(0, w.nodes["ali"]!.carrying)
     }
 
+    func testLowBatteryPhoneCarriesOnlyItsOwnMail() throws {
+        let w = try World(["ali", "k1", "bora"])
+        w.nodes["k1"]!.relay = false
+        try w.nodes["ali"]!.sendMessage("bora", "başkasının")
+        meet(w, "ali", "k1")
+        XCTAssertEqual(0, w.nodes["k1"]!.carrying)
+        try w.nodes["ali"]!.sendMessage("k1", "sana")
+        try w.nodes["k1"]!.sendMessage("bora", "kendi mesajım")
+        meet(w, "ali", "k1"); meet(w, "k1", "bora")
+        XCTAssertEqual(["ali: sana"], w.inbox["k1"])
+        XCTAssertEqual(["k1: kendi mesajım"], w.inbox["bora"])
+    }
+
     func testCourierCarriesBetweenPeopleWhoNeverMeet() throws {
         let w = try World(["ali", "kurye", "bora"])
         try w.nodes["ali"]!.sendMessage("bora", "okul bahçesinde buluşalım")

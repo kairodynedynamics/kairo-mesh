@@ -37,6 +37,10 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
   const recognition = new Map();
   const burst = new Set();   // msgId+peer already served this tick
   let cursor = 0, scoreBudget = SCORE_BUDGET, dataBudget = DATA_BUDGET;
+  // false on low battery: the phone still sends and receives its own mail but takes on nobody else's
+  let relay = true;
+  // peer id -> delivered handles blinded for that peer; rebuilding it costs a hash per entry on every HELLO
+  const doneCache = new Map();
 
   const myRk = recognitionKey(identity.pub);
   const eid = () => ephemeralId(myRk, now());
@@ -80,6 +84,16 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
   function remember(table, key, receipt) {
     if (table.size >= MAX_SEEN) table.delete(table.keys().next().value);
     table.set(key, receipt);
+    doneCache.clear();
+  }
+  function doneFor(peer) {
+    let done = doneCache.get(hex(peer));
+    if (!done) {
+      if (doneCache.size >= 16) doneCache.clear(); // peers rotate their ids every 15 minutes
+      done = new Map([...seen, ...cleared].map(([key, receipt]) => [hex(blind(Buffer.from(key, 'hex'), peer)), [key, receipt]]));
+      doneCache.set(hex(peer), done);
+    }
+    return done;
   }
   const receiptFor = (key) => seen.get(key) ?? cleared.get(key);
   const ack = (to, id, proof) => send(Buffer.concat([Buffer.from([ACK]), eid(), to, id, proof]));
@@ -91,15 +105,17 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     if (who) met(who);
     if (!n) return;
     const have = new Set([...store.values()].map((m) => hex(blind(m.id, from))));
-    const done = new Map([...seen, ...cleared].map(([key, receipt]) => [hex(blind(Buffer.from(key, 'hex'), from)), [key, receipt]]));
+    const done = doneFor(from);
     const mine = tagsOf(identity.pub).map((t) => hex(blind(t, from)));
     for (let i = 0; i < n; i++) {
       const h = b.subarray(10 + i * 16, 18 + i * 16), bt = b.subarray(18 + i * 16, 26 + i * 16);
       if (have.has(hex(h))) continue;
       const delivered = done.get(hex(h));
       if (delivered) { ack(from, Buffer.from(delivered[0], 'hex'), delivered[1]); continue; }
+      const forMe = mine.includes(hex(bt));
+      if (!forMe && !relay) continue;
       if (scoreBudget-- <= 0) return;
-      const hit = mine.includes(hex(bt)) ? { q: MINE } : lookup((t) => blind(t, from).equals(bt));
+      const hit = forMe ? { q: MINE } : lookup((t) => blind(t, from).equals(bt));
       const proof = hit.tag && hit.q > 0 ? knows(hit.tag, from) : Buffer.alloc(8);
       send(Buffer.concat([Buffer.from([SCORE]), eid(), from, h, Buffer.from([hit.q]), proof]));
     }
@@ -148,6 +164,8 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     const tokens = b[57], k = b.readUInt16BE(58);
     if (store.has(key)) return; // already carrying it: no ack, so the sender keeps its copies
     if (receiptFor(key)) return ack(from, id, receiptFor(key));
+    const forMe = () => tagsOf(identity.pub).some((t) => t.equals(tag));
+    if (!relay && !forMe()) return;
     const trusted = known(from);
     let p = partial.get(key);
     if (!p) {
@@ -160,7 +178,7 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     let env;
     try { env = p.dec.result(); } catch { return; }
     if (!sha256(env, rh).subarray(0, 8).equals(id)) return; // corrupted or forged packets
-    if (!tagsOf(identity.pub).some((t) => t.equals(tag))) {
+    if (!forMe()) {
       if (!makeRoom(store, MAX_STORE, STRANGER_STORE, trusted)) return;
       store.set(key, { id: Buffer.from(id), tag, rh, env, tokens: Math.min(Math.max(tokens, 1), MAX_TOKENS), at: now(), trusted });
       return ack(from, id, proofOf(env, eid()));
@@ -196,6 +214,8 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     pub: identity.pub,
     addContact,
     get carrying() { return store.size; },
+    get relay() { return relay; },
+    set relay(on) { relay = on; },
     get delivered() { return [...seen].map(([key, receipt]) => [key, hex(receipt)]); },
     get copies() { return [...store.values()].reduce((sum, m) => sum + m.tokens, 0); },
     sendMessage(name, text) {

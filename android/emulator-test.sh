@@ -4,6 +4,7 @@
 #   bash android/emulator-test.sh
 # 1. direct:  ali and bora both running, ali -> bora
 # 2. courier: bora is off while ali hands a message to kurye; ali is off when bora comes back; kurye delivers.
+# 3. low battery: at 10% kurye stops carrying for others, and starts again once the battery is back.
 set -euo pipefail
 . /d/Android/env.sh
 cd "$(dirname "$0")"
@@ -75,4 +76,20 @@ echo "PASS courier: bora received ali's message from kurye while ali was off"
 wait_for kurye "STATUS peers=[0-9]+ carrying=0" 60
 echo "PASS receipt: kurye dropped its copy after delivery"
 if log kurye | grep -q "RECV"; then echo "FAIL: kurye logged a message it should not be able to read"; exit 1; fi
+
+echo "--- 3. low battery"
+stop bora
+adb -s "${DEV[kurye]}" shell dumpsys battery unplug
+adb -s "${DEV[kurye]}" shell dumpsys battery set level 10
+adb -s "${DEV[kurye]}" logcat -c
+wait_for kurye "relay=false battery=10" 30
+start ali
+start ali --es send "'bora=pil azken taşıma'"
+wait_for ali "STATUS peers=1 carrying=1" 60
+sleep 20 # several HELLOs from ali reach kurye
+if ! log kurye | grep -E "^.*STATUS" | tail -1 | grep -q "carrying=0"; then echo "FAIL: kurye took on mail with 10% battery"; log kurye | tail -5; exit 1; fi
+echo "PASS low battery: kurye at 10% does not carry other people's mail"
+adb -s "${DEV[kurye]}" shell dumpsys battery reset
+wait_for kurye "STATUS peers=[0-9]+ carrying=1 relay=true" 60
+echo "PASS recharge: back to normal, kurye carries the message again"
 echo "ALL PASSED"

@@ -5,6 +5,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
+import android.os.PowerManager
 import android.content.pm.ServiceInfo
 import android.os.Handler
 import android.os.Looper
@@ -38,6 +41,8 @@ class MeshService : Service() {
         }, delivered = profile.delivered)
         for ((name, pub) in profile.contacts) node.addContact(name, pub)
         show("READY code=${profile.code}")
+        // a newly met phone is greeted at once, but never more often than the node's 2-second budget allows
+        transport.onPeer = { main.post { if (System.currentTimeMillis() - lastTick >= BUSY_MS) { main.removeCallbacks(ticker); ticker.run() } } }
         transport.start()
         main.post(ticker)
     }
@@ -71,11 +76,24 @@ class MeshService : Service() {
         } catch (e: RuntimeException) { show("ERROR ${e.message}") }
     }
 
+    private var lastTick = 0L
+
     private val ticker = object : Runnable {
         override fun run() {
-            synchronized(this@MeshService) { node.tick() }
-            Log.i(BleTransport.TAG, "STATUS peers=${transport.peerCount} carrying=${synchronized(this@MeshService) { node.carrying }}")
-            main.postDelayed(this, 2000)
+            lastTick = System.currentTimeMillis()
+            val battery = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val level = battery?.let { 100 * it.getIntExtra(BatteryManager.EXTRA_LEVEL, 100) / it.getIntExtra(BatteryManager.EXTRA_SCALE, 100) } ?: 100
+            val charging = (battery?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0) != 0
+            val power = getSystemService(PowerManager::class.java)
+            // Carrying for others is a favour: it stops when the owner needs the battery, and resumes on the charger.
+            val relay = charging || (!power.isPowerSaveMode && level > LOW_BATTERY)
+            transport.setLowPower(!charging && (!power.isInteractive || !relay))
+            val carrying = synchronized(this@MeshService) { node.relay = relay; node.tick(); node.carrying }
+            val peers = transport.peerCount
+            // HELLOs only matter to phones in range, and only often while there is mail to offer them
+            val next = if (peers > 0 && carrying > 0) BUSY_MS else IDLE_MS
+            Log.i(BleTransport.TAG, "STATUS peers=$peers carrying=$carrying relay=$relay battery=$level next=${next / 1000}s")
+            main.postDelayed(this, next)
         }
     }
 
@@ -86,6 +104,9 @@ class MeshService : Service() {
 
     companion object {
         private const val CHANNEL = "mesh"
+        private const val BUSY_MS = 2000L
+        private const val IDLE_MS = 10_000L
+        private const val LOW_BATTERY = 20 // percent
         /** Log lines for the screen; touched only on the main thread. */
         val lines = mutableListOf<String>()
         var listener: ((String) -> Unit)? = null

@@ -8,6 +8,7 @@ final class BleTransport: NSObject, CBCentralManagerDelegate, CBPeripheralManage
     static let frame = CBUUID(string: "6b616972-6f00-4d65-7368-000000000002")
     private static let largestFrame = 464
     private static let maxQueue = 600
+    private static let maxPeers = 7 // each open connection wakes the radio; a crowd would drain the battery for little gain
 
     private final class Peer {
         let peripheral: CBPeripheral
@@ -56,7 +57,7 @@ final class BleTransport: NSObject, CBCentralManagerDelegate, CBPeripheralManage
     }
 
     func centralManager(_ c: CBCentralManager, didDiscover p: CBPeripheral, advertisementData: [String: Any], rssi: NSNumber) {
-        guard peers[p.identifier] == nil else { return }
+        guard peers[p.identifier] == nil, peers.count < Self.maxPeers else { return }
         peers[p.identifier] = Peer(p)
         p.delegate = self
         c.connect(p)

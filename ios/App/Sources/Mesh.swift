@@ -1,6 +1,7 @@
 import Foundation
 import KairoCore
 import Security
+import UIKit
 
 /// The phone's node: identity in the Keychain, contacts and delivered set in UserDefaults, frames over BleTransport.
 /// Everything runs on the main thread (the Bluetooth managers deliver there too), so the node needs no lock.
@@ -31,11 +32,22 @@ final class Mesh: ObservableObject {
         }, delivered: delivered)
         for (name, code) in contacts { if let pub = Data(base64Encoded: code) { try? node.addContact(name, Bytes(pub)) } }
         show("READY code=\(code)")
-        timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            self.node.tick()
-            self.status = "STATUS peers=\(self.transport.peerCount) carrying=\(self.node.carrying)"
-        }
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        tick()
+    }
+
+    private func tick() {
+        let device = UIDevice.current
+        let charging = device.batteryState == .charging || device.batteryState == .full
+        // batteryLevel is -1 where it is unknown (the simulator): treat that as enough
+        let level = device.batteryLevel < 0 ? 100 : Int(device.batteryLevel * 100)
+        // Carrying for others is a favour: it stops when the owner needs the battery, and resumes on the charger.
+        node.relay = charging || (!ProcessInfo.processInfo.isLowPowerModeEnabled && level > 20)
+        node.tick()
+        status = "STATUS peers=\(transport.peerCount) carrying=\(node.carrying) relay=\(node.relay)"
+        // HELLOs only matter to phones in range, and only often while there is mail to offer them
+        let next: TimeInterval = transport.peerCount > 0 && node.carrying > 0 ? 2 : 10
+        timer = Timer.scheduledTimer(withTimeInterval: next, repeats: false) { [weak self] _ in self?.tick() }
     }
 
     private var contacts: [String: String] {

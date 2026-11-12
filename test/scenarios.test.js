@@ -104,3 +104,33 @@ test('scenario: the recipient walks away mid-transfer and the courier finishes l
   assert.equal(w.inbox.bora.length, 1);
   assert.equal(w.nodes.k1.carrying, 0);
 });
+
+test('scenario: a phone on low battery stops carrying other people\'s mail but keeps its own', async () => {
+  const w = world(['ali', 'k1', 'bora']);
+  w.nodes.k1.relay = false;
+  w.nodes.ali.sendMessage('bora', 'başkasının');
+  await meet(w, [['ali', 'k1']]);
+  assert.equal(w.nodes.k1.carrying, 0, 'a low-battery phone took on a courier job');
+  w.nodes.k1.sendMessage('bora', 'kendi mesajım');
+  w.nodes.ali.sendMessage('k1', 'sana');
+  await meet(w, [['ali', 'k1']]);
+  assert.deepEqual(w.inbox.k1, [['ali', 'sana']]);
+  await meet(w, [['k1', 'bora']]);
+  assert.deepEqual(w.inbox.bora, [['k1', 'kendi mesajım']]);
+  w.nodes.k1.relay = true;
+  await meet(w, [['ali', 'k1']]);
+  assert.equal(w.nodes.k1.carrying, 1, 'back on charge it carries again');
+});
+
+test('scenario: couriers walking together hear about the delivery as soon as one of them makes it', async () => {
+  const w = await loaded(['ali', 'k1', 'k2', 'bora'], ['k1', 'k2']);
+  w.link('k1', 'k2');
+  await w.run(3);
+  w.link('k1', 'bora');
+  await w.run(2);
+  w.link('k1', 'bora', false);
+  await w.run(2);
+  assert.equal(w.inbox.bora.length, 1);
+  assert.equal(w.nodes.k1.carrying, 0);
+  assert.equal(w.nodes.k2.carrying, 0, 'k2 was told nothing because k1 answered from a stale list');
+});
