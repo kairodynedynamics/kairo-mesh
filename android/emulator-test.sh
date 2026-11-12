@@ -43,6 +43,9 @@ for p in ali kurye bora; do
 done
 for p in ali kurye bora; do wait_for "$p" "STATUS peers=2" 90; done
 echo "all three phones connected over Bluetooth"
+prefs=$(adb -s "${DEV[ali]}" shell run-as $PKG cat shared_prefs/kairo.xml | tr -d '\r')
+if ! grep -q 'name="secret_enc"' <<<"$prefs" || grep -q 'name="secret"' <<<"$prefs"; then echo "FAIL: private key not wrapped by the Keystore"; exit 1; fi
+echo "PASS keystore: the stored private key is encrypted"
 
 echo "--- 1. direct message"
 start ali --es send "'bora=merhaba bora, doğrudan'"
@@ -58,6 +61,12 @@ for p in ali kurye; do adb -s "${DEV[$p]}" logcat -c; done
 start ali --es send "'bora=okul bahçesinde buluşalım'"
 wait_for kurye "STATUS peers=[0-9]+ carrying=$((before + 1))" 60
 echo "kurye is carrying the sealed message (carrying went $before -> $((before + 1)))"
+# kurye's screen goes home and Android reclaims background apps: the foreground service must keep the mesh alive
+adb -s "${DEV[kurye]}" shell input keyevent KEYCODE_HOME
+adb -s "${DEV[kurye]}" shell am kill $PKG
+adb -s "${DEV[kurye]}" logcat -c
+wait_for kurye "STATUS peers=[0-9]+ carrying=$((before + 1))" 20
+echo "PASS background: kurye keeps carrying with the app in the background"
 stop ali
 adb -s "${DEV[bora]}" logcat -c
 start bora

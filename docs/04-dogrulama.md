@@ -93,6 +93,8 @@ Aşağıdaki güvenlik testlerinden sonra düğüm kuralı sertleştirildi: puan
 - **Üç emülatörde uçtan uca:** `bash android/emulators.sh` üç sanal telefon açar, `bash android/emulator-test.sh` gerçek uygulamayı sanal Bluetooth (netsim) üzerinden sınar:
   1. Ali ve Bora açıkken doğrudan mesaj ulaşır.
   2. Bora kapalıyken Ali mesajı Kurye'ye bırakır, Ali kapanır, Bora açılır: mesaj Kurye üzerinden ulaşır, Kurye makbuzla kopyasını siler ve mesajı hiçbir zaman okuyamaz.
+  3. Kurye ana ekrana döner ve Android arka plan süreçlerini öldürür (`am kill`): ağ ön plan servisinde (`MeshService`) çalıştığı için Kurye mesajı taşımaya devam eder.
+  4. Telefonda saklanan özel anahtar şifrelidir: dışa aktarılamayan bir Android Keystore anahtarıyla AES-GCM ile sarılır; eski sürümlerin şifresiz anahtarı ilk açılışta taşınır.
   Son çalıştırma: hepsi geçti.
 
 ## iOS
@@ -102,8 +104,7 @@ Kurulamadı: iOS derlemesi Xcode ister, Xcode yalnız macOS'ta çalışır. Bu b
 ## Doğrulanmayanlar
 
 - Gerçek BLE davranışı: emülatörün sanal radyosu kayıpsız ve sınırsız menzilli; gerçek telefonlarda bağlantı süresi, arka plan kısıtları, pil tüketimi ve bant genişliği ölçülmedi.
-- Uygulama arka planda çalışmıyor (ön plan servisi yok); ekran kapanınca kurye işlevi durur.
-- Özel anahtar uygulama deposunda şifresiz duruyor; yayından önce Android Keystore'a taşınmalı.
+- Arka plan çalışması emülatörde sınandı; üreticilerin agresif pil tasarrufu (Xiaomi, Samsung vb.) gerçek cihazda ayrıca denenmeli.
 - Mesajı sessizce düşüren kurye engellenemez, yalnız etkisi sınırlanır: göndericinin kopyası kalır, diğer kopyalar başka kuryelerdedir.
 - 7 atlama sınırı ve kutu kapasitesi simülatörde modellenmedi (tüm politikaları eşit etkiler).
 - Güvenlik: bağımsız denetim yok.

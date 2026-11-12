@@ -110,4 +110,9 @@ We are looking for one disaster-response, operator or event app to field-test wi
 
 ## Licence
 
-AGPL-3.0-or-later. A commercial licence for closed-source use is planned.
+Open core, dual licensed:
+
+- **AGPL-3.0-or-later** for everyone: open-source apps, research and evaluation use it free.
+- **Commercial licence** for closed-source apps, with integration support. Open an issue titled *Commercial licence* to start the conversation.
+
+Contributions are welcome under the terms in [CONTRIBUTING.md](CONTRIBUTING.md).
