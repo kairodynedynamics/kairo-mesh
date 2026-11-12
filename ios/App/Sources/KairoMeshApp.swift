@@ -8,7 +8,10 @@ struct KairoMeshApp: App {
 
 struct ContentView: View {
     @EnvironmentObject private var mesh: Mesh
-    @State private var name = "", pairing = "", to = "", message = ""
+    @State private var name = ""
+    @State private var pairing = ""
+    @State private var to = ""
+    @State private var message = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
