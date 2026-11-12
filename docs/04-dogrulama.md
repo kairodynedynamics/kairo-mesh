@@ -67,7 +67,7 @@ Aşağıdaki güvenlik testlerinden sonra düğüm kuralı sertleştirildi: puan
 
 ## Testler
 
-`npm test`: 32 test, hepsi geçiyor.
+`npm test`: 31 test, hepsi geçiyor.
 
 - İşlev: fountain kodun 0–40.000 baytlık mesajları kayıp altında birebir geri kurduğu ve bozuk paketi reddettiği; kimliğin her 15 dakikada değiştiği ve yalnız anahtarla tanındığı; zarfı yalnız alıcının açtığı ve değiştirilen zarfın reddedildiği; birbirini hiç görmeyen iki kişi arasında kuryenin mesajı taşıdığı, içeriği okuyamadığı ve makbuzdan sonra kopyasını sildiği; 20 KB'lık mesajın %30 çerçeve kaybında ulaştığı; simülatörün belirlenimci olduğu.
 - Gerçek dünya senaryoları (`test/scenarios.test.js`): iki kurye alıcıya aynı anda ulaşır (mesaj bir kez gösterilir, iki kurye de kopyasını siler); altı kişilik kalabalıkta kopyalar kuryeden kuryeye yayılır ve hepsi alıcının menzilindeyken mesaj yine bir kez ulaşır; ikinci kurye sonradan gelir; mesaj kuryeden kuryeye atlayarak ulaşır; alıcıyı hiç görmeyen kurye ve gönderici, teslim haberini başka bir kuryeden öğrenip kopyasını siler; tek kurye üç göndericinin postasını ve cevabı taşır; 24 saati geçen mesaj silinir; alıcı aktarımın ortasında uzaklaşır, kurye sonra tamamlar.
