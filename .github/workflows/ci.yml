@@ -54,6 +54,21 @@ jobs:
             -destination "id=${{ steps.sims.outputs.iphone }}" -destination "id=${{ steps.sims.outputs.ipad }}" \
             -resultBundlePath ../.build/results.xcresult | tail -60
           exit ${PIPESTATUS[0]}
+      - name: Failure details
+        if: failure()
+        run: |
+          xcrun xcresulttool get test-results tests --path .build/results.xcresult > .build/tests.json
+          python3 - <<'PY'
+          import json
+          def walk(n, path):
+              path = path + ' / ' + n.get('name', '')
+              if n.get('nodeType') == 'Failure Message':
+                  print(path)
+              for c in n.get('children', []):
+                  walk(c, path)
+          for n in json.load(open('.build/tests.json')).get('testNodes', []):
+              walk(n, '')
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: ios-test-results, path: ios/.build/results.xcresult, if-no-files-found: ignore }
