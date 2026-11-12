@@ -1,0 +1,47 @@
+# XcodeGen spec for the iOS app (Xcode projects are generated, not committed):
+#   brew install xcodegen && cd ios/App && xcodegen generate
+name: KairoMesh
+options:
+  bundleIdPrefix: com.kairodyne
+  deploymentTarget:
+    iOS: "16.0"
+packages:
+  KairoCore:
+    path: ..
+settings:
+  base:
+    SWIFT_VERSION: "5"
+    CODE_SIGNING_ALLOWED: "NO"
+targets:
+  KairoMesh:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    dependencies:
+      - package: KairoCore
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: Kairo Mesh
+        UILaunchScreen: {}
+        NSBluetoothAlwaysUsageDescription: Kairo Mesh carries sealed messages between nearby phones over Bluetooth.
+        UIBackgroundModes: [bluetooth-central, bluetooth-peripheral]
+  KairoCoreTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [../Tests/KairoCoreTests]
+    dependencies:
+      - package: KairoCore
+  KairoMeshUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: KairoMesh
+schemes:
+  KairoMesh:
+    build:
+      targets:
+        KairoMesh: all
+    test:
+      targets: [KairoCoreTests, KairoMeshUITests]

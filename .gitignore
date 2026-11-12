@@ -2,3 +2,5 @@ node_modules/
 internal/
 kairo-profile.json
 ios/.build/
+ios/App/KairoMesh.xcodeproj/
+ios/App/Info.plist

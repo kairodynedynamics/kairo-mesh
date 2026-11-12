@@ -1,0 +1,59 @@
+name: ci
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  js:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm test
+
+  android:
+    runs-on: ubuntu-24.04
+    defaults: { run: { working-directory: android } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: ./gradlew --no-daemon testDebugUnitTest assembleDebug
+      - run: node interop-check.mjs
+
+  swift-linux:
+    runs-on: ubuntu-24.04
+    container: swift:6.0-jammy
+    defaults: { run: { working-directory: ios } }
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test
+
+  ios:
+    runs-on: macos-15
+    defaults: { run: { working-directory: ios } }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Core on macOS (CryptoKit)
+        run: swift test
+      - name: Interop: JavaScript reads the Swift node's frames
+        run: node ../android/interop-check.mjs .build/interop-from-swift.json
+      - name: Generate the Xcode project
+        run: brew install xcodegen && cd App && xcodegen generate
+      - name: Pick two different simulators (an iPhone and an iPad)
+        id: sims
+        run: |
+          pick() { xcrun simctl list devices available -j | python3 -c "import json,sys; print(next(d['udid'] for r,ds in json.load(sys.stdin)['devices'].items() if 'iOS' in r for d in ds if d['name'].startswith('$1')))"; }
+          echo "iphone=$(pick iPhone)" >> "$GITHUB_OUTPUT"
+          echo "ipad=$(pick iPad)" >> "$GITHUB_OUTPUT"
+      - name: Build and test on both simulators
+        working-directory: ios/App
+        run: |
+          xcodebuild test -project KairoMesh.xcodeproj -scheme KairoMesh \
+            -destination "id=${{ steps.sims.outputs.iphone }}" -destination "id=${{ steps.sims.outputs.ipad }}" \
+            -resultBundlePath ../.build/results.xcresult | tail -60
+          exit ${PIPESTATUS[0]}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: ios-test-results, path: ios/.build/results.xcresult, if-no-files-found: ignore }

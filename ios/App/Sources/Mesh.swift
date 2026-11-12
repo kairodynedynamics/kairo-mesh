@@ -1,0 +1,84 @@
+import Foundation
+import KairoCore
+import Security
+
+/// The phone's node: identity in the Keychain, contacts and delivered set in UserDefaults, frames over BleTransport.
+/// Everything runs on the main thread (the Bluetooth managers deliver there too), so the node needs no lock.
+final class Mesh: ObservableObject {
+    @Published private(set) var log: [String] = []
+    @Published private(set) var status = ""
+    let code: String
+    private var node: Node!
+    private var transport: BleTransport!
+    private var timer: Timer?
+    private let defaults = UserDefaults.standard
+
+    init() {
+        let identity: Identity
+        do { identity = try Identity.create(Keychain.secret()) } catch { fatalError("cannot load identity: \(error)") }
+        code = Data(identity.pub).base64EncodedString()
+        let delivered = (defaults.stringArray(forKey: "delivered") ?? []).compactMap { entry -> (String, String)? in
+            let parts = entry.split(separator: ":")
+            return parts.count == 2 ? (String(parts[0]), String(parts[1])) : nil
+        }
+        transport = BleTransport(onFrame: { [weak self] in self?.node.receive($0) }, log: { [weak self] in self?.show($0) })
+        node = Node(identity: identity, send: { [weak self] in self?.transport.send($0) }, onMessage: { [weak self] from, text in
+            guard let self else { return }
+            // on disk before it is shown, so a restart cannot be used to replay it
+            self.defaults.set(self.node.delivered.map { "\($0.0):\($0.1)" }, forKey: "delivered")
+            self.show("RECV from=\(from) text=\(text)")
+        }, delivered: delivered)
+        for (name, code) in contacts { if let pub = Data(base64Encoded: code) { try? node.addContact(name, Bytes(pub)) } }
+        show("READY code=\(code)")
+        timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.node.tick()
+            self.status = "STATUS peers=\(self.transport.peerCount) carrying=\(self.node.carrying)"
+        }
+    }
+
+    private var contacts: [String: String] {
+        get { defaults.dictionary(forKey: "contacts") as? [String: String] ?? [:] }
+        set { defaults.set(newValue, forKey: "contacts") }
+    }
+
+    func addContact(_ name: String, _ code: String) {
+        guard !name.isEmpty, let pub = Data(base64Encoded: code), (try? node.addContact(name, Bytes(pub))) != nil else {
+            return show("ERROR bad pairing code for \(name)")
+        }
+        contacts[name] = code
+        show("PAIRED \(name)")
+    }
+
+    func send(_ name: String, _ text: String) {
+        do {
+            try node.sendMessage(name, text)
+            show("QUEUED to=\(name)")
+        } catch { show("ERROR \(error)") }
+    }
+
+    private func show(_ line: String) {
+        NSLog("Kairo %@", line)
+        log.append(line)
+    }
+}
+
+/// The private key, kept in the Keychain on this device only and readable after the first unlock,
+/// so the mesh can keep carrying mail while the phone is locked.
+enum Keychain {
+    struct Failure: Error { let status: OSStatus }
+    private static let item: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                              kSecAttrService as String: "com.kairodyne.mesh", kSecAttrAccount as String: "identity"]
+
+    static func secret() throws -> Bytes {
+        var out: CFTypeRef?
+        let found = SecItemCopyMatching(item.merging([kSecReturnData as String: true]) { $1 } as CFDictionary, &out)
+        if found == errSecSuccess, let data = out as? Data { return Bytes(data) }
+        guard found == errSecItemNotFound else { throw Failure(status: found) }
+        let secret = try Identity.create().secret
+        let added = SecItemAdd(item.merging([kSecValueData as String: Data(secret),
+                                             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]) { $1 } as CFDictionary, nil)
+        guard added == errSecSuccess else { throw Failure(status: added) }
+        return secret
+    }
+}
