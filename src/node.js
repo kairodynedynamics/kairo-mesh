@@ -30,6 +30,9 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
   const pending = new Map(); // msgId+peer -> copies promised (0 = peer says it is the recipient)
   // msgId -> receipt, for messages already delivered to me; persist `delivered` so a restart does not reopen replays
   const seen = new Map(delivered.map(([key, receipt]) => [key, Buffer.from(receipt, 'hex')]));
+  // msgId -> receipt for mail I carried and saw delivered: passing it on stops the sender and other couriers carrying it.
+  // Kept apart from `seen` so a flood of genuine receipts cannot push my own deliveries out and reopen replays.
+  const cleared = new Map();
   const score = new Map();   // contact -> { p, t }: how reliably I meet them
   const recognition = new Map();
   const burst = new Set();   // msgId+peer already served this tick
@@ -74,6 +77,11 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     return true;
   }
 
+  function remember(table, key, receipt) {
+    if (table.size >= MAX_SEEN) table.delete(table.keys().next().value);
+    table.set(key, receipt);
+  }
+  const receiptFor = (key) => seen.get(key) ?? cleared.get(key);
   const ack = (to, id, proof) => send(Buffer.concat([Buffer.from([ACK]), eid(), to, id, proof]));
 
   function onHello(b) {
@@ -83,7 +91,7 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     if (who) met(who);
     if (!n) return;
     const have = new Set([...store.values()].map((m) => hex(blind(m.id, from))));
-    const done = new Map([...seen].map(([key, receipt]) => [hex(blind(Buffer.from(key, 'hex'), from)), [key, receipt]]));
+    const done = new Map([...seen, ...cleared].map(([key, receipt]) => [hex(blind(Buffer.from(key, 'hex'), from)), [key, receipt]]));
     const mine = tagsOf(identity.pub).map((t) => hex(blind(t, from)));
     for (let i = 0; i < n; i++) {
       const h = b.subarray(10 + i * 16, 18 + i * 16), bt = b.subarray(18 + i * 16, 26 + i * 16);
@@ -139,7 +147,7 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     const tag = Buffer.from(b.subarray(25, 41)), rh = Buffer.from(b.subarray(41, 57));
     const tokens = b[57], k = b.readUInt16BE(58);
     if (store.has(key)) return; // already carrying it: no ack, so the sender keeps its copies
-    if (seen.has(key)) return ack(from, id, seen.get(key));
+    if (receiptFor(key)) return ack(from, id, receiptFor(key));
     const trusted = known(from);
     let p = partial.get(key);
     if (!p) {
@@ -164,8 +172,7 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     const sentAt = Number(msg.body.readBigUInt64BE(16));
     if (now() - sentAt > TTL_MS + SKEW_MS || sentAt - now() > SKEW_MS) return;
     const receipt = Buffer.from(msg.body.subarray(0, 16));
-    if (seen.size >= MAX_SEEN) seen.delete(seen.keys().next().value);
-    seen.set(key, receipt);
+    remember(seen, key, receipt);
     ack(from, id, receipt);
     const sender = [...contacts].find(([, pub]) => pub.equals(msg.senderPub));
     onMessage(sender ? sender[0] : `unknown:${hex(msg.senderPub).slice(0, 8)}`, msg.body.subarray(24).toString('utf8'));
@@ -176,7 +183,7 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     const from = b.subarray(1, 9), id = b.subarray(17, 25), proof = b.subarray(25, 41), key = hex(id), m = store.get(key);
     if (!m) return;
     // Anyone may relay a receipt: only the recipient could have produced it.
-    if (sha256(proof).subarray(0, 16).equals(m.rh)) return void store.delete(key);
+    if (sha256(proof).subarray(0, 16).equals(m.rh)) return void (store.delete(key), remember(cleared, key, Buffer.from(proof)));
     if (!isMe(b.subarray(9, 17))) return;
     const give = pending.get(key + hex(from));
     // A hand-over counts only if the peer proves it holds the whole envelope; overhearing the exchange is not enough.

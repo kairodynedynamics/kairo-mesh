@@ -180,3 +180,25 @@ test('timestamp: a sealed send time chosen to overflow the freshness check is re
   deliver(BigInt(b.clock.t), 'fresh');
   assert.deepEqual(b.inbox, [['ali', 'fresh']]);
 });
+
+test('replay: a flood of genuine receipts for other mail does not push a delivery out of memory', () => {
+  const sender = createIdentity(), b = bench(['ali']);
+  b.node.addContact('ali', sender.pub);
+  b.tick();
+  const sentAt = Buffer.alloc(8);
+  sentAt.writeBigUInt64BE(BigInt(b.clock.t));
+  const receipt = randomBytes(16);
+  const env = seal(sender, b.ids.self.pub, Buffer.concat([receipt, sentAt, Buffer.from('bir kez')]));
+  const recorded = dataFrames(randomBytes(8), b.eid(), env, recipientTag(b.ids.self.pub, b.clock.t), sha256(receipt).subarray(0, 16));
+  for (const f of recorded) b.node.receive(f);
+  // the attacker has the node carry 1100 envelopes it made itself, then clears each with its own receipt
+  const me = randomBytes(8);
+  for (let i = 0; i < 1100; i++) {
+    const r = randomBytes(16), junk = randomBytes(100), rh = sha256(r).subarray(0, 16);
+    for (const f of dataFrames(me, b.eid(), junk, randomBytes(16), rh)) b.node.receive(f);
+    b.node.receive(ackFrame(me, b.eid(), sha256(junk, rh).subarray(0, 8), r));
+  }
+  assert.equal(b.node.carrying, 0);
+  for (const f of recorded) b.node.receive(f);
+  assert.deepEqual(b.inbox, [['ali', 'bir kez']]);
+});

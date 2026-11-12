@@ -24,6 +24,28 @@ class NodeTest {
         }
     }
 
+    private fun World.meet(a: String, b: String) { link(a, b); run(3); link(a, b, false) }
+    private fun loaded(): World = World(listOf("ali", "k1", "k2", "bora")).apply {
+        nodes["ali"]!!.sendMessage("bora", "okul bahçesi")
+        meet("ali", "k1"); meet("ali", "k2")
+        assertEquals(1, nodes["k1"]!!.carrying); assertEquals(1, nodes["k2"]!!.carrying)
+    }
+
+    @Test fun twoCouriersReachingTheRecipientTogetherDeliverOnce() {
+        val w = loaded()
+        w.link("k1", "bora"); w.link("k2", "bora"); w.run(3)
+        assertEquals(listOf("ali" to "okul bahçesi"), w.inbox["bora"])
+        assertEquals(0, w.nodes["k1"]!!.carrying); assertEquals(0, w.nodes["k2"]!!.carrying)
+    }
+
+    @Test fun newsOfDeliveryReachesTheSenderAndOtherCouriers() {
+        val w = loaded()
+        w.meet("k1", "bora"); w.meet("k1", "k2")
+        assertEquals(0, w.nodes["k1"]!!.carrying); assertEquals(0, w.nodes["k2"]!!.carrying)
+        w.meet("ali", "k1")
+        assertEquals(0, w.nodes["ali"]!!.carrying)
+    }
+
     @Test fun courierCarriesBetweenPeopleWhoNeverMeet() {
         val w = World(listOf("ali", "kurye", "bora"))
         w.nodes["ali"]!!.sendMessage("bora", "okul bahçesinde buluşalım")

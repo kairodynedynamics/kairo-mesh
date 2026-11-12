@@ -73,6 +73,9 @@ public final class Node {
     private var partial = Ordered<Partial>()
     private var pending: [String: Int] = [:]
     private var seen = Ordered<Bytes>()
+    // mail I carried and saw delivered: passing the receipt on stops the sender and other couriers carrying it.
+    // Kept apart from `seen` so a flood of genuine receipts cannot push my own deliveries out and reopen replays.
+    private var cleared = Ordered<Bytes>()
     private var score: [String: (p: Double, t: Int64)] = [:]
     private var burst = Set<String>()
     private var cursor = 0
@@ -129,6 +132,11 @@ public final class Node {
         return true
     }
 
+    private func remember(_ table: inout Ordered<Bytes>, _ key: String, _ receipt: Bytes) {
+        if table.count >= MAX_SEEN, let first = table.keys.first { table[first] = nil }
+        table[key] = receipt
+    }
+
     private func ack(_ to: Bytes, _ id: Bytes, _ proof: Bytes) { send(cat(u8(Int(ACK)), eid(), to, id, proof)) }
 
     private func onHello(_ b: Bytes) {
@@ -139,7 +147,7 @@ public final class Node {
         if n == 0 { return }
         let have = Set(store.values.map { blind($0.id, from).hex })
         var done: [String: (Bytes, Bytes)] = [:]
-        for (key, receipt) in seen.pairs { if let id = key.unhex { done[blind(id, from).hex] = (id, receipt) } }
+        for (key, receipt) in seen.pairs + cleared.pairs { if let id = key.unhex { done[blind(id, from).hex] = (id, receipt) } }
         let mine = Set(tagsOf(identity.pub).map { blind($0, from).hex })
         for i in 0..<n {
             let h = b.sub(10 + i * 16, 18 + i * 16)
@@ -198,7 +206,7 @@ public final class Node {
         let tokens = Int(b[57])
         let k = b.u16(58)
         if store[key] != nil { return }
-        if let receipt = seen[key] { return ack(from, id, receipt) }
+        if let receipt = seen[key] ?? cleared[key] { return ack(from, id, receipt) }
         let trusted = known(from)
         let p: Partial
         if let existing = partial[key] {
@@ -223,8 +231,7 @@ public final class Node {
         let sentAt = msg.body.u64(16), t = now()
         guard t > TTL_MS + SKEW_MS, sentAt >= UInt64(t - TTL_MS - SKEW_MS), sentAt <= UInt64(t + SKEW_MS) else { return }
         let receipt = msg.body.sub(0, 16)
-        if seen.count >= MAX_SEEN, let first = seen.keys.first { seen[first] = nil }
-        seen[key] = receipt
+        remember(&seen, key, receipt)
         ack(from, id, receipt)
         let sender = contacts.pairs.first { same($0.1, msg.senderPub) }?.0 ?? "unknown:" + msg.senderPub.hex.prefix(8)
         onMessage(sender, String(decoding: msg.body[24...], as: UTF8.self))
@@ -237,7 +244,7 @@ public final class Node {
         let key = b.sub(17, 25).hex
         guard let m = store[key] else { return }
         // Anyone may relay a receipt: only the recipient could have produced it.
-        if same(sha256(proof).sub(0, 16), m.rh) { store[key] = nil; return }
+        if same(sha256(proof).sub(0, 16), m.rh) { store[key] = nil; remember(&cleared, key, proof); return }
         guard isMe(b.sub(9, 17)), let give = pending[key + from.hex], give != 0, same(proofOf(m.env, from), proof) else { return }
         pending[key + from.hex] = nil
         if m.tokens > 1 { m.tokens -= min(give, m.tokens - 1) } else if !m.own { store[key] = nil }

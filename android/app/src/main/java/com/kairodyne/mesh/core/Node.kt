@@ -53,6 +53,9 @@ class Node(
     private val pending = HashMap<String, Int>()
     // persist `delivered` so a restart does not reopen replays of recorded frames
     private val seen = LinkedHashMap<String, ByteArray>().apply { for ((k, r) in delivered) put(k, r.unhex()) }
+    // mail I carried and saw delivered: passing the receipt on stops the sender and other couriers carrying it.
+    // Kept apart from `seen` so a flood of genuine receipts cannot push my own deliveries out and reopen replays.
+    private val cleared = LinkedHashMap<String, ByteArray>()
     private val score = HashMap<String, Score>()
     private val burst = HashSet<String>()
     private val random = SecureRandom()
@@ -101,6 +104,11 @@ class Node(
         return true
     }
 
+    private fun remember(table: LinkedHashMap<String, ByteArray>, key: String, receipt: ByteArray) {
+        if (table.size >= MAX_SEEN) table.remove(table.keys.first())
+        table[key] = receipt
+    }
+
     private fun ack(to: ByteArray, id: ByteArray, proof: ByteArray) = send(cat(u8(ACK), eid(), to, id, proof))
 
     private fun onHello(b: ByteArray) {
@@ -110,7 +118,7 @@ class Node(
         recognise(from, recognition, now())?.let { met(it) }
         if (n == 0) return
         val have = store.values.map { blind(it.id, from).hex() }.toSet()
-        val done = seen.entries.associate { blind(it.key.unhex(), from).hex() to it }
+        val done = (seen.entries + cleared.entries).associate { blind(it.key.unhex(), from).hex() to it }
         val mine = tagsOf(identity.pub).map { blind(it, from).hex() }
         for (i in 0 until n) {
             val h = b.sub(10 + i * 16, 18 + i * 16)
@@ -169,7 +177,7 @@ class Node(
         val tokens = b[57].toInt() and 255
         val k = b.u16(58)
         if (key in store) return
-        seen[key]?.let { return ack(from, id, it) }
+        (seen[key] ?: cleared[key])?.let { return ack(from, id, it) }
         val trusted = known(from)
         var p = partial[key]
         if (p == null) {
@@ -193,8 +201,7 @@ class Node(
         // compared against bounds, not subtracted: a sender-chosen timestamp must not overflow the arithmetic
         if (sentAt < now() - TTL_MS - SKEW_MS || sentAt > now() + SKEW_MS) return
         val receipt = msg.body.sub(0, 16)
-        if (seen.size >= MAX_SEEN) seen.remove(seen.keys.first())
-        seen[key] = receipt
+        remember(seen, key, receipt)
         ack(from, id, receipt)
         val sender = contacts.entries.firstOrNull { same(it.value, msg.senderPub) }?.key ?: "unknown:${msg.senderPub.hex().take(8)}"
         onMessage(sender, String(msg.body, 24, msg.body.size - 24, Charsets.UTF_8))
@@ -207,7 +214,7 @@ class Node(
         val key = b.sub(17, 25).hex()
         val m = store[key] ?: return
         // Anyone may relay a receipt: only the recipient could have produced it.
-        if (same(sha256(proof).sub(0, 16), m.rh)) { store.remove(key); return }
+        if (same(sha256(proof).sub(0, 16), m.rh)) { store.remove(key); remember(cleared, key, proof); return }
         if (!isMe(b.sub(9, 17))) return
         val give = pending[key + from.hex()]
         if (give == null || give == 0 || !same(proofOf(m.env, from), proof)) return

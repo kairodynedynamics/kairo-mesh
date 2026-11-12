@@ -32,6 +32,30 @@ final class NodeTests: XCTestCase {
         }
     }
 
+    private func meet(_ w: World, _ a: String, _ b: String) { w.link(a, b); w.run(3); w.link(a, b, false) }
+    private func loaded() throws -> World {
+        let w = try World(["ali", "k1", "k2", "bora"])
+        try w.nodes["ali"]!.sendMessage("bora", "okul bahçesi")
+        meet(w, "ali", "k1"); meet(w, "ali", "k2")
+        XCTAssertEqual(1, w.nodes["k1"]!.carrying); XCTAssertEqual(1, w.nodes["k2"]!.carrying)
+        return w
+    }
+
+    func testTwoCouriersReachingTheRecipientTogetherDeliverOnce() throws {
+        let w = try loaded()
+        w.link("k1", "bora"); w.link("k2", "bora"); w.run(3)
+        XCTAssertEqual(["ali: okul bahçesi"], w.inbox["bora"])
+        XCTAssertEqual(0, w.nodes["k1"]!.carrying); XCTAssertEqual(0, w.nodes["k2"]!.carrying)
+    }
+
+    func testNewsOfDeliveryReachesTheSenderAndOtherCouriers() throws {
+        let w = try loaded()
+        meet(w, "k1", "bora"); meet(w, "k1", "k2")
+        XCTAssertEqual(0, w.nodes["k1"]!.carrying); XCTAssertEqual(0, w.nodes["k2"]!.carrying)
+        meet(w, "ali", "k1")
+        XCTAssertEqual(0, w.nodes["ali"]!.carrying)
+    }
+
     func testCourierCarriesBetweenPeopleWhoNeverMeet() throws {
         let w = try World(["ali", "kurye", "bora"])
         try w.nodes["ali"]!.sendMessage("bora", "okul bahçesinde buluşalım")
