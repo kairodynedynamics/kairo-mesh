@@ -76,7 +76,7 @@ Tag `T` changes daily and only the recipient's contacts can compute it. A strang
 Node 24, no dependencies.
 
 ```bash
-npm test          # 33 tests
+npm test          # 38 tests
 npm run bench     # the measurement tables (a few minutes)
 node src/cli.js   # chat over the local network
 ```
@@ -95,7 +95,8 @@ Or skip the install and [run the simulation in your browser](https://kairodynedy
 | ✅ | Working node that chats over a local network |
 | ✅ | Android app with Bluetooth LE transport, byte-compatible with the JS node; courier delivery verified on three emulators |
 | ✅ | Swift core for iOS (`ios/`), byte-compatible with the JS and Kotlin nodes |
-| ✅ | 33 tests in JS (11 attacks, 11 real-world courier scenarios, 2 Noise vector checks), 14 in Kotlin, 14 in Swift |
+| ✅ | 38 tests in JS (11 attacks, 11 real-world courier scenarios, 2 Noise vector checks, 5 emergency relay scenarios), 14 in Kotlin, 14 in Swift |
+| ✅ | Emergency relay (JS reference): reports sealed to an authority key, carried by any phone, uploaded in the background by whichever phone has internet; the authority's receipt returns through the mesh ([design](docs/05-acil-aktarim.md), Turkish) |
 | ✅ | Battery-aware courier duty: below 20% battery or in power-saving mode a phone carries only its own mail (low battery verified on Android emulators) |
 | ✅ | iOS app (SwiftUI + CoreBluetooth): builds and passes core and UI tests on iPhone and iPad simulators in CI |
 | ⬜ | Bluetooth between iPhones (simulators have no Bluetooth; needs real devices) |

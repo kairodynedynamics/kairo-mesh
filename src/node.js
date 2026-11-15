@@ -24,7 +24,15 @@ const hex = (b) => b.toString('hex');
 const blind = (value, eid) => sha256(value, eid).subarray(0, 8);
 const proofOf = (env, eid) => sha256(env, 'ack', eid).subarray(0, 16);
 
-export function createNode({ identity, contacts = new Map(), send, onMessage = () => {}, now = Date.now, L = 4, delivered = [] }) {
+// Emergency mail (sendEmergency) is sealed to the authority's public key (112 or a partner), which every app ships with.
+// Nobody on the way can read it. Any phone that has internet becomes a gateway without its owner doing anything: it
+// takes the envelope, uploads it through `uplink`, and the authority's server answers with the sealed receipt. That
+// receipt then travels back through the mesh like any delivery receipt, so the sender learns the authority has it
+// and every courier drops its copy. Couriers are scored by how often they have had internet.
+const KURUM = '#kurum', ACIL_TOKENS = 8;
+
+export function createNode({ identity, contacts = new Map(), send, onMessage = () => {}, now = Date.now, L = 4, delivered = [],
+  authority = null, online = () => false, uplink = null, onEmergencyDelivered = () => {} }) {
   const store = new Map();   // msgId -> { id, tag, rh, env, tokens, at, own, trusted }
   const partial = new Map(); // msgId -> { dec, at, trusted }
   const pending = new Map(); // msgId+peer -> copies promised (0 = peer says it is the recipient)
@@ -62,9 +70,13 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     const p = s ? decayed(s) : 0;
     score.set(name, { p: p + (1 - p) * 0.75, t: now() });
   }
+  const isKurumTag = (tag) => authority !== null && tagsOf(authority).some((t) => t.equals(tag));
+  const gateway = () => authority !== null && uplink !== null && online();
+
   // The contact whose tag `matches` accepts, and how often I meet them (0-3).
+  // The authority counts as a contact everyone has; "meeting" it means having had internet.
   function lookup(matches) {
-    for (const [name, pub] of contacts)
+    for (const [name, pub] of authority ? [...contacts, [KURUM, authority]] : contacts)
       for (const tag of tagsOf(pub))
         if (matches(tag)) { const s = score.get(name); return { tag, q: s ? Math.round(decayed(s) * 3) : 0 }; }
     return { q: 0 };
@@ -98,6 +110,26 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
   const receiptFor = (key) => seen.get(key) ?? cleared.get(key);
   const ack = (to, id, proof) => send(Buffer.concat([Buffer.from([ACK]), eid(), to, id, proof]));
 
+  // Drops a carried or own message whose receipt checks out, and remembers the receipt to pass on.
+  function settle(key, receipt) {
+    const m = store.get(key);
+    if (!m || !sha256(receipt).subarray(0, 16).equals(m.rh)) return false;
+    store.delete(key);
+    remember(cleared, key, Buffer.from(receipt));
+    if (m.own && m.acil) onEmergencyDelivered(key);
+    return true;
+  }
+
+  // Gateway duty: hand an emergency envelope to the authority's server; on its receipt, announce the delivery.
+  function upload(key, m) {
+    if (m.uploading) return;
+    m.uploading = true;
+    Promise.resolve().then(() => uplink(m.env)).then((receipt) => {
+      if (receipt && settle(key, receipt)) ack(Buffer.alloc(8), m.id, receipt);
+      else m.uploading = false;
+    }, () => { m.uploading = false; }); // no signal after all: keep carrying, retry on a later tick
+  }
+
   function onHello(b) {
     const from = b.subarray(1, 9), n = b[9];
     if (n > HELLO_SLOTS || b.length !== 10 + n * 16 || isMe(from)) return;
@@ -107,6 +139,8 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     const have = new Set([...store.values()].map((m) => hex(blind(m.id, from))));
     const done = doneFor(from);
     const mine = tagsOf(identity.pub).map((t) => hex(blind(t, from)));
+    // A phone with internet answers for the authority: it will upload the envelope at once.
+    if (gateway()) mine.push(...tagsOf(authority).map((t) => hex(blind(t, from))));
     for (let i = 0; i < n; i++) {
       const h = b.subarray(10 + i * 16, 18 + i * 16), bt = b.subarray(18 + i * 16, 26 + i * 16);
       if (have.has(hex(h))) continue;
@@ -134,7 +168,8 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
       // Score claims cannot be verified, so a stranger never gets more than half the copies, and the
       // last copy only moves to someone we know. The sender never gives up its own last copy at all.
       const mq = lookup((t) => t.equals(m.tag)).q;
-      const friend = known(from) || (q > 0 && knows(m.tag, to).equals(b.subarray(26, 34)));
+      // Emergency mail goes to anyone willing to carry it: reaching the authority beats the risk of a bad courier.
+      const friend = m.acil || known(from) || (q > 0 && knows(m.tag, to).equals(b.subarray(26, 34)));
       if (m.tokens > 1) {
         give = q + mq > 0 ? Math.min(m.tokens - 1, Math.round((m.tokens * q) / (q + mq))) : m.tokens >> 1;
         if (!friend) give = Math.min(give, m.tokens >> 1);
@@ -165,8 +200,11 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     if (store.has(key)) return; // already carrying it: no ack, so the sender keeps its copies
     if (receiptFor(key)) return ack(from, id, receiptFor(key));
     const forMe = () => tagsOf(identity.pub).some((t) => t.equals(tag));
-    if (!relay && !forMe()) return;
-    const trusted = known(from);
+    const acil = isKurumTag(tag);
+    if (!relay && !forMe() && !(acil && gateway())) return;
+    // shortcut: a stranger's emergency mail is carried like a contact's; a flood of fake ones is bounded by the
+    // per-tick budgets and the authority's server filtering, not yet by anything on the phone (see docs/05)
+    const trusted = known(from) || acil;
     let p = partial.get(key);
     if (!p) {
       if (k < 1 || k > MAX_K || !makeRoom(partial, MAX_PARTIAL, STRANGER_PARTIAL, trusted)) return;
@@ -180,8 +218,11 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     if (!sha256(env, rh).subarray(0, 8).equals(id)) return; // corrupted or forged packets
     if (!forMe()) {
       if (!makeRoom(store, MAX_STORE, STRANGER_STORE, trusted)) return;
-      store.set(key, { id: Buffer.from(id), tag, rh, env, tokens: Math.min(Math.max(tokens, 1), MAX_TOKENS), at: now(), trusted });
-      return ack(from, id, proofOf(env, eid()));
+      const m = { id: Buffer.from(id), tag, rh, env, tokens: Math.min(Math.max(tokens, 1), MAX_TOKENS), at: now(), trusted, acil };
+      store.set(key, m);
+      ack(from, id, proofOf(env, eid()));
+      if (acil && gateway()) upload(key, m);
+      return;
     }
     let msg;
     try { msg = open(identity, env); } catch { return; }
@@ -201,13 +242,24 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     const from = b.subarray(1, 9), id = b.subarray(17, 25), proof = b.subarray(25, 41), key = hex(id), m = store.get(key);
     if (!m) return;
     // Anyone may relay a receipt: only the recipient could have produced it.
-    if (sha256(proof).subarray(0, 16).equals(m.rh)) return void (store.delete(key), remember(cleared, key, Buffer.from(proof)));
+    if (settle(key, proof)) return;
     if (!isMe(b.subarray(9, 17))) return;
     const give = pending.get(key + hex(from));
     // A hand-over counts only if the peer proves it holds the whole envelope; overhearing the exchange is not enough.
     if (!give || !proofOf(m.env, from).equals(proof)) return;
     pending.delete(key + hex(from));
     if (m.tokens > 1) m.tokens -= Math.min(give, m.tokens - 1); else if (!m.own) store.delete(key);
+  }
+
+  function post(pub, body, tokens, acil) {
+    const receipt = randomBytes(16), rh = sha256(receipt).subarray(0, 16), sentAt = Buffer.alloc(8);
+    sentAt.writeBigUInt64BE(BigInt(now()));
+    const env = seal(identity, pub, Buffer.concat([receipt, sentAt, body]));
+    if (Math.ceil((env.length + 4) / SYM) > MAX_K) throw new RangeError('message too large');
+    if (!makeRoom(store, MAX_STORE, STRANGER_STORE, true)) throw new Error('outbox full');
+    const id = sha256(env, rh).subarray(0, 8);
+    store.set(hex(id), { id, tag: recipientTag(pub, now()), rh, env, tokens, at: now(), own: true, trusted: true, acil });
+    return hex(id);
   }
 
   return {
@@ -221,13 +273,13 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     sendMessage(name, text) {
       const pub = contacts.get(name);
       if (!pub) throw new Error(`unknown contact: ${name}`);
-      const receipt = randomBytes(16), rh = sha256(receipt).subarray(0, 16), sentAt = Buffer.alloc(8);
-      sentAt.writeBigUInt64BE(BigInt(now()));
-      const env = seal(identity, pub, Buffer.concat([receipt, sentAt, Buffer.from(text, 'utf8')]));
-      if (Math.ceil((env.length + 4) / SYM) > MAX_K) throw new RangeError('message too large');
-      if (!makeRoom(store, MAX_STORE, STRANGER_STORE, true)) throw new Error('outbox full');
-      const id = sha256(env, rh).subarray(0, 8);
-      store.set(hex(id), { id, tag: recipientTag(pub, now()), rh, env, tokens: L, at: now(), own: true, trusted: true });
+      return post(pub, Buffer.from(text, 'utf8'), L, false);
+    },
+    // `report` is the structured emergency record (JSON): triage fields, location from the phone's GPS (which works
+    // without a network), time. Returns the message id; `onEmergencyDelivered(id)` fires when the authority has it.
+    sendEmergency(report) {
+      if (!authority) throw new Error('no authority key configured');
+      return post(authority, Buffer.from(JSON.stringify(report), 'utf8'), ACIL_TOKENS, true);
     },
     receive(frame) {
       try {
@@ -243,7 +295,13 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
       burst.clear();
       scoreBudget = SCORE_BUDGET;
       dataBudget = DATA_BUDGET;
-      const all = [...store.values()], n = Math.min(all.length, HELLO_SLOTS), me = eid();
+      if (gateway()) {
+        met(KURUM);
+        for (const [k, m] of store) if (m.acil) upload(k, m); // includes mail picked up while offline
+      }
+      // emergency mail is announced first, so it wins the HELLO slots and the transmit budget
+      const all = [...store.values()].sort((a, b) => (b.acil ? 1 : 0) - (a.acil ? 1 : 0));
+      const n = Math.min(all.length, HELLO_SLOTS), me = eid();
       const parts = [Buffer.from([HELLO]), me, Buffer.from([n])];
       for (let i = 0; i < n; i++) { const m = all[(cursor + i) % all.length]; parts.push(blind(m.id, me), blind(m.tag, me)); }
       cursor += n;
