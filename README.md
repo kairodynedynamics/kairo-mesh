@@ -76,7 +76,7 @@ Tag `T` changes daily and only the recipient's contacts can compute it. A strang
 Node 24, no dependencies.
 
 ```bash
-npm test          # 31 tests
+npm test          # 33 tests
 npm run bench     # the measurement tables (a few minutes)
 node src/cli.js   # chat over the local network
 ```
@@ -91,10 +91,11 @@ Or skip the install and [run the simulation in your browser](https://kairodynedy
 |---|---|
 | ✅ | Courier routing rule, simulator and reproducible measurements |
 | ✅ | Fountain codec, rotating identifiers, sealed envelopes, delivery receipts |
+| ✅ | Envelope is standard Noise X (`Noise_X_25519_ChaChaPoly_SHA256`), byte-identical to a published test vector on JS, Kotlin and Swift |
 | ✅ | Working node that chats over a local network |
 | ✅ | Android app with Bluetooth LE transport, byte-compatible with the JS node; courier delivery verified on three emulators |
 | ✅ | Swift core for iOS (`ios/`), byte-compatible with the JS and Kotlin nodes |
-| ✅ | 31 tests in JS (11 attacks, 11 real-world courier scenarios), 13 in Kotlin, 13 in Swift |
+| ✅ | 33 tests in JS (11 attacks, 11 real-world courier scenarios, 2 Noise vector checks), 14 in Kotlin, 14 in Swift |
 | ✅ | Battery-aware courier duty: below 20% battery or in power-saving mode a phone carries only its own mail (low battery verified on Android emulators) |
 | ✅ | iOS app (SwiftUI + CoreBluetooth): builds and passes core and UI tests on iPhone and iPad simulators in CI |
 | ⬜ | Bluetooth between iPhones (simulators have no Bluetooth; needs real devices) |
@@ -102,7 +103,7 @@ Or skip the install and [run the simulation in your browser](https://kairodynedy
 | ⬜ | Independent security audit |
 
 > [!WARNING]
-> This is a research prototype. The cryptography is hand-assembled from standard primitives and has not been audited. Do not rely on it for safety.
+> This is a research prototype. The envelope follows the Noise X pattern exactly and matches a published test vector, but the implementation has not been audited. Do not rely on it for safety.
 
 ## Documents
 

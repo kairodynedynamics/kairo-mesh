@@ -1,6 +1,6 @@
 // Writes test vectors from the reference (JavaScript) implementation for the Kotlin port to check against.
 //   node android/vectors.mjs
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { rng } from '../src/rng.js';
 import { encoder } from '../src/fountain.js';
 import { ephemeralId } from '../src/ids.js';
@@ -32,6 +32,7 @@ writeFileSync(new URL('./app/src/test/resources/vectors.json', import.meta.url),
   ids: { key: hex(sha256('k')), time: T, eid: hex(ephemeralId(sha256('k'), T)) },
   keys: { aliSecret: hex(ali.secret), aliPub: hex(ali.pub), boraSecret: hex(bora.secret), boraPub: hex(bora.pub),
     boraTag: hex(recipientTag(bora.pub, T)), boraRk: hex(recognitionKey(bora.pub)) },
+  noiseX: JSON.parse(readFileSync(new URL('../test/noise-x-vector.json', import.meta.url))), // published vector, not ours
   seal: { body: hex(Buffer.from('merhaba')), envelope: hex(seal(ali, bora.pub, Buffer.from('merhaba'))) },
   exchange: { time: T, text, frames: frames.filter((f) => f[0] === 3).map(hex) },
 }, null, 1));

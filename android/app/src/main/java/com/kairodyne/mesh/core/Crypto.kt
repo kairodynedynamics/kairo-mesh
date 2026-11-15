@@ -10,14 +10,14 @@ import javax.crypto.KeyAgreement
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
-// Port of src/crypto.js: X25519 + HKDF-SHA256 + ChaCha20-Poly1305. Same envelope bytes on both sides. Unaudited.
+// Port of src/crypto.js. The envelope is Noise_X_25519_ChaChaPoly_SHA256, checked against a published test vector. Unaudited.
 
 const val EPOCH_MS = 15 * 60 * 1000L
 const val DAY_MS = 86_400_000L
 
 private val SPKI = "302a300506032b656e032100".unhex()
 private val PKCS8 = "302e020100300506032b656e04220420".unhex()
-private val NONCE = ByteArray(12) // every key is derived from a fresh ephemeral, so each is used once
+private val NONCE = ByteArray(12) // Noise nonce n = 0: pattern X uses each key for exactly one encryption
 
 class Identity private constructor(internal val privateKey: PrivateKey, val pub: ByteArray, val secret: ByteArray) {
     companion object {
@@ -37,8 +37,46 @@ private fun dh(privateKey: PrivateKey, pub: ByteArray): ByteArray {
     return KeyAgreement.getInstance("XDH").run { init(privateKey); doPhase(publicKey, true); generateSecret() }
 }
 
-private fun kdf(secret: ByteArray, salt: ByteArray, info: String): ByteArray =
-    hmac(hmac(salt, secret), info.toByteArray(Charsets.UTF_8), u8(1))
+private val NOISE_NAME = "Noise_X_25519_ChaChaPoly_SHA256".toByteArray(Charsets.US_ASCII).copyOf(32) // zero-padded to the hash length
+internal val PROLOGUE = "kairo-mesh-1".toByteArray(Charsets.US_ASCII) // binds envelopes to this protocol version
+
+/** Noise SymmetricState after the pre-message `<- s` (noiseprotocol.org, revision 34). */
+private class Noise(prologue: ByteArray, recipientPub: ByteArray) {
+    private var h = NOISE_NAME
+    private var ck = NOISE_NAME
+    private var k = ByteArray(0)
+    init { mixHash(prologue); mixHash(recipientPub) }
+    fun mixHash(data: ByteArray) { h = sha256(h, data) }
+    fun mixKey(ikm: ByteArray) { // Noise HKDF with two outputs
+        val temp = hmac(ck, ikm)
+        ck = hmac(temp, u8(1))
+        k = hmac(temp, ck, u8(2))
+    }
+    fun encryptAndHash(plain: ByteArray): ByteArray = aead(k, plain, h).also { mixHash(it) }
+    fun decryptAndHash(box: ByteArray): ByteArray = unaead(k, box, h).also { mixHash(box) }
+}
+
+/** The Noise X message `-> e, es, s, ss` followed by the payload. `eph` is fixed only by tests. */
+internal fun noiseXWrite(sender: Identity, recipientPub: ByteArray, payload: ByteArray,
+                         prologue: ByteArray = PROLOGUE, eph: Identity = Identity.create()): ByteArray {
+    val st = Noise(prologue, recipientPub)
+    st.mixHash(eph.pub)
+    st.mixKey(dh(eph.privateKey, recipientPub))
+    val who = st.encryptAndHash(sender.pub)
+    st.mixKey(dh(sender.privateKey, recipientPub))
+    return cat(eph.pub, who, st.encryptAndHash(payload))
+}
+
+internal fun noiseXRead(recipient: Identity, message: ByteArray, prologue: ByteArray = PROLOGUE): Opened {
+    require(message.size >= 32 + 48 + 16) { "short envelope" }
+    val ephPub = message.sub(0, 32)
+    val st = Noise(prologue, recipient.pub)
+    st.mixHash(ephPub)
+    st.mixKey(dh(recipient.privateKey, ephPub))
+    val senderPub = st.decryptAndHash(message.sub(32, 80))
+    st.mixKey(dh(recipient.privateKey, senderPub))
+    return Opened(senderPub, st.decryptAndHash(message.sub(80, message.size)))
+}
 
 private fun cipher(mode: Int, key: ByteArray, aad: ByteArray): Cipher =
     Cipher.getInstance("ChaCha20-Poly1305").apply {
@@ -54,30 +92,18 @@ private fun pad(body: ByteArray): ByteArray {
     return cat(be32(body.size.toLong()), body).copyOf(size)
 }
 
-fun seal(sender: Identity, recipientPub: ByteArray, body: ByteArray): ByteArray {
-    val eph = Identity.create()
-    val salt = cat(eph.pub, recipientPub)
-    val es = dh(eph.privateKey, recipientPub)
-    val who = aead(kdf(es, salt, "kairo-seal-1"), sender.pub)
-    val ss = dh(sender.privateKey, recipientPub)
-    return cat(eph.pub, who, aead(kdf(cat(es, ss), salt, "kairo-seal-2"), pad(body), who))
-}
+fun seal(sender: Identity, recipientPub: ByteArray, body: ByteArray): ByteArray = noiseXWrite(sender, recipientPub, pad(body))
 
 class Opened(val senderPub: ByteArray, val body: ByteArray)
 
 /** Throws if the envelope is not for us or was altered. */
 fun open(recipient: Identity, envelope: ByteArray): Opened {
     require(envelope.size >= 32 + 48 + 16 + 256) { "short envelope" }
-    val ephPub = envelope.sub(0, 32)
-    val who = envelope.sub(32, 80)
-    val salt = cat(ephPub, recipient.pub)
-    val es = dh(recipient.privateKey, ephPub)
-    val senderPub = unaead(kdf(es, salt, "kairo-seal-1"), who)
-    val ss = dh(recipient.privateKey, senderPub)
-    val padded = unaead(kdf(cat(es, ss), salt, "kairo-seal-2"), envelope.sub(80, envelope.size), who)
+    val read = noiseXRead(recipient, envelope)
+    val padded = read.body
     val len = padded.u32(0)
     require(len <= padded.size - 4) { "bad padding" }
-    return Opened(senderPub, padded.sub(4, 4 + len.toInt()))
+    return Opened(read.senderPub, padded.sub(4, 4 + len.toInt()))
 }
 
 private fun period(timeMs: Long, ms: Long) = Math.floorDiv(timeMs, ms).toString().toByteArray(Charsets.UTF_8)

@@ -44,6 +44,17 @@ final class InteropTests: XCTestCase {
         XCTAssertEqual(hex(ids, "eid"), ephemeralId(hex(ids, "key"), int(ids, "time")))
     }
 
+    // Published vector for Noise_X_25519_ChaChaPoly_SHA256 (see test/noise-x-vector.json): same bytes out, same payload back.
+    func testEnvelopeIsNoiseX() throws {
+        let n = obj("noiseX")
+        let initiator = try Identity.create(hex(n, "initStatic")), resp = try Identity.create(hex(n, "respStatic"))
+        let out = try noiseXWrite(initiator, resp.pub, hex(n, "payload"), hex(n, "prologue"), eph: try Identity.create(hex(n, "initEphemeral")))
+        XCTAssertEqual(hex(n, "ciphertext"), out)
+        let read = try noiseXRead(resp, hex(n, "ciphertext"), hex(n, "prologue"))
+        XCTAssertEqual(initiator.pub, read.senderPub)
+        XCTAssertEqual(hex(n, "payload"), read.body)
+    }
+
     func testOpensAnEnvelopeSealedInJavaScript() throws {
         let s = obj("seal")
         let opened = try open(bora, hex(s, "envelope"))

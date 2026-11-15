@@ -52,7 +52,7 @@ Gönderici zarfın içine rastgele bir sır koyar, dışına bu sırrın özetin
 
 Simülatörde her düğüm herkesle karşılaşma puanı tutar ve puanlar tanıdıklar üzerinden yayılır. Gerçek düğümde kimlikler döndüğü için bir cihaz yalnız **kendi kişilerini** tanıyabilir; puan yalnız alıcıyı tanıyan kuryelerde sıfırdan farklıdır ve geçişlilik yoktur. Bu daha gizli ama daha az bilgili bir kuraldır; teslim oranına etkisini ölçmedim. Ölçüm tabloları simülatör kuralına aittir.
 
-Mühürlü zarf Noise X kalıbını izleyen, elle yazılmış ve **denetlenmemiş** bir yapıdır (X25519, HKDF-SHA256, ChaCha20-Poly1305). Saklanan zarflarda ileri gizlilik yoktur; Bitchat'in kurye zarflarıyla aynı sınır.
+Mühürlü zarf standart Noise X mesajıdır: `Noise_X_25519_ChaChaPoly_SHA256` (Noise belirtimi, revizyon 34), prolog `kairo-mesh-1`. JS, Kotlin ve Swift uygulamaları yayımlanmış bir test vektörüyle (`test/noise-x-vector.json`, snow kütüphanesinden) bayt bayt doğrulanır. Uygulama **denetlenmemiştir**. Saklanan zarflarda ileri gizlilik yoktur; Bitchat'in kurye zarflarıyla aynı sınır.
 
 ## Şu an var olan / olmayan
 

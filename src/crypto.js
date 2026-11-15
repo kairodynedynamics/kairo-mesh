@@ -1,12 +1,15 @@
-// Identity keys and sealed envelopes (X25519 + HKDF-SHA256 + ChaCha20-Poly1305).
-// The seal follows the shape of Noise X: the sender's key is hidden from carriers and
-// authenticated to the recipient. Unaudited; no forward secrecy for stored envelopes.
+// Identity keys and sealed envelopes. The seal is the Noise one-way pattern X, byte for byte:
+// Noise_X_25519_ChaChaPoly_SHA256 (noiseprotocol.org, revision 34), checked against a published
+// test vector. The sender's key is hidden from carriers and authenticated to the recipient.
+// Unaudited; no forward secrecy for stored envelopes (a property of X, not of this code).
 import { generateKeyPairSync, diffieHellman, createPublicKey, createPrivateKey, hkdfSync,
   createCipheriv, createDecipheriv, createHash, createHmac } from 'node:crypto';
 
 const SPKI = Buffer.from('302a300506032b656e032100', 'hex');
 const PKCS8 = Buffer.from('302e020100300506032b656e04220420', 'hex');
-const NONCE = Buffer.alloc(12); // every key below is derived from a fresh ephemeral, so it is used once
+const NONCE = Buffer.alloc(12); // Noise nonce n = 0: pattern X uses each key for exactly one encryption
+const NOISE_NAME = Buffer.from('Noise_X_25519_ChaChaPoly_SHA256\0'); // 31 bytes, zero-padded to the hash length
+export const PROLOGUE = Buffer.from('kairo-mesh-1'); // binds envelopes to this protocol version
 export const DAY_MS = 86400000;
 
 export const sha256 = (...parts) => parts.reduce((h, p) => h.update(p), createHash('sha256')).digest();
@@ -24,7 +27,6 @@ export function createIdentity(secret) {
 
 const dh = (privateKey, pub) =>
   diffieHellman({ privateKey, publicKey: createPublicKey({ key: Buffer.concat([SPKI, pub]), format: 'der', type: 'spki' }) });
-const kdf = (secret, salt, info) => Buffer.from(hkdfSync('sha256', secret, salt, info, 32));
 
 function aead(key, plaintext, aad = Buffer.alloc(0)) {
   const c = createCipheriv('chacha20-poly1305', key, NONCE, { authTagLength: 16 });
@@ -48,24 +50,50 @@ function pad(body) {
   return out;
 }
 
-export function seal(sender, recipientPub, body) {
-  const eph = createIdentity();
-  const salt = Buffer.concat([eph.pub, recipientPub]);
-  const es = dh(eph.privateKey, recipientPub);
-  const who = aead(kdf(es, salt, 'kairo-seal-1'), sender.pub);
-  const ss = dh(sender.privateKey, recipientPub);
-  return Buffer.concat([eph.pub, who, aead(kdf(Buffer.concat([es, ss]), salt, 'kairo-seal-2'), pad(body), who)]);
+// Noise SymmetricState after the pre-message `<- s`: h and ck start as the protocol name,
+// then h absorbs the prologue and the recipient's static key.
+function noise(prologue, recipientPub) {
+  let h = NOISE_NAME, ck = NOISE_NAME, k;
+  const mixHash = (data) => { h = sha256(h, data); };
+  const mixKey = (ikm) => { // Noise HKDF with two outputs = RFC 5869 with salt ck and empty info
+    const out = Buffer.from(hkdfSync('sha256', ikm, ck, Buffer.alloc(0), 64));
+    ck = out.subarray(0, 32); k = out.subarray(32);
+  };
+  mixHash(prologue); mixHash(recipientPub);
+  return {
+    mixHash, mixKey,
+    encryptAndHash: (plain) => { const c = aead(k, plain, h); mixHash(c); return c; },
+    decryptAndHash: (box) => { const p = unaead(k, box, h); mixHash(box); return p; },
+  };
 }
+
+// The Noise X message `-> e, es, s, ss` followed by the payload. `eph` is fixed only by tests.
+export function noiseXWrite(sender, recipientPub, payload, prologue = PROLOGUE, eph = createIdentity()) {
+  const st = noise(prologue, recipientPub);
+  st.mixHash(eph.pub);
+  st.mixKey(dh(eph.privateKey, recipientPub));
+  const who = st.encryptAndHash(sender.pub);
+  st.mixKey(dh(sender.privateKey, recipientPub));
+  return Buffer.concat([eph.pub, who, st.encryptAndHash(payload)]);
+}
+
+export function noiseXRead(recipient, message, prologue = PROLOGUE) {
+  if (message.length < 32 + 48 + 16) throw new Error('short envelope');
+  const ephPub = message.subarray(0, 32);
+  const st = noise(prologue, recipient.pub);
+  st.mixHash(ephPub);
+  st.mixKey(dh(recipient.privateKey, ephPub));
+  const senderPub = st.decryptAndHash(message.subarray(32, 80));
+  st.mixKey(dh(recipient.privateKey, senderPub));
+  return { senderPub, payload: st.decryptAndHash(message.subarray(80)) };
+}
+
+export const seal = (sender, recipientPub, body) => noiseXWrite(sender, recipientPub, pad(body));
 
 // Returns { senderPub, body }, or throws if the envelope is not for us or was altered.
 export function open(recipient, envelope) {
   if (envelope.length < 32 + 48 + 16 + 256) throw new Error('short envelope');
-  const ephPub = envelope.subarray(0, 32), who = envelope.subarray(32, 80);
-  const salt = Buffer.concat([ephPub, recipient.pub]);
-  const es = dh(recipient.privateKey, ephPub);
-  const senderPub = unaead(kdf(es, salt, 'kairo-seal-1'), who);
-  const ss = dh(recipient.privateKey, senderPub);
-  const padded = unaead(kdf(Buffer.concat([es, ss]), salt, 'kairo-seal-2'), envelope.subarray(80), who);
+  const { senderPub, payload: padded } = noiseXRead(recipient, envelope);
   const len = padded.readUInt32BE(0);
   if (len > padded.length - 4) throw new Error('bad padding');
   return { senderPub, body: padded.subarray(4, 4 + len) };

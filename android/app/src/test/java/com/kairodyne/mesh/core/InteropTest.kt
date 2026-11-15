@@ -46,6 +46,19 @@ class InteropTest {
         assertArrayEquals(ids.getString("eid").unhex(), ephemeralId(ids.getString("key").unhex(), ids.getLong("time")))
     }
 
+    // Published vector for Noise_X_25519_ChaChaPoly_SHA256 (see test/noise-x-vector.json): same bytes out, same payload back.
+    @Test fun envelopeIsNoiseX() {
+        val n = v.getJSONObject("noiseX")
+        fun h(k: String) = n.getString(k).unhex()
+        val init = Identity.create(h("initStatic"))
+        val resp = Identity.create(h("respStatic"))
+        val out = noiseXWrite(init, resp.pub, h("payload"), h("prologue"), Identity.create(h("initEphemeral")))
+        assertArrayEquals(h("ciphertext"), out)
+        val read = noiseXRead(resp, h("ciphertext"), h("prologue"))
+        assertArrayEquals(init.pub, read.senderPub)
+        assertArrayEquals(h("payload"), read.body)
+    }
+
     @Test fun opensAnEnvelopeSealedInJavaScript() {
         val s = v.getJSONObject("seal")
         val opened = open(bora, s.getString("envelope").unhex())
