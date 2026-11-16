@@ -32,9 +32,9 @@ targets:
     info:
       path: Info.plist
       properties:
-        CFBundleDisplayName: Kairo Mesh
+        CFBundleDisplayName: KairoMesh
         UILaunchScreen: {}
-        NSBluetoothAlwaysUsageDescription: Kairo Mesh, yakındaki telefonlar arasında şifreli mesajları Bluetooth ile taşır.
+        NSBluetoothAlwaysUsageDescription: KairoMesh, yakındaki telefonlar arasında şifreli mesajları Bluetooth ile taşır.
         NSLocationWhenInUseUsageDescription: Acil yardım çağrınıza konumunuz eklenir; GPS internet olmadan da çalışır.
         UIBackgroundModes: [bluetooth-central, bluetooth-peripheral]
   KairoCoreTests:

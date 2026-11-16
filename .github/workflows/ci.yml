@@ -21,6 +21,8 @@ jobs:
         with: { node-version: 24 }
       - run: ./gradlew --no-daemon testDebugUnitTest assembleDebug
       - run: node interop-check.mjs
+      - uses: actions/upload-artifact@v4
+        with: { name: KairoMesh-android-debug-apk, path: android/app/build/outputs/apk/debug/app-debug.apk }
 
   swift-linux:
     runs-on: ubuntu-24.04
@@ -72,3 +74,13 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: ios-test-results, path: ios/.build/results.xcresult, if-no-files-found: ignore }
+      - name: Build the app for the simulator (downloadable)
+        if: success()
+        working-directory: ios/App
+        run: |
+          xcodebuild build -project KairoMesh.xcodeproj -scheme KairoMesh -configuration Debug -sdk iphonesimulator \
+            -derivedDataPath ../.build/dd | tail -3
+          cd ../.build/dd/Build/Products/Debug-iphonesimulator && ditto -c -k --keepParent KairoMesh.app ../../../../KairoMesh-simulator.zip
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with: { name: KairoMesh-ios-simulator, path: ios/.build/KairoMesh-simulator.zip }

@@ -53,16 +53,31 @@ struct Kurum {
 /// The emergency screen's choices, as the JSON record the authority receives. Same table and rule as Android
 /// (Kurum.kt `Cagri`) and the triage model.
 enum Cagri {
-    static let turler: [(String, String)] = [("enkaz", "Enkaz altındayım"), ("saglik", "Yaralı / hasta var"), ("yangin", "Yangın"),
+    // Life-threatening situations first: the four large buttons (docs/08-acil-ekran.md). The rest are needs.
+    static let turler: [(String, String)] = [("enkaz", "Enkaz altındayım"), ("saglik", "Yaralı / hasta var"), ("yangin", "Yangın / gaz"),
+                                             ("yardim", "Başka acil durum"),
                                              ("barinma", "Açıkta kaldık"), ("gida_su", "Su / yiyecek yok"),
                                              ("kayip", "Yakınımı arıyorum"), ("guvende", "Güvendeyim")]
+    static let hayati = ["enkaz", "saglik", "yangin", "yardim"]
+    static let ihtiyac = ["barinma", "gida_su", "kayip"]
+    static let altYazi = ["enkaz": "Bina çöktü, çıkamıyorum", "saglik": "Acil sağlık yardımı gerekiyor",
+                          "yangin": "Ateş, duman ya da gaz kokusu", "yardim": "Ne olduğunu yazarak anlatın"]
+    static func ad(_ tur: String) -> String { turler.first { $0.0 == tur }?.1 ?? tur }
+    static func ozelAd(_ k: String) -> String { ozel.first { $0.0 == k }?.1 ?? k }
     static let ozel: [(String, String)] = [("bebek", "Bebek"), ("cocuk", "Çocuk"), ("yasli", "Yaşlı"), ("yarali", "Yaralı"),
                                            ("hamile", "Hamile"), ("engelli", "Engelli")]
-    private static let temel = ["enkaz": 1, "yangin": 1, "saglik": 2, "kayip": 2, "barinma": 3, "gida_su": 3, "guvende": 4]
+    private static let temel = ["enkaz": 1, "yangin": 1, "saglik": 2, "yardim": 2, "kayip": 2, "barinma": 3, "gida_su": 3, "guvende": 4]
 
     static func aciliyet(_ tur: String, _ secili: Set<String>) -> Int {
         let a = temel[tur] ?? 4
         return a > 1 && tur != "guvende" && !secili.isDisjoint(with: ["bebek", "yarali", "hamile"]) ? a - 1 : a
+    }
+
+    /// "I sent that by mistake / I am safe now": points the authority at the earlier call `ref`.
+    static func duzeltme(ref: String) -> String {
+        let r: [String: Any] = ["v": 1, "tur": "iptal", "aciliyet": 4, "iptal_ref": ref, "zaman": Int64(Date().timeIntervalSince1970 * 1000),
+                                "metin": "Önceki çağrı yanlışlıkla gönderildi ya da artık yardım gerekmiyor."]
+        return String(decoding: (try? JSONSerialization.data(withJSONObject: r, options: [.sortedKeys])) ?? Data("{}".utf8), as: UTF8.self)
     }
 
     /// `adres`: il, ilçe, mahalle, sokak, bina read from the message by the on-device model, when there was text.
