@@ -74,7 +74,7 @@ export async function senaryo({ yayginlik = 0.1, tohum = 1, saat = 12, nufus = 4
   kisiler.forEach((k, i) => {
     k.cevrimici = false;
     k.dugum = createNode({
-      identity: createIdentity(), now: () => simdi,
+      identity: (k.kimlik = createIdentity()), now: () => simdi,
       authority: kurum.pub, online: () => kairo && k.cevrimici,
       uplink: async (env) => kurum.receive(env),
       send: (f) => kuyruk.push([i, f]),
@@ -139,9 +139,11 @@ export async function senaryo({ yayginlik = 0.1, tohum = 1, saat = 12, nufus = 4
     if (t - sonCevrim >= 3600) sonCevrim = t;
   }
 
-  const kayit = new Map(kurum.reports.map((x) => [x.sentAt, x.receivedAt]));
+  // a call is matched by its sender's key and its send time: calls written in the same 10 s step must not share a
+  // result (an earlier version matched by time alone; review finding, medya/triyaj-simulasyon B5)
+  const kayit = new Map(kurum.reports.map((x) => [`${x.sender}|${x.sentAt}`, x.receivedAt]));
   const sonuc = kisiler.filter((k) => k.tur === 'enkaz' && k.gonderdi).map((k) => {
-    const kurumda = kayit.get(k.gonderdi);
+    const kurumda = kayit.get(`${Buffer.from(k.kimlik.pub).toString('hex')}|${k.gonderdi}`);
     const bugun = k.dogrudan;
     return {
       kairo: kurumda ? (kurumda - k.gonderdi) / 60000 : null,
