@@ -98,7 +98,9 @@ def sar(dosya, baslik, aciklama, govde):
 <meta name="theme-color" content="#0b6e4f">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="KairoMesh — Kairodyne Dynamics">
-<meta property="og:locale" content="tr_TR">
+<meta property="og:locale" content="{"en_GB" if dosya == "en" else "tr_TR"}">
+<link rel="alternate" hreflang="tr" href="{ALAN}/">
+<link rel="alternate" hreflang="en" href="{ALAN}/en">
 <meta property="og:title" content="{e(baslik)}">
 <meta property="og:description" content="{e(aciklama)}">
 <meta property="og:url" content="{url}">
@@ -214,7 +216,7 @@ def derle():
         "".join(f"- [{ad}]({ALAN}/{'' if d == 'index' else d}): {ack}\n" for d, ad, _, ack in SAYFALAR), encoding="utf-8")
     (CIKTI / "netlify.toml").write_text(
         '[build]\n  publish = "."\n\n[build.processing.html]\n  pretty_urls = true\n\n' +
-        "".join(f'[[redirects]]\n  from = "/{e}"\n  to = "/"\n  status = 301\n\n' for e in ESKI) +
+        "".join(f'[[redirects]]\n  from = "/{e}"\n  to = "/"\n  status = 301\n  force = true\n\n' for e in ESKI) +
         '[[headers]]\n  for = "/*"\n  [headers.values]\n    X-Content-Type-Options = "nosniff"\n    Referrer-Policy = "strict-origin-when-cross-origin"\n'
         '    Content-Security-Policy = "default-src \'self\'; script-src \'self\' \'unsafe-inline\'; style-src \'self\' \'unsafe-inline\'; img-src \'self\' data:; frame-ancestors \'self\' https://huggingface.co"\n\n'
         '[[headers]]\n  for = "/*.txt"\n  [headers.values]\n    Content-Type = "text/plain; charset=utf-8"\n', encoding="utf-8")

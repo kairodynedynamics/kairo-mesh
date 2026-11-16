@@ -11,7 +11,7 @@
     </div>
     <div class="kart">
       <h3>Status</h3>
-      <p>Research prototype, working on Android, iOS and a reference server. Simulation results and 79 automated tests are public. Field trials with real phones and an independent security audit are the next steps.</p>
+      <p>Research prototype, working on Android, iOS and a reference server. Simulation results and 97 automated tests (45 JS, 26 Kotlin, 24 Swift, 2 iOS UI) are public. Field trials with real phones and an independent security audit are the next steps.</p>
     </div>
   </div>
 </section>
@@ -21,7 +21,7 @@
     <h2>How it works</h2>
     <ol class="adimlar">
       <li><div><h3>Tap, or type</h3><p>The emergency screen needs no typing: choose the situation (under rubble, injured, fire), the number of people and who is with you. GPS position is added; GPS works without a network. Free text is turned into a structured record on the phone.</p></div></li>
-      <li><div><h3>Sealed to the authority</h3><p>The call is sealed with the authority's public key using the Noise X pattern (Noise_X_25519_ChaChaPoly_SHA256), checked byte for byte against a published test vector on every platform. Carriers see neither content nor location nor sender.</p></div></li>
+      <li><div><h3>Sealed to the authority</h3><p>The call is sealed with the authority's public key using the Noise X pattern (<code style="overflow-wrap:anywhere">Noise_X_25519_ChaChaPoly_SHA256</code>), checked byte for byte against a published test vector on every platform. Carriers see neither content nor location nor sender.</p></div></li>
       <li><div><h3>Carried by any phone</h3><p>Every phone with the app carries emergency calls without its owner doing anything. Emergency calls always go first and move toward phones that are more often online.</p></div></li>
       <li><div><h3>Delivered and receipted</h3><p>The first phone with internet uploads the call to the authority's server. The authority's receipt, which only it can produce, travels back through the mesh: the caller sees "the authority has your call".</p></div></li>
     </ol>
@@ -44,6 +44,7 @@
       <h3>Partners</h3>
       <p>We are looking for civil protection agencies, municipalities, search-and-rescue organisations and mobile operators to run field trials with.</p>
       <p style="margin-top:12px"><a class="dugme birincil" href="https://github.com/kairodynedynamics/kairo-mesh/issues/new?title=Pilot%20enquiry">Open a pilot enquiry</a></p>
+      <p class="soluk kucuk" style="margin-top:12px">This opens a public GitHub issue: please write only the type of organisation, not names or details. A company e-mail address will follow.</p>
     </div>
   </div>
 </section>
