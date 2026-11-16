@@ -16,10 +16,13 @@ android {
         // production root, whose private half is kept offline; debug builds also trust the public test root
         // (test/kok-test) so tests and emulators can mint codes.
         buildConfigField("String", "KOKLER", "\"KMrne+ak0Iqr3rLzZ9uI7Qic8fWv6o/Na2H15FF25So=\"")
+        // release: authority servers only over https; debug: also http, for the emulator test against 10.0.2.2
+        manifestPlaceholders["cleartext"] = "false"
     }
     buildTypes {
         getByName("debug") {
             buildConfigField("String", "KOKLER", "\"KMrne+ak0Iqr3rLzZ9uI7Qic8fWv6o/Na2H15FF25So=,mCZWxnPAXq0pTVoc5wwzaPbHgJvMARPQX626+hmR+zs=\"")
+            manifestPlaceholders["cleartext"] = "true"
         }
     }
     buildFeatures { buildConfig = true }

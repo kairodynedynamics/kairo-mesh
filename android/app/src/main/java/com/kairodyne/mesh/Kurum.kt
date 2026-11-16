@@ -43,7 +43,10 @@ class Kurum(val pub: ByteArray, val signPub: ByteArray, val url: String, val ad:
 
         /** Null for a malformed code or one no trusted root approved (a fake code is never stored). */
         fun parse(code: String): Kurum? =
-            KurumKodu.ac(code, KOKLER)?.let { Kurum(it.pub, it.signPub, it.url, it.ad, code.trim()) }
+            KurumKodu.ac(code, KOKLER)
+                // release builds talk to authority servers only over https (debug: http for the emulator test)
+                ?.takeIf { BuildConfig.DEBUG || it.url.startsWith("https://") }
+                ?.let { Kurum(it.pub, it.signPub, it.url, it.ad, code.trim()) }
 
         private fun hex(s: String) = ByteArray(s.length / 2) { s.substring(2 * it, 2 * it + 2).toInt(16).toByte() }
     }

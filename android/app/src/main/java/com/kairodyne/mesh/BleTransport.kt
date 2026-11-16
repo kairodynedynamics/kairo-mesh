@@ -1,6 +1,7 @@
 package com.kairodyne.mesh
 
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
@@ -18,7 +19,10 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.ParcelUuid
 import android.util.Log
 import java.util.UUID
@@ -46,15 +50,53 @@ class BleTransport(private val context: Context, private val onFrame: (ByteArray
     var onPeer: () -> Unit = {}
 
     val peerCount get() = synchronized(peers) { peers.values.count { it.characteristic != null } }
+    /** Whether the radio is up. With Bluetooth off nothing is sent, and mail waits in the node until it comes back. */
+    @Volatile var acik = false
+        private set
+    /** Called (on the main thread) when Bluetooth is switched on or off, so the screen can ask the user to turn it on. */
+    var onDurum: (Boolean) -> Unit = {}
+
+    // Bluetooth may be off when the service starts, or be switched off and on later: the radio follows it instead of
+    // crashing (every LE object is null while Bluetooth is off).
+    private val durumAlici = object : BroadcastReceiver() {
+        override fun onReceive(c: Context, i: Intent) {
+            when (i.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)) {
+                BluetoothAdapter.STATE_ON -> ac()
+                BluetoothAdapter.STATE_TURNING_OFF, BluetoothAdapter.STATE_OFF -> kapat()
+            }
+        }
+    }
 
     fun start() {
+        context.registerReceiver(durumAlici, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
+        if (adapter?.isEnabled == true) ac() else { Log.i(TAG, "BLUETOOTH_KAPALI"); onDurum(false) }
+    }
+
+    private fun ac() {
+        if (acik) return
         val service = BluetoothGattService(SERVICE, BluetoothGattService.SERVICE_TYPE_PRIMARY)
         service.addCharacteristic(BluetoothGattCharacteristic(FRAME,
             BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
             BluetoothGattCharacteristic.PERMISSION_WRITE))
-        server = manager.openGattServer(context, serverCallback).apply { addService(service) }
+        server = runCatching { manager.openGattServer(context, serverCallback) }.getOrNull()?.apply { addService(service) }
+        if (server == null) { Log.i(TAG, "BLUETOOTH_KAPALI"); onDurum(false); return }
+        acik = true
+        lowPower = null
         setLowPower(false)
         Log.i(TAG, "transport started")
+        onDurum(true)
+    }
+
+    private fun kapat() {
+        if (!acik) return
+        acik = false
+        runCatching { adapter?.bluetoothLeScanner?.stopScan(scanCallback) }
+        runCatching { adapter?.bluetoothLeAdvertiser?.stopAdvertising(advertiseCallback) }
+        synchronized(peers) { peers.values.forEach { runCatching { it.gatt.close() } }; peers.clear() }
+        runCatching { server?.close() }
+        server = null
+        Log.i(TAG, "BLUETOOTH_KAPALI")
+        onDurum(false)
     }
 
     /**
@@ -62,26 +104,30 @@ class BleTransport(private val context: Context, private val onFrame: (ByteArray
      * advertises once a second: a passing phone is still found, a few seconds later.
      */
     fun setLowPower(on: Boolean) {
-        if (on == lowPower) return
+        if (!acik || on == lowPower) return
+        // the advertiser and scanner vanish (null, or throwing) if Bluetooth goes off between two checks
+        val reklam = adapter?.bluetoothLeAdvertiser
+        val tarayici = adapter?.bluetoothLeScanner
+        if (reklam == null || tarayici == null) return kapat()
         lowPower = on
-        adapter.bluetoothLeScanner?.stopScan(scanCallback)
-        adapter.bluetoothLeAdvertiser?.stopAdvertising(advertiseCallback)
-        adapter.bluetoothLeAdvertiser.startAdvertising(
-            AdvertiseSettings.Builder().setConnectable(true)
-                .setAdvertiseMode(if (on) AdvertiseSettings.ADVERTISE_MODE_LOW_POWER else AdvertiseSettings.ADVERTISE_MODE_BALANCED).build(),
-            AdvertiseData.Builder().addServiceUuid(ParcelUuid(SERVICE)).setIncludeDeviceName(false).build(),
-            advertiseCallback)
-        adapter.bluetoothLeScanner.startScan(
-            listOf(ScanFilter.Builder().setServiceUuid(ParcelUuid(SERVICE)).build()),
-            ScanSettings.Builder().setScanMode(if (on) ScanSettings.SCAN_MODE_LOW_POWER else ScanSettings.SCAN_MODE_BALANCED).build(),
-            scanCallback)
+        runCatching {
+            tarayici.stopScan(scanCallback)
+            reklam.stopAdvertising(advertiseCallback)
+            reklam.startAdvertising(
+                AdvertiseSettings.Builder().setConnectable(true)
+                    .setAdvertiseMode(if (on) AdvertiseSettings.ADVERTISE_MODE_LOW_POWER else AdvertiseSettings.ADVERTISE_MODE_BALANCED).build(),
+                AdvertiseData.Builder().addServiceUuid(ParcelUuid(SERVICE)).setIncludeDeviceName(false).build(),
+                advertiseCallback)
+            tarayici.startScan(
+                listOf(ScanFilter.Builder().setServiceUuid(ParcelUuid(SERVICE)).build()),
+                ScanSettings.Builder().setScanMode(if (on) ScanSettings.SCAN_MODE_LOW_POWER else ScanSettings.SCAN_MODE_BALANCED).build(),
+                scanCallback)
+        }.onFailure { Log.i(TAG, "ERROR radyo: ${it.message}"); kapat() }
     }
 
     fun stop() {
-        adapter.bluetoothLeScanner?.stopScan(scanCallback)
-        adapter.bluetoothLeAdvertiser?.stopAdvertising(advertiseCallback)
-        synchronized(peers) { peers.values.forEach { it.gatt.close() }; peers.clear() }
-        server?.close()
+        runCatching { context.unregisterReceiver(durumAlici) }
+        kapat()
     }
 
     fun send(frame: ByteArray) {

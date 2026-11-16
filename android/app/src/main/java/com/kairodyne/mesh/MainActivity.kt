@@ -64,14 +64,30 @@ class MainActivity : Activity() {
     private fun onLine(line: String) {
         log.append(line + "\n")
         when {
+            line.startsWith("ACIL_GONDERILDI") && line.contains("bluetooth=kapali") -> durum.text =
+                "Çağrınız kaydedildi (${saat(line)}) ama Bluetooth kapalı: yakındaki telefonlara ulaşamıyor. Bluetooth'u açın; açınca kendiliğinden gönderilir."
             line.startsWith("ACIL_GONDERILDI") -> durum.text = "Çağrınız gönderildi (${saat(line)}). Yakındaki telefonlar taşıyor; internete ulaşan ilk telefon kuruma iletecek."
+            line.startsWith("ACIL_ZATEN") -> durum.text = "Çağrınız zaten gönderiliyor. Tekrar basmanıza gerek yok."
+            line.startsWith("BLUETOOTH_KAPALI") -> { durum.text = "Bluetooth kapalı: çağrılar yakındaki telefonlara ulaşamaz. Lütfen Bluetooth'u açın."; bluetoothIste() }
+            line.startsWith("BLUETOOTH_ACIK") && durum.text.startsWith("Bluetooth kapalı") -> durum.text = "Bluetooth açık; ağ çalışıyor."
             line.startsWith("ACIL_ULASTI") -> durum.text = "✓ KURUM ÇAĞRINIZI ALDI (${saat(line)})."
             line.startsWith("DUYURU ") -> duyurular.text = line.removePrefix("DUYURU ") + "\n\n" + duyurular.text.toString().removePrefix("Henüz duyuru yok.")
             line.startsWith("KURUM ") -> durum.text = "Çağrılarınız şu kuruma gider: ${line.substringAfter(" ad=")}"
             line.startsWith("ERROR kurum kodu geçersiz") -> durum.text =
                 "Bu kurum kodu yetkili makamca onaylanmamış ya da bozuk; kaydedilmedi. Kodu yalnızca kurumun resmî kanalından alın."
             line.startsWith("ERROR kurum") -> durum.text = "Kurum kodu tanımlı değil: çağrının gideceği kurumun kodunu Ayarlar'a girin."
+            // any other failure while a call is being prepared must reach the screen, not only the log
+            line.startsWith("ERROR") && durum.text.startsWith("Çağrı hazırlanıyor") -> durum.text = "Çağrı gönderilemedi: ${line.removePrefix("ERROR ")}"
         }
+    }
+
+    private var bluetoothSoruldu = false
+
+    /** Asks once per launch to switch Bluetooth on (the system dialog); the screen text stays as the reminder. */
+    private fun bluetoothIste() {
+        if (bluetoothSoruldu || checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) return
+        bluetoothSoruldu = true
+        runCatching { startActivity(Intent(android.bluetooth.BluetoothAdapter.ACTION_REQUEST_ENABLE)) }
     }
 
     private fun saat(line: String) = line.substringAfter("saat=", "").substringBefore(" ")
@@ -84,7 +100,8 @@ class MainActivity : Activity() {
     private fun granted() = BLUETOOTH.all { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
 
     private fun toService(extras: Intent? = null) {
-        if (!granted()) { waiting = extras; return }
+        // without the Bluetooth permission the request waits, and the permission dialog is shown again (not silently)
+        if (!granted()) { waiting = extras; requestPermissionsOnce(); return }
         startForegroundService(Intent(this, MeshService::class.java).apply { extras?.extras?.let(::putExtras) })
     }
 
@@ -96,8 +113,13 @@ class MainActivity : Activity() {
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, results: IntArray) {
-        if (granted()) toService(waiting)
-        else log.append("ERROR Bluetooth izni verilmedi; ağ çalışamaz\n")
+        if (granted()) return toService(waiting)
+        log.append("ERROR Bluetooth izni verilmedi; ağ çalışamaz\n")
+        durum.text = "Yakındaki cihazlar izni verilmedi: çağrınız başka telefonlara ulaşamaz. Ayarlar > Uygulamalar > Kairo Mesh > İzinler'den " +
+            "\"Yakındaki cihazlar\"ı açın, sonra tekrar gönderin."
+        runCatching {
+            startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", packageName, null)))
+        }
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()

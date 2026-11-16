@@ -39,7 +39,16 @@ class Profile(context: Context) {
     /** The caller's own emergency report the authority has not yet confirmed, or null. */
     var bekleyenAcil: String?
         get() = prefs.getString("bekleyen_acil", null)
-        set(value) { prefs.edit().putString("bekleyen_acil", value).commit() }
+        set(value) { prefs.edit().putString("bekleyen_acil", value).putStringSet("bekleyen_idler", emptySet()).commit() }
+
+    /** When the pending report was last handed to the mesh (ms), to send it again before the mesh lets it expire. */
+    var bekleyenZaman: Long
+        get() = prefs.getLong("bekleyen_zaman", 0)
+        set(value) { prefs.edit().putLong("bekleyen_zaman", value).commit() }
+
+    /** Message ids of every envelope sent for the pending report: a receipt for any of them confirms it. */
+    val bekleyenIdler: Set<String> get() = prefs.getStringSet("bekleyen_idler", emptySet())!!
+    fun bekleyenIdEkle(id: String) { prefs.edit().putStringSet("bekleyen_idler", bekleyenIdler + id).commit() }
 
     /** The authority code (see Kurum), or null before the authority has given one. */
     var kurum: String?

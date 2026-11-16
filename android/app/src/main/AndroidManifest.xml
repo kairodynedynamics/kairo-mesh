@@ -16,9 +16,12 @@
     <!-- the caller's own GPS position goes into their emergency call; GPS works without a network -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- after a reboot the mesh starts again without the user opening the app -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:allowBackup="false"
+        android:usesCleartextTraffic="${cleartext}"
         android:label="Kairo Mesh"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
@@ -35,5 +38,12 @@
             android:name=".MeshService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+        <receiver
+            android:name=".BootAlici"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
