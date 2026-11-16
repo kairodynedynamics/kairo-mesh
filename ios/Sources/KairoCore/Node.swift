@@ -4,7 +4,7 @@ import Foundation
 // Not thread-safe: callers serialise access. Every frame field is length-checked before it is read,
 // because an out-of-range index traps in Swift instead of throwing.
 
-private let HELLO: UInt8 = 1, SCORE: UInt8 = 2, DATA: UInt8 = 3, ACK: UInt8 = 4
+private let HELLO: UInt8 = 1, SCORE: UInt8 = 2, DATA: UInt8 = 3, ACK: UInt8 = 4, NOTICE: UInt8 = 5
 private let MINE = 4
 private let SYM = 400
 private let MAX_K = 164
@@ -13,6 +13,11 @@ private let STRANGER_STORE = MAX_STORE / 2, STRANGER_PARTIAL = MAX_PARTIAL / 2
 private let SCORE_BUDGET = 48, DATA_BUDGET = 400
 private let TTL_MS = dayMs, SKEW_MS: Int64 = 3_600_000, PARTIAL_MS: Int64 = 60_000
 private let HALF_LIFE_MS = 7_200_000.0, REENCOUNTER_MS: Int64 = 300_000
+private let KURUM = "#kurum", ACIL_TOKENS = 8, ACIL_STORE = 24
+private let MAX_NOTICES = 32, NOTICE_TEXT = 600, NOTICE_EVERY_MS: Int64 = 60_000, NOTICES_PER_TICK = 2
+
+/// An announcement from the authority, after its signature checked out.
+public struct Notice { public let id: String; public let issued: Int64; public let expires: Int64; public let text: String }
 
 private func blind(_ value: Bytes, _ eid: Bytes) -> Bytes { sha256(value, eid).sub(0, 8) }
 private func proofOf(_ env: Bytes, _ eid: Bytes) -> Bytes { sha256(env, "ack", eid).sub(0, 16) }
@@ -48,9 +53,11 @@ private protocol Trust { var trusted: Bool { get }; var own: Bool { get } }
 private final class Msg: Trust {
     let id: Bytes, tag: Bytes, rh: Bytes, env: Bytes
     var tokens: Int
-    let at: Int64, own: Bool, trusted: Bool
-    init(_ id: Bytes, _ tag: Bytes, _ rh: Bytes, _ env: Bytes, tokens: Int, at: Int64, own: Bool, trusted: Bool) {
-        self.id = id; self.tag = tag; self.rh = rh; self.env = env; self.tokens = tokens; self.at = at; self.own = own; self.trusted = trusted
+    let at: Int64, own: Bool, trusted: Bool, acil: Bool
+    var uploading = false
+    init(_ id: Bytes, _ tag: Bytes, _ rh: Bytes, _ env: Bytes, tokens: Int, at: Int64, own: Bool, trusted: Bool, acil: Bool = false) {
+        self.id = id; self.tag = tag; self.rh = rh; self.env = env; self.tokens = tokens; self.at = at; self.own = own
+        self.trusted = trusted; self.acil = acil
     }
 }
 
@@ -66,6 +73,18 @@ public final class Node {
     private let onMessage: (String, String) -> Void
     private let now: () -> Int64
     private let copies: Int
+    // Emergency relay (see src/node.js): reports sealed to the authority's key, uploaded by whichever phone has internet.
+    private let authority: Bytes?
+    private let online: () -> Bool
+    /// Uploads an envelope; calls back with the authority's receipt, or nil to retry later. The callback must run
+    /// on the same serial queue as every other call into this node.
+    private let uplink: ((Bytes, @escaping (Bytes?) -> Void) -> Void)?
+    private let onEmergencyDelivered: (String) -> Void
+    private let authoritySign: Bytes?
+    private let downlink: ((@escaping ([Bytes]) -> Void) -> Void)?
+    private let onAnnouncement: (Notice) -> Void
+    private var notices = Ordered<(frame: Bytes, expires: Int64, sent: Int64)>()
+    private var lastDownlink = Int64.min / 2
 
     private var contacts = Ordered<Bytes>()
     private var recognition = Ordered<Bytes>()
@@ -91,8 +110,15 @@ public final class Node {
     /// `delivered` is what a previous run returned from `delivered`: persist it so a restart does not reopen replays.
     public init(identity: Identity, send: @escaping (Bytes) -> Void, onMessage: @escaping (String, String) -> Void = { _, _ in },
                 now: @escaping () -> Int64 = { Int64(Date().timeIntervalSince1970 * 1000) }, copies: Int = 4,
-                delivered: [(String, String)] = []) {
+                delivered: [(String, String)] = [],
+                authority: Bytes? = nil, online: @escaping () -> Bool = { false },
+                uplink: ((Bytes, @escaping (Bytes?) -> Void) -> Void)? = nil,
+                onEmergencyDelivered: @escaping (String) -> Void = { _ in },
+                authoritySign: Bytes? = nil, downlink: ((@escaping ([Bytes]) -> Void) -> Void)? = nil,
+                onAnnouncement: @escaping (Notice) -> Void = { _ in }) {
         self.identity = identity; self.send = send; self.onMessage = onMessage; self.now = now; self.copies = copies
+        self.authority = authority; self.online = online; self.uplink = uplink; self.onEmergencyDelivered = onEmergencyDelivered
+        self.authoritySign = authoritySign; self.downlink = downlink; self.onAnnouncement = onAnnouncement
         myRk = recognitionKey(identity.pub)
         for (key, receipt) in delivered { if let r = receipt.unhex { seen[key] = r } }
     }
@@ -101,11 +127,14 @@ public final class Node {
     private func isMe(_ id: Bytes) -> Bool { same(id, eid()) || same(id, ephemeralId(myRk, now() - epochMs)) }
     private func tagsOf(_ pub: Bytes) -> [Bytes] { [recipientTag(pub, now()), recipientTag(pub, now() - dayMs)] }
     private func known(_ peer: Bytes) -> Bool { recognise(peer, recognition.pairs, now()) != nil }
+    private func isKurumTag(_ tag: Bytes) -> Bool { authority.map { a in tagsOf(a).contains { same($0, tag) } } ?? false }
+    private func gateway() -> Bool { authority != nil && uplink != nil && online() }
 
     public var pub: Bytes { identity.pub }
     public var carrying: Int { store.count }
     public var copiesHeld: Int { store.values.reduce(0) { $0 + $1.tokens } }
     public var delivered: [(String, String)] { seen.pairs.map { ($0.0, $0.1.hex) } }
+    public var noticeFrames: [Bytes] { notices.values.map { $0.frame } }
 
     public func addContact(_ name: String, _ pub: Bytes) throws {
         guard pub.count == 32 else { throw KairoError.malformed }
@@ -121,7 +150,8 @@ public final class Node {
         score[name] = (p + (1 - p) * 0.75, now())
     }
     private func lookup(_ matches: (Bytes) -> Bool) -> (tag: Bytes?, q: Int) {
-        for (name, pub) in contacts.pairs {
+        // The authority counts as a contact everyone has; "meeting" it means having had internet.
+        for (name, pub) in contacts.pairs + (authority.map { [(KURUM, $0)] } ?? []) {
             for tag in tagsOf(pub) where matches(tag) {
                 return (tag, score[name].map { Int((decayed($0) * 3).rounded()) } ?? 0)
             }
@@ -154,6 +184,24 @@ public final class Node {
 
     private func ack(_ to: Bytes, _ id: Bytes, _ proof: Bytes) { send(cat(u8(Int(ACK)), eid(), to, id, proof)) }
 
+    /// Drops a carried or own message whose receipt checks out, and remembers the receipt to pass on.
+    @discardableResult private func settle(_ key: String, _ receipt: Bytes) -> Bool {
+        guard let m = store[key], receipt.count == 16, same(sha256(receipt).sub(0, 16), m.rh) else { return false }
+        store[key] = nil
+        remember(&cleared, key, receipt)
+        if m.own && m.acil { onEmergencyDelivered(key) }
+        return true
+    }
+
+    private func upload(_ key: String, _ m: Msg) {
+        guard let up = uplink, !m.uploading else { return }
+        m.uploading = true
+        up(m.env) { [weak self] receipt in
+            guard let self else { return }
+            if let r = receipt, self.settle(key, r) { self.ack(Bytes(repeating: 0, count: 8), m.id, r) } else { m.uploading = false }
+        }
+    }
+
     private func onHello(_ b: Bytes) {
         let from = b.sub(1, 9)
         let n = Int(b[9])
@@ -162,7 +210,9 @@ public final class Node {
         if n == 0 { return }
         let have = Set(store.values.map { blind($0.id, from).hex })
         let done = doneFor(from)
-        let mine = Set(tagsOf(identity.pub).map { blind($0, from).hex })
+        var mine = Set(tagsOf(identity.pub).map { blind($0, from).hex })
+        // A phone with internet answers for the authority: it will upload the envelope at once.
+        if gateway(), let a = authority { mine.formUnion(tagsOf(a).map { blind($0, from).hex }) }
         for i in 0..<n {
             let h = b.sub(10 + i * 16, 18 + i * 16)
             let bt = b.sub(18 + i * 16, 26 + i * 16)
@@ -190,7 +240,8 @@ public final class Node {
         var give = 0
         if q != MINE {
             let mq = lookup { same($0, m.tag) }.q
-            let friend = known(from) || (q > 0 && same(knows(m.tag, to), b.sub(26, 34)))
+            // Emergency mail goes to anyone willing to carry it.
+            let friend = m.acil || known(from) || (q > 0 && same(knows(m.tag, to), b.sub(26, 34)))
             if m.tokens > 1 {
                 give = q + mq > 0 ? min(m.tokens - 1, Int((Double(m.tokens) * Double(q) / Double(q + mq)).rounded())) : m.tokens >> 1
                 if !friend { give = min(give, m.tokens >> 1) }
@@ -224,8 +275,9 @@ public final class Node {
         if store[key] != nil { return }
         if let receipt = seen[key] ?? cleared[key] { return ack(from, id, receipt) }
         let forMe = { self.tagsOf(self.identity.pub).contains(where: { same($0, tag) }) }
-        if !relay && !forMe() { return }
-        let trusted = known(from)
+        let acil = isKurumTag(tag)
+        if !relay && !forMe() && !(acil && gateway()) { return }
+        let trusted = known(from) || acil
         let p: Partial
         if let existing = partial[key] {
             p = existing
@@ -239,10 +291,18 @@ public final class Node {
         guard p.dec.done else { return }
         partial[key] = nil
         guard let env = try? p.dec.result(), same(sha256(env, rh).sub(0, 8), id) else { return } // corrupted or forged packets
+        if acil && !hasWork(env) { return }
         if !forMe() {
+            if acil { // others' emergency mail has its own quota; when full, the oldest one makes room
+                let others = store.pairs.filter { $0.1.acil && !$0.1.own }
+                if others.count >= ACIL_STORE, let oldest = others.min(by: { $0.1.at < $1.1.at }) { store[oldest.0] = nil }
+            }
             guard makeRoom(&store, MAX_STORE, STRANGER_STORE, trusted) else { return }
-            store[key] = Msg(id, tag, rh, env, tokens: min(max(tokens, 1), MAX_TOKENS), at: now(), own: false, trusted: trusted)
-            return ack(from, id, proofOf(env, eid()))
+            let m = Msg(id, tag, rh, env, tokens: min(max(tokens, 1), MAX_TOKENS), at: now(), own: false, trusted: trusted, acil: acil)
+            store[key] = m
+            ack(from, id, proofOf(env, eid()))
+            if acil && gateway() { upload(key, m) }
+            return
         }
         guard let msg = try? open(identity, env), msg.body.count >= 24 else { return }
         // compared against bounds, not subtracted: a sender-chosen timestamp must not overflow the arithmetic
@@ -262,22 +322,54 @@ public final class Node {
         let key = b.sub(17, 25).hex
         guard let m = store[key] else { return }
         // Anyone may relay a receipt: only the recipient could have produced it.
-        if same(sha256(proof).sub(0, 16), m.rh) { store[key] = nil; remember(&cleared, key, proof); return }
+        if settle(key, proof) { return }
         guard isMe(b.sub(9, 17)), let give = pending[key + from.hex], give != 0, same(proofOf(m.env, from), proof) else { return }
         pending[key + from.hex] = nil
         if m.tokens > 1 { m.tokens -= min(give, m.tokens - 1) } else if !m.own { store[key] = nil }
     }
 
-    public func sendMessage(_ name: String, _ text: String) throws {
+    @discardableResult public func sendMessage(_ name: String, _ text: String) throws -> String {
         guard let pub = contacts[name] else { throw KairoError.unknownContact }
+        return try post(pub, Array(text.utf8), copies, acil: false)
+    }
+
+    /// `reportJson`: the structured emergency record (triage fields, GPS location). Returns the message id;
+    /// `onEmergencyDelivered(id)` fires when the authority has it. Takes under a second (proof of work).
+    @discardableResult public func sendEmergency(_ reportJson: String) throws -> String {
+        guard let pub = authority else { throw KairoError.unknownContact }
+        return try post(pub, Array(reportJson.utf8), ACIL_TOKENS, acil: true)
+    }
+
+    private func post(_ pub: Bytes, _ body: Bytes, _ tokens: Int, acil: Bool) throws -> String {
         var rng = SystemRandomNumberGenerator()
         let receipt = (0..<16).map { _ in UInt8.random(in: 0...255, using: &rng) }
         let rh = sha256(receipt).sub(0, 16)
-        let env = try seal(identity, pub, cat(receipt, be64(UInt64(now())), Array(text.utf8)))
+        let sealed = try seal(identity, pub, cat(receipt, be64(UInt64(now())), body))
+        let env = acil ? addWork(sealed) : sealed
         guard (env.count + 4 + SYM - 1) / SYM <= MAX_K else { throw KairoError.tooLarge }
         guard makeRoom(&store, MAX_STORE, STRANGER_STORE, true) else { throw KairoError.outboxFull }
         let id = sha256(env, rh).sub(0, 8)
-        store[id.hex] = Msg(id, recipientTag(pub, now()), rh, env, tokens: copies, at: now(), own: true, trusted: true)
+        store[id.hex] = Msg(id, recipientTag(pub, now()), rh, env, tokens: tokens, at: now(), own: true, trusted: true, acil: acil)
+        return id.hex
+    }
+
+    // NOTICE: [5][id 8][issued 8][expires 8][len 2][text][sig 64]; signed over everything before the signature.
+    private func onNotice(_ b: Bytes) {
+        guard let signer = authoritySign, b.count >= 27 + 64 else { return }
+        let len = b.u16(25)
+        guard len <= NOTICE_TEXT, b.count == 27 + len + 64 else { return }
+        let key = b.sub(1, 9).hex
+        guard notices[key] == nil else { return }
+        let issued = b.u64(9), expires = b.u64(17), t = now()
+        guard expires <= UInt64(Int64.max), issued <= UInt64(Int64.max) else { return }
+        guard Int64(expires) > t, Int64(issued) <= t + SKEW_MS else { return }
+        guard verifySignature(signer, b.sub(0, 27 + len), b.sub(27 + len, b.count)) else { return }
+        if notices.count >= MAX_NOTICES {
+            guard let soonest = notices.pairs.min(by: { $0.1.expires < $1.1.expires }), soonest.1.expires <= Int64(expires) else { return }
+            notices[soonest.0] = nil
+        }
+        notices[key] = (frame: b, expires: Int64(expires), sent: Int64.min / 2)
+        onAnnouncement(Notice(id: key, issued: Int64(issued), expires: Int64(expires), text: String(decoding: b[27..<(27 + len)], as: UTF8.self)))
     }
 
     /// Feed every frame heard on the radio; malformed frames are dropped.
@@ -288,6 +380,7 @@ public final class Node {
         case SCORE: onScore(frame)
         case DATA: onData(frame)
         case ACK: onAck(frame)
+        case NOTICE: onNotice(frame)
         default: break
         }
     }
@@ -301,7 +394,23 @@ public final class Node {
         burst.removeAll()
         scoreBudget = SCORE_BUDGET
         dataBudget = DATA_BUDGET
-        let all = store.values
+        if gateway() {
+            met(KURUM)
+            for (k, m) in store.pairs where m.acil { upload(k, m) } // includes mail picked up while offline
+        }
+        if let down = downlink, online(), t - lastDownlink > 5 * NOTICE_EVERY_MS {
+            lastDownlink = t
+            down { [weak self] frames in for f in frames { self?.onNotice(f) } }
+        }
+        notices.removeAll { $0.expires <= t }
+        var sent = 0
+        for (k, n) in notices.pairs where sent < NOTICES_PER_TICK && t - n.sent >= NOTICE_EVERY_MS {
+            notices[k] = (frame: n.frame, expires: n.expires, sent: t)
+            sent += 1
+            send(n.frame)
+        }
+        // emergency mail is announced first, so it wins the HELLO slots and the transmit budget
+        let all = store.values.filter { $0.acil } + store.values.filter { !$0.acil }
         let n = min(all.count, HELLO_SLOTS)
         let me = eid()
         var out = cat(u8(Int(HELLO)), me, u8(n))

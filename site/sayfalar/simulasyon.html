@@ -1,0 +1,45 @@
+<section class="bolum ilk">
+  <div class="sar">
+    <span class="etiket">Simülasyon</span>
+    <h1>Ölçümü kendiniz çalıştırın</h1>
+    <p class="lede">80 kişi sekiz saat boyunca altı mahalle arasında hareket eder. Telsiz menzili dışındaki kişilere 300 mesaj gönderilir; mesajlar yoldan geçenler tarafından taşınmak zorundadır. Aşağıdaki simülasyon, ürünle aynı kodla tarayıcınızda çalışır; hiçbir veri bir sunucuya gitmez.</p>
+    <div class="denetim">
+      <label>Dünya tohumu <input id="tohum" type="number" value="1" min="1"></label>
+      <label>Alan kenarı (m) <input id="alan" type="number" value="4000" min="1000" max="8000" step="500"></label>
+      <button id="calistir" type="button">Simülasyonu çalıştır</button>
+    </div>
+    <div class="tablo"><table>
+      <thead><tr><th>Kural</th><th>Kopya</th><th>Teslim</th><th></th><th>İletim / mesaj</th></tr></thead>
+      <tbody id="satirlar"><tr><td colspan="5" class="soluk">Sonuçlar burada görünecek. Her kural birkaç saniye sürer.</td></tr></tbody>
+    </table></div>
+    <p class="soluk kucuk">Farklı tohumlar farklı hareket ve mesaj trafiği üretir; tek bir tohumun sonucu, 20 tohumun ortalamasından sapabilir. Yayımlanan rakamlar <a href="dogrulama.html">doğrulama sayfasındadır</a>.</p>
+  </div>
+</section>
+<script type="module">
+  import { simulate } from './sim/sim.js';
+  const kurallar = [['wait', 4, 'Yaygın kural'], ['focus', 4, 'Kairo'], ['wait', 8, 'Yaygın kural'], ['focus', 8, 'Kairo'], ['wait', 16, 'Yaygın kural']];
+  const satirlar = document.getElementById('satirlar'), dugme = document.getElementById('calistir');
+  dugme.addEventListener('click', calistir);
+  if (location.hash === '#calistir') calistir();
+  async function calistir() {
+    const seed = Math.max(1, Math.floor(+document.getElementById('tohum').value) || 1);
+    const world = Math.min(8000, Math.max(1000, +document.getElementById('alan').value || 4000));
+    dugme.disabled = true;
+    satirlar.replaceChildren();
+    for (const [policy, L, ad] of kurallar) {
+      await new Promise((r) => setTimeout(r));
+      const s = simulate({ policy, L, seed, world });
+      const tr = satirlar.insertRow();
+      if (policy === 'focus') tr.className = 'vurgu';
+      const yuzde = (s.delivery * 100).toFixed(1);
+      tr.insertCell().textContent = ad;
+      tr.insertCell().textContent = L;
+      tr.insertCell().textContent = '%' + yuzde.replace('.', ',');
+      const c = tr.insertCell();
+      c.innerHTML = '<div class="cubuk"><i></i></div>';
+      c.querySelector('i').style.width = yuzde + '%';
+      tr.insertCell().textContent = s.txPerMessage.toFixed(1).replace('.', ',');
+    }
+    dugme.disabled = false;
+  }
+</script>

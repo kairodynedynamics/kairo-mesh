@@ -9,6 +9,7 @@ private const val HELLO = 1
 private const val SCORE = 2
 private const val DATA = 3
 private const val ACK = 4
+private const val NOTICE = 5
 private const val MINE = 4
 private const val SYM = 400
 private const val MAX_K = 164
@@ -26,6 +27,16 @@ private const val SKEW_MS = 3_600_000L
 private const val PARTIAL_MS = 60_000L
 private const val HALF_LIFE_MS = 7_200_000L
 private const val REENCOUNTER_MS = 300_000L
+private const val KURUM = "#kurum"
+private const val ACIL_TOKENS = 8
+private const val ACIL_STORE = 24
+private const val MAX_NOTICES = 32
+private const val NOTICE_TEXT = 600
+private const val NOTICE_EVERY_MS = 60_000L
+private const val NOTICES_PER_TICK = 2
+
+/** An announcement from the authority, after its signature checked out. */
+class Notice(val id: String, val issued: Long, val expires: Long, val text: String)
 
 private fun blind(value: ByteArray, eid: ByteArray) = sha256(value, eid).sub(0, 8)
 private fun proofOf(env: ByteArray, eid: ByteArray) = sha256(env, "ack", eid).sub(0, 16)
@@ -38,10 +49,24 @@ class Node(
     private val now: () -> Long = System::currentTimeMillis,
     private val copies: Int = 4,
     delivered: List<Pair<String, String>> = emptyList(),
+    // Emergency relay (see src/node.js): reports sealed to the authority's key, uploaded by whichever phone has internet.
+    private val authority: ByteArray? = null,
+    private val online: () -> Boolean = { false },
+    /** Uploads an envelope; calls back with the authority's receipt, or null to retry later. The callback must run
+     *  under the same lock as every other call into this node. */
+    private val uplink: ((ByteArray, (ByteArray?) -> Unit) -> Unit)? = null,
+    private val onEmergencyDelivered: (String) -> Unit = {},
+    private val authoritySign: ByteArray? = null,
+    /** Fetches the authority's current announcement frames; same locking rule as `uplink`. */
+    private val downlink: (((List<ByteArray>) -> Unit) -> Unit)? = null,
+    private val onAnnouncement: (Notice) -> Unit = {},
 ) {
     private interface Trust { val trusted: Boolean; val own: Boolean }
     private class Msg(val id: ByteArray, val tag: ByteArray, val rh: ByteArray, val env: ByteArray, var tokens: Int,
-                      val at: Long, override val own: Boolean, override val trusted: Boolean) : Trust
+                      val at: Long, override val own: Boolean, override val trusted: Boolean, val acil: Boolean = false) : Trust {
+        var uploading = false
+    }
+    private class Held(val frame: ByteArray, val expires: Long, var sent: Long = Long.MIN_VALUE / 2)
     private class Partial(val dec: Decoder, val at: Long, override val trusted: Boolean) : Trust { override val own = false }
     private class Score(val p: Double, val t: Long)
     private class Hit(val tag: ByteArray?, val q: Int)
@@ -64,6 +89,8 @@ class Node(
     private var dataBudget = DATA_BUDGET
     // peer id -> delivered handles blinded for that peer; rebuilding it costs a hash per entry on every HELLO
     private val doneCache = HashMap<String, Map<String, Map.Entry<String, ByteArray>>>()
+    private val notices = LinkedHashMap<String, Held>()
+    private var lastDownlink = Long.MIN_VALUE / 2
 
     /** False on low battery: the phone still sends and receives its own mail but takes on nobody else's. */
     var relay = true
@@ -73,11 +100,14 @@ class Node(
     private fun isMe(id: ByteArray) = same(id, eid()) || same(id, ephemeralId(myRk, now() - EPOCH_MS))
     private fun tagsOf(pub: ByteArray) = listOf(recipientTag(pub, now()), recipientTag(pub, now() - DAY_MS))
     private fun known(peer: ByteArray) = recognise(peer, recognition, now()) != null
+    private fun isKurumTag(tag: ByteArray) = authority != null && tagsOf(authority).any { same(it, tag) }
+    private fun gateway() = authority != null && uplink != null && online()
 
     val pub get() = identity.pub
     val carrying get() = store.size
     val delivered get() = seen.map { it.key to it.value.hex() }
     val copiesHeld get() = store.values.sumOf { it.tokens }
+    val noticeFrames get() = notices.values.map { it.frame }
 
     fun addContact(name: String, pub: ByteArray) {
         require(pub.size == 32) { "contact key must be 32 bytes" }
@@ -93,7 +123,9 @@ class Node(
         score[name] = Score(p + (1 - p) * 0.75, now())
     }
     private fun lookup(matches: (ByteArray) -> Boolean): Hit {
-        for ((name, pub) in contacts) for (tag in tagsOf(pub)) if (matches(tag)) {
+        // The authority counts as a contact everyone has; "meeting" it means having had internet.
+        val all = contacts.entries.map { it.key to it.value } + (if (authority != null) listOf(KURUM to authority) else emptyList())
+        for ((name, pub) in all) for (tag in tagsOf(pub)) if (matches(tag)) {
             val s = score[name]
             return Hit(tag, if (s != null) Math.round(decayed(s) * 3).toInt() else 0)
         }
@@ -122,6 +154,23 @@ class Node(
 
     private fun ack(to: ByteArray, id: ByteArray, proof: ByteArray) = send(cat(u8(ACK), eid(), to, id, proof))
 
+    /** Drops a carried or own message whose receipt checks out, and remembers the receipt to pass on. */
+    private fun settle(key: String, receipt: ByteArray): Boolean {
+        val m = store[key] ?: return false
+        if (!same(sha256(receipt).sub(0, 16), m.rh)) return false
+        store.remove(key)
+        remember(cleared, key, receipt)
+        if (m.own && m.acil) onEmergencyDelivered(key)
+        return true
+    }
+
+    private fun upload(key: String, m: Msg) {
+        val up = uplink ?: return
+        if (m.uploading) return
+        m.uploading = true
+        up(m.env) { receipt -> if (receipt != null && settle(key, receipt)) ack(ByteArray(8), m.id, receipt) else m.uploading = false }
+    }
+
     private fun onHello(b: ByteArray) {
         val from = b.sub(1, 9)
         val n = b[9].toInt() and 255
@@ -130,7 +179,9 @@ class Node(
         if (n == 0) return
         val have = store.values.map { blind(it.id, from).hex() }.toSet()
         val done = doneFor(from)
-        val mine = tagsOf(identity.pub).map { blind(it, from).hex() }
+        val mine = tagsOf(identity.pub).map { blind(it, from).hex() }.toMutableList()
+        // A phone with internet answers for the authority: it will upload the envelope at once.
+        if (gateway()) mine += tagsOf(authority!!).map { blind(it, from).hex() }
         for (i in 0 until n) {
             val h = b.sub(10 + i * 16, 18 + i * 16)
             val bt = b.sub(18 + i * 16, 26 + i * 16)
@@ -159,7 +210,8 @@ class Node(
         var give = 0
         if (q != MINE) {
             val mq = lookup { same(it, m.tag) }.q
-            val friend = known(from) || (q > 0 && same(knows(m.tag, to), b.sub(26, 34)))
+            // Emergency mail goes to anyone willing to carry it.
+            val friend = m.acil || known(from) || (q > 0 && same(knows(m.tag, to), b.sub(26, 34)))
             if (m.tokens > 1) {
                 give = if (q + mq > 0) minOf(m.tokens - 1, Math.round(m.tokens.toDouble() * q / (q + mq)).toInt()) else m.tokens shr 1
                 if (!friend) give = minOf(give, m.tokens shr 1)
@@ -192,8 +244,9 @@ class Node(
         if (key in store) return
         (seen[key] ?: cleared[key])?.let { return ack(from, id, it) }
         val forMe = { tagsOf(identity.pub).any { same(it, tag) } }
-        if (!relay && !forMe()) return
-        val trusted = known(from)
+        val acil = isKurumTag(tag)
+        if (!relay && !forMe() && !(acil && gateway())) return
+        val trusted = known(from) || acil
         var p = partial[key]
         if (p == null) {
             if (k < 1 || k > MAX_K || !makeRoom(partial, MAX_PARTIAL, STRANGER_PARTIAL, trusted)) return
@@ -205,10 +258,18 @@ class Node(
         partial.remove(key)
         val env = runCatching { p.dec.result() }.getOrNull() ?: return
         if (!same(sha256(env, rh).sub(0, 8), id)) return // corrupted or forged packets
+        if (acil && !hasWork(env)) return
         if (!forMe()) {
+            if (acil) { // others' emergency mail has its own quota; when full, the oldest one makes room
+                val others = store.entries.filter { it.value.acil && !it.value.own }
+                if (others.size >= ACIL_STORE) store.remove(others.minByOrNull { it.value.at }!!.key)
+            }
             if (!makeRoom(store, MAX_STORE, STRANGER_STORE, trusted)) return
-            store[key] = Msg(id, tag, rh, env, tokens.coerceIn(1, MAX_TOKENS), now(), own = false, trusted = trusted)
-            return ack(from, id, proofOf(env, eid()))
+            val m = Msg(id, tag, rh, env, tokens.coerceIn(1, MAX_TOKENS), now(), own = false, trusted = trusted, acil = acil)
+            store[key] = m
+            ack(from, id, proofOf(env, eid()))
+            if (acil && gateway()) upload(key, m)
+            return
         }
         val msg = runCatching { open(identity, env) }.getOrNull() ?: return
         if (msg.body.size < 24) return
@@ -229,7 +290,7 @@ class Node(
         val key = b.sub(17, 25).hex()
         val m = store[key] ?: return
         // Anyone may relay a receipt: only the recipient could have produced it.
-        if (same(sha256(proof).sub(0, 16), m.rh)) { store.remove(key); remember(cleared, key, proof); return }
+        if (settle(key, proof)) return
         if (!isMe(b.sub(9, 17))) return
         val give = pending[key + from.hex()]
         if (give == null || give == 0 || !same(proofOf(m.env, from), proof)) return
@@ -237,15 +298,49 @@ class Node(
         if (m.tokens > 1) m.tokens -= minOf(give, m.tokens - 1) else if (!m.own) store.remove(key)
     }
 
-    fun sendMessage(name: String, text: String) {
+    fun sendMessage(name: String, text: String): String {
         val pub = contacts[name] ?: throw IllegalArgumentException("unknown contact: $name")
+        return post(pub, text.toByteArray(Charsets.UTF_8), copies, false)
+    }
+
+    /** `reportJson`: the structured emergency record (triage fields, GPS location). Returns the message id;
+     *  `onEmergencyDelivered(id)` fires when the authority has it. Takes under a second (proof of work). */
+    fun sendEmergency(reportJson: String): String {
+        val pub = authority ?: throw IllegalStateException("no authority key configured")
+        return post(pub, reportJson.toByteArray(Charsets.UTF_8), ACIL_TOKENS, true)
+    }
+
+    private fun post(pub: ByteArray, body: ByteArray, tokens: Int, acil: Boolean): String {
         val receipt = ByteArray(16).also { random.nextBytes(it) }
         val rh = sha256(receipt).sub(0, 16)
-        val env = seal(identity, pub, cat(receipt, be64(now()), text.toByteArray(Charsets.UTF_8)))
+        val sealed = seal(identity, pub, cat(receipt, be64(now()), body))
+        val env = if (acil) addWork(sealed) else sealed
         require((env.size + 4 + SYM - 1) / SYM <= MAX_K) { "message too large" }
         check(makeRoom(store, MAX_STORE, STRANGER_STORE, true)) { "outbox full" }
         val id = sha256(env, rh).sub(0, 8)
-        store[id.hex()] = Msg(id, recipientTag(pub, now()), rh, env, copies, now(), own = true, trusted = true)
+        store[id.hex()] = Msg(id, recipientTag(pub, now()), rh, env, tokens, now(), own = true, trusted = true, acil = acil)
+        return id.hex()
+    }
+
+    // NOTICE: [5][id 8][issued 8][expires 8][len 2][text][sig 64]; signed over everything before the signature.
+    private fun onNotice(b: ByteArray) {
+        val signer = authoritySign ?: return
+        if (b.size < 27 + 64) return
+        val len = b.u16(25)
+        if (len > NOTICE_TEXT || b.size != 27 + len + 64) return
+        val key = b.sub(1, 9).hex()
+        if (key in notices) return
+        val issued = b.u64(9)
+        val expires = b.u64(17)
+        if (expires <= now() || issued > now() + SKEW_MS) return
+        if (!verifySignature(signer, b.sub(0, 27 + len), b.sub(27 + len, b.size))) return
+        if (notices.size >= MAX_NOTICES) {
+            val soonest = notices.entries.minByOrNull { it.value.expires }!!
+            if (soonest.value.expires > expires) return
+            notices.remove(soonest.key)
+        }
+        notices[key] = Held(b.copyOf(), expires)
+        onAnnouncement(Notice(key, issued, expires, String(b, 27, len, Charsets.UTF_8)))
     }
 
     /** Feed every frame heard on the radio; malformed frames from untrusted peers are dropped. */
@@ -257,6 +352,7 @@ class Node(
                 SCORE -> onScore(frame)
                 DATA -> onData(frame)
                 ACK -> onAck(frame)
+                NOTICE -> onNotice(frame)
             }
         } catch (_: RuntimeException) {}
     }
@@ -269,7 +365,20 @@ class Node(
         burst.clear()
         scoreBudget = SCORE_BUDGET
         dataBudget = DATA_BUDGET
-        val all = store.values.toList()
+        if (gateway()) {
+            met(KURUM)
+            for ((k, m) in store.entries.toList()) if (m.acil) upload(k, m) // includes mail picked up while offline
+        }
+        val down = downlink
+        if (down != null && online() && now() - lastDownlink > 5 * NOTICE_EVERY_MS) {
+            lastDownlink = now()
+            down { frames -> for (f in frames) onNotice(f) }
+        }
+        notices.entries.removeIf { it.value.expires <= now() }
+        var sent = 0
+        for (n in notices.values) if (sent < NOTICES_PER_TICK && now() - n.sent >= NOTICE_EVERY_MS) { n.sent = now(); sent++; send(n.frame) }
+        // emergency mail is announced first, so it wins the HELLO slots and the transmit budget
+        val all = store.values.sortedByDescending { if (it.acil) 1 else 0 }
         val n = minOf(all.size, HELLO_SLOTS)
         val me = eid()
         val parts = mutableListOf(u8(HELLO), me, u8(n))

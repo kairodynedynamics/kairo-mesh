@@ -244,13 +244,24 @@ def yazim_hatasi(r, w, siddet):
 
 
 def gurultule(r, parcalar, b, siddet):
-    """parcalar: [(metin, koruma)]. True: yalnız biçim; "hafif": yazım hatası olur ama kelime düşmez
+    """parcalar: [(metin, koruma[, alan])]. True: yalnız biçim; "hafif": yazım hatası olur ama kelime düşmez
     (etiketi taşıyan özel durum ifadeleri); False: tam gürültü."""
-    out = []
-    for metin, korumali in parcalar:
+    out, araliklar, konum_ = [], [], 0
+
+    def ekle(metin, alan):
+        nonlocal konum_
+        if alan and metin.strip():
+            bas = konum_ + len(metin) - len(metin.lstrip())
+            araliklar.append((alan, bas, konum_ + len(metin.rstrip())))
+        out.append(metin)
+        konum_ += len(metin)
+
+    for parca in parcalar:
+        metin, korumali = parca[0], parca[1]
+        alan = parca[2] if len(parca) > 2 else None
         metin = uygula(b, metin)
         if korumali is True or not metin.strip():
-            out.append(metin)
+            ekle(metin, alan)
             continue
         kel = metin.split(" ")
         yeni = []
@@ -270,15 +281,18 @@ def gurultule(r, parcalar, b, siddet):
             metin = re.sub(r"([a-zçğıöşü])\b", lambda m: m.group(1) * r.randint(2, 5), metin, count=1, flags=re.I)
         if r.random() < 0.10:                                 # çift boşluk (korumalı parçaya dokunmaz)
             metin = metin.replace(" ", "  ", r.randint(1, 3))
-        out.append(metin)
+        ekle(metin, alan)
     s = "".join(out)
     if b["kip"] == "ilk" and s[:1].islower():
         s = s[:1].replace("i", "İ").upper() + s[1:]
     if r.random() < 0.25:
-        s = r.choice(["LÜTFEN YAYIN ", "acil yardım!! ", "duyan olsun ", "#deprem ", "RT ", "!!! ", "yardımmm "]) + s
+        on = r.choice(["LÜTFEN YAYIN ", "acil yardım!! ", "duyan olsun ", "#deprem ", "RT ", "!!! ", "yardımmm "])
+        s = on + s
+        araliklar = [(a, x + len(on), y + len(on)) for a, x, y in araliklar]
     if r.random() < 0.25:
         s += r.choice([" #deprem", " lütfen paylaşın", " !!!", " yardım edin", " 🙏", " 😭😭", " ...", " ??", " #enkazaltındayım"])
-    return s.strip()
+    kirp = len(s) - len(s.lstrip())
+    return s.strip(), {a: [x - kirp, y - kirp] for a, x, y in araliklar}
 
 
 # --------------------------------------------------------------- üretim --
@@ -302,22 +316,22 @@ def konum(r, test, b, c):
     # il/ilçe kanonik etiket, metinde yazım hatası olabilir (kapalı sözlük: düzeltilebilir)
     for alan in ("il", "ilce"):
         if e[alan]:
-            parca.append([(e[alan], False)])
+            parca.append([(e[alan], False, alan)])
     if e["mahalle"]:
         ek = r.choice([" Mahallesi", " mahallesi", " mah", " mh", " mh.", " Mah.", ""])
-        parca.append([(e["mahalle"], True), (ek, False)])
+        parca.append([(e["mahalle"], True, "mahalle"), (ek, False)])
         yuzey["mahalle"] = e["mahalle"]
     if e["sokak"]:
         sk = e["sokak"]
         if r.random() < 0.3:
             sk = sk.replace(" Sokak", " sk").replace(" Caddesi", " cd").replace(" Bulvarı", " bulv")
-        parca.append([(sk, True)])
+        parca.append([(sk, True, "sokak")])
         yuzey["sokak"] = sk
     if e["bina"]:
         bn = e["bina"]
         if r.random() < 0.25:
             bn = bn.replace(" Apartmanı", " apt").replace(" Sitesi", " sit")
-        p = [(bn, True)]
+        p = [(bn, True, "bina")]
         yuzey["bina"] = bn
         if r.random() < 0.5:
             p.append((r.choice([" no ", " no:", " numara ", " "]), False))
@@ -351,13 +365,13 @@ def ornek(r, test, siddet):
             parcalar += konum(r, test, b, c)
         elif tok == "{N}":
             c["kisi"] = r.choice([1, 2, 2, 3, 3, 4, 5, 6, 8, 10, 12, 15, 20])
-            parcalar.append((sayi_yaz(r, c["kisi"]), True))
+            parcalar.append((sayi_yaz(r, c["kisi"]), True, "kisi"))
         elif tok == "{A}":
             ad = r.choice(AD[test])
             if r.random() < 0.3:
                 ad = ad.split(" ")[0]
             c["ad"] = uygula(b, ad)
-            parcalar.append((ad, True))
+            parcalar.append((ad, True, "ad"))
         elif tok == "{R}":
             parcalar.append((r.choice(AKRABA), False))
         elif tok == "{O}":
@@ -376,13 +390,17 @@ def ornek(r, test, siddet):
         yuzey = r.choice(["0" + no, "0%s %s %s %s" % (no[:3], no[3:6], no[6:8], no[8:]),
                           "%s %s %s %s" % (no[:3], no[3:6], no[6:8], no[8:]), "0" + no[:3] + " " + no[3:]])
         parcalar.append((r.choice([" tel ", " iletişim ", " ", " numara ", " ara "]), False))
-        parcalar.append((yuzey, True))
-    girdi = gurultule(r, parcalar, b, siddet)
-    return {"girdi": girdi, "cikti": c}
+        parcalar.append((yuzey, True, "tel"))
+    girdi, aralik = gurultule(r, parcalar, b, siddet)
+    return {"girdi": girdi, "cikti": c, "aralik": aralik}
 
 
 def denetle(o):
     c, g = o["cikti"], o["girdi"]
+    for alan, (x, y) in o["aralik"].items():
+        if alan in ("mahalle", "sokak", "bina", "ad"):
+            assert g[x:y] == c[alan], (alan, g[x:y], o)
+        assert 0 <= x < y <= len(g), (alan, o)
     rakam = re.sub(r"\D", "", g)
     if c["tel"]:
         assert c["tel"].lstrip("0") in rakam, o

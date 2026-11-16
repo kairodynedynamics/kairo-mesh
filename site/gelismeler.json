@@ -1,0 +1,37 @@
+[
+ {
+  "tarih": "2026-11-16",
+  "baslik": "Kairo Mesh resmî sitesi yayında",
+  "metin": "Kairodyne Dynamics bundan sonra yalnız Kairo Mesh'e odaklanıyor. Önceki dil modeli projesinin sayfaları kaldırıldı; site ürünün teknik, ölçüm ve kurum bilgilerini taşıyor."
+ },
+ {
+  "tarih": "2026-11-16",
+  "baslik": "Acil aktarım: şebekesiz telefondan kuruma",
+  "metin": "Yardım çağrıları kurum anahtarına mühürleniyor; çevredeki her telefon taşıyor, internete ulaşan ilk telefon arka planda kuruma iletiyor, kurumun makbuzu ağda geri yayılıyor. Referans uygulamada 5 senaryo testi, biri HTTP üzerinden uçtan uca."
+ },
+ {
+  "tarih": "2026-11-16",
+  "baslik": "Şifreleme standart Noise X'e geçti",
+  "metin": "Mesaj zarfı artık Noise_X_25519_ChaChaPoly_SHA256 kalıbının birebir aynısı. Android, iOS ve referans uygulama, bağımsız bir Noise kütüphanesinin yayımladığı test vektörünü bayt bayt üretiyor."
+ },
+ {
+  "tarih": "2026-11-16",
+  "baslik": "Türkçe yardım mesajı veri seti: 1 milyon örnek",
+  "metin": "Telefon yazımını taklit eden (aksansız, bozuk, kısaltmalı) yardım mesajları ve yapılandırılmış karşılıkları. Kural tabanlı yöntem türü %80,5 doğru buluyor, hayati çağrıların %5,4'ünü kaçırıyor; telefonda çalışacak model bu çıtayı geçmeli."
+ },
+ {
+  "tarih": "2026-11-12",
+  "baslik": "Pil dostu taşıyıcılık",
+  "metin": "Pili %20'nin altındaki ya da güç tasarrufundaki telefon başkasının mesajını taşımayı bırakıyor; kendi mesajlarını göndermeye devam ediyor. Android emülatörlerinde doğrulandı."
+ },
+ {
+  "tarih": "2026-11-12",
+  "baslik": "Android ve iOS uygulamaları",
+  "metin": "Bluetooth LE ile çalışan Android uygulaması üç sanal telefonda uçtan uca sınandı; iOS uygulaması iPhone ve iPad simülatörlerinde testleri geçiyor. Üç platform aynı baytları üretiyor."
+ },
+ {
+  "tarih": "2026-11-12",
+  "baslik": "Kairo Mesh çekirdeği",
+  "metin": "Karşılaşma geçmişine göre taşıyıcı seçimi, çeşme kodlu parçalı aktarım, 15 dakikada bir değişen cihaz kimliği ve teslim makbuzu ile çalışan ilk düğüm ve simülatör."
+ }
+]

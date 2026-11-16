@@ -88,6 +88,27 @@ public func seal(_ sender: Identity, _ recipientPub: Bytes, _ body: Bytes) throw
     try noiseXWrite(sender, recipientPub, pad(body))
 }
 
+// Proof of work on emergency envelopes (see src/crypto.js): sha256(sealed || nonce) starts with powBits zero bits.
+public let powBits = 18
+private func zeroBits(_ h: Bytes) -> Int {
+    var n = 0
+    for b in h { if b == 0 { n += 8; continue }; n += b.leadingZeroBitCount; break }
+    return n
+}
+public func addWork(_ sealed: Bytes, bits: Int = powBits) -> Bytes {
+    var i: UInt64 = 0
+    while true { let nonce = be64(i); i += 1; if zeroBits(sha256(sealed, nonce)) >= bits { return sealed + nonce } }
+}
+public func hasWork(_ env: Bytes, bits: Int = powBits) -> Bool {
+    env.count > 8 && zeroBits(sha256(env.sub(0, env.count - 8), env.sub(env.count - 8, env.count))) >= bits
+}
+
+/// The authority's Ed25519 key signs announcements; phones ship with its public half.
+public func verifySignature(_ pub: Bytes, _ msg: Bytes, _ sig: Bytes) -> Bool {
+    guard pub.count == 32, sig.count == 64, let key = try? Curve25519.Signing.PublicKey(rawRepresentation: pub) else { return false }
+    return key.isValidSignature(sig, for: msg)
+}
+
 public struct Opened { public let senderPub: Bytes; public let body: Bytes }
 
 /// Throws if the envelope is not for us or was altered.

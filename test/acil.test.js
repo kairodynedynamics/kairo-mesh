@@ -1,8 +1,8 @@
 // Emergency mail: a phone without signal reaches the authority through strangers and any phone that has internet.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createIdentity, seal } from '../src/crypto.js';
-import { createAuthority, gatewayServer, httpUplink } from '../src/kurum.js';
+import { createIdentity, createSigner, seal, addWork } from '../src/crypto.js';
+import { createAuthority, gatewayServer, httpUplink, httpDownlink } from '../src/kurum.js';
 import { world } from './world.js';
 
 const meet = async (w, pairs, rounds = 4) => {
@@ -74,7 +74,7 @@ test('acil: emergency mail is announced before ordinary mail when the HELLO is f
 test('acil: a report forwarded by several gateways is recorded once; tampered or foreign envelopes are refused', async () => {
   const kurum = createAuthority({ identity: createIdentity() });
   const s = createIdentity();
-  const env = seal(s, kurum.pub, Buffer.concat([Buffer.alloc(16, 7), sentNow(), Buffer.from(JSON.stringify(RAPOR))]));
+  const env = addWork(seal(s, kurum.pub, Buffer.concat([Buffer.alloc(16, 7), sentNow(), Buffer.from(JSON.stringify(RAPOR))])));
   const r1 = kurum.receive(env), r2 = kurum.receive(Buffer.from(env));
   assert.deepEqual(r1, Buffer.alloc(16, 7));
   assert.deepEqual(r2, r1);
@@ -82,16 +82,18 @@ test('acil: a report forwarded by several gateways is recorded once; tampered or
   const bad = Buffer.from(env);
   bad[bad.length - 1] ^= 1;
   assert.equal(kurum.receive(bad), null);
-  const other = seal(s, createIdentity().pub, Buffer.concat([Buffer.alloc(16), sentNow(), Buffer.from('{}')]));
+  const other = addWork(seal(s, createIdentity().pub, Buffer.concat([Buffer.alloc(16), sentNow(), Buffer.from('{}')])));
   assert.equal(kurum.receive(other), null);
-  const stale = seal(s, kurum.pub, Buffer.concat([Buffer.alloc(16), sentNow(-3 * 86400000), Buffer.from('{}')]));
+  const stale = addWork(seal(s, kurum.pub, Buffer.concat([Buffer.alloc(16), sentNow(-3 * 86400000), Buffer.from('{}')])));
   assert.equal(kurum.receive(stale), null);
+  const lazy = Buffer.concat([seal(s, kurum.pub, Buffer.concat([Buffer.alloc(16, 9), sentNow(), Buffer.from('{}')])), Buffer.alloc(8)]);
+  assert.equal(kurum.receive(lazy), null, 'no proof of work: refused');
 });
 
 test('acil: end to end over HTTP, as a phone with internet would upload it', async () => {
   let w;
   const kurum = createAuthority({ identity: createIdentity(), now: () => w.clock.t });
-  const server = gatewayServer(kurum).listen(0);
+  const server = gatewayServer(kurum, { token: 'gizli-anahtar' }).listen(0);
   await new Promise((res) => server.once('listening', res));
   const url = `http://127.0.0.1:${server.address().port}/v1/acil`;
   try {
@@ -101,7 +103,8 @@ test('acil: end to end over HTTP, as a phone with internet would upload it', asy
     w.link('ayse', 'gecit');
     for (let i = 0; i < 20 && !w.delivered.ayse.length; i++) { await w.run(1); await settle(); }
     assert.equal(w.delivered.ayse.length, 1);
-    const list = await (await fetch(url)).json();
+    assert.equal((await fetch(url)).status, 401, 'reports need the dispatcher token');
+    const list = await (await fetch(url, { headers: { authorization: 'Bearer gizli-anahtar' } })).json();
     assert.equal(list.length, 1);
     assert.deepEqual(list[0].report.konum, RAPOR.konum);
     assert.equal(list[0].receipt, undefined, 'receipts stay on the server');
@@ -115,3 +118,52 @@ function sentNow(offset = 0) {
   b.writeBigUInt64BE(BigInt(Date.now() + offset));
   return b;
 }
+
+test('acil: couriers refuse mail sealed to the authority without proof of work, and carry real calls', async () => {
+  const { w, kurum } = setup(['ayse', 'kurye']);
+  // a cheap forgery: sealed to the authority's key like a real call, but without the work
+  w.nodes.ayse.addContact('sahte', kurum.pub);
+  w.nodes.ayse.sendMessage('sahte', JSON.stringify(RAPOR));
+  await meet(w, [['ayse', 'kurye']]);
+  assert.equal(w.nodes.kurye.carrying, 0, 'forgery dropped');
+  w.nodes.ayse.sendEmergency(RAPOR);
+  await meet(w, [['ayse', 'kurye']]);
+  assert.equal(w.nodes.kurye.carrying, 1, 'real call carried');
+});
+
+test('duyuru: a signed announcement spreads from a phone with internet to phones without; forged ones do not', async () => {
+  let w;
+  const signer = createSigner();
+  const kurum = createAuthority({ identity: createIdentity(), signer, now: () => w.clock.t });
+  const gelen = { ayse: [], bora: [], gecit: [] };
+  w = world(['gecit', 'ayse', 'bora'], 0, 1, { authority: kurum.pub, uplink: async (e) => kurum.receive(e),
+    authoritySign: signer.pub, downlink: async () => kurum.notices.map((n) => n.frame),
+    onAnnouncement: (n, d) => gelen[n].push(d.text) });
+  kurum.announce('Toplanma alanı: Atatürk Parkı. Su dağıtımı 14:00.');
+  w.online.add('gecit');
+  await w.run(1);
+  await settle();
+  assert.deepEqual(gelen.gecit, ['Toplanma alanı: Atatürk Parkı. Su dağıtımı 14:00.']);
+  await meet(w, [['gecit', 'ayse']], 35);
+  await meet(w, [['ayse', 'bora']], 35); // bora never meets the phone with internet
+  assert.equal(gelen.bora.length, 1);
+  // a forgery signed by someone else, and a genuine one that has expired, are both ignored
+  const sahte = createAuthority({ identity: createIdentity(), signer: createSigner(), now: () => w.clock.t });
+  w.nodes.bora.receive(sahte.announce('Sahte: toplanma alanı değişti'));
+  w.nodes.bora.receive(kurum.announce('Eski duyuru', -1000));
+  assert.equal(gelen.bora.length, 1);
+});
+
+test('kurum: reports survive a restart of the server', async () => {
+  const { mkdtempSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  const log = join(mkdtempSync(join(tmpdir(), 'kurum-')), 'kayit.jsonl');
+  const id = createIdentity(), s = createIdentity();
+  const env = addWork(seal(s, id.pub, Buffer.concat([Buffer.alloc(16, 3), sentNow(), Buffer.from(JSON.stringify(RAPOR))])));
+  const a = createAuthority({ identity: id, log });
+  assert.ok(a.receive(env));
+  const b = createAuthority({ identity: id, log });
+  assert.equal(b.reports.length, 1);
+  assert.deepEqual(b.receive(env), Buffer.alloc(16, 3), 'the same receipt after restart');
+});

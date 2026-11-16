@@ -94,6 +94,30 @@ private fun pad(body: ByteArray): ByteArray {
 
 fun seal(sender: Identity, recipientPub: ByteArray, body: ByteArray): ByteArray = noiseXWrite(sender, recipientPub, pad(body))
 
+// Proof of work on emergency envelopes (see src/crypto.js): sha256(sealed || nonce) starts with POW_BITS zero bits.
+const val POW_BITS = 18
+private fun zeroBits(h: ByteArray): Int {
+    var n = 0
+    for (b in h) { val v = b.toInt() and 255; if (v == 0) { n += 8; continue }; n += Integer.numberOfLeadingZeros(v) - 24; break }
+    return n
+}
+fun addWork(sealed: ByteArray, bits: Int = POW_BITS): ByteArray {
+    var i = 0L
+    while (true) { val nonce = be64(i++); if (zeroBits(sha256(sealed, nonce)) >= bits) return cat(sealed, nonce) }
+}
+fun hasWork(env: ByteArray, bits: Int = POW_BITS) =
+    env.size > 8 && zeroBits(sha256(env.sub(0, env.size - 8), env.sub(env.size - 8, env.size))) >= bits
+
+// The authority's Ed25519 key signs announcements; phones ship with its public half.
+private val ED_SPKI = "302a300506032b6570032100".unhex()
+fun verifySignature(pub: ByteArray, msg: ByteArray, sig: ByteArray): Boolean {
+    if (pub.size != 32 || sig.size != 64) return false
+    return runCatching {
+        val key = KeyFactory.getInstance("Ed25519").generatePublic(X509EncodedKeySpec(cat(ED_SPKI, pub)))
+        java.security.Signature.getInstance("Ed25519").run { initVerify(key); update(msg); verify(sig) }
+    }.getOrDefault(false)
+}
+
 class Opened(val senderPub: ByteArray, val body: ByteArray)
 
 /** Throws if the envelope is not for us or was altered. */

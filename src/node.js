@@ -10,9 +10,12 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import { encoder, decoder } from './fountain.js';
 import { ephemeralId, recognise, EPOCH_MS } from './ids.js';
-import { seal, open, sha256, recipientTag, recognitionKey, DAY_MS } from './crypto.js';
+//   NOTICE body, signature                 an announcement from the authority (assembly area, water point, unsafe
+//                                          building), Ed25519-signed; phones verify it and pass it on
+import { seal, open, sha256, recipientTag, recognitionKey, DAY_MS, addWork, hasWork, verifySignature } from './crypto.js';
 
-const HELLO = 1, SCORE = 2, DATA = 3, ACK = 4, MINE = 4;
+const HELLO = 1, SCORE = 2, DATA = 3, ACK = 4, NOTICE = 5, MINE = 4;
+const ACIL_STORE = 24, MAX_NOTICES = 32, NOTICE_TEXT = 600, NOTICE_EVERY_MS = 60000, NOTICES_PER_TICK = 2;
 const SYM = 400, MAX_K = 164;            // envelopes up to ~64 KiB
 const MAX_STORE = 40, MAX_PARTIAL = 16, MAX_TOKENS = 8, HELLO_SLOTS = 24, MAX_SEEN = 1000;
 // Strangers may use at most half of each table, so they cannot crowd out mail from people we know.
@@ -32,7 +35,10 @@ const proofOf = (env, eid) => sha256(env, 'ack', eid).subarray(0, 16);
 const KURUM = '#kurum', ACIL_TOKENS = 8;
 
 export function createNode({ identity, contacts = new Map(), send, onMessage = () => {}, now = Date.now, L = 4, delivered = [],
-  authority = null, online = () => false, uplink = null, onEmergencyDelivered = () => {} }) {
+  authority = null, online = () => false, uplink = null, onEmergencyDelivered = () => {},
+  authoritySign = null, downlink = null, onAnnouncement = () => {} }) {
+  const notices = new Map(); // id -> { frame, expires, sent }
+  let lastDownlink = -Infinity;
   const store = new Map();   // msgId -> { id, tag, rh, env, tokens, at, own, trusted }
   const partial = new Map(); // msgId -> { dec, at, trusted }
   const pending = new Map(); // msgId+peer -> copies promised (0 = peer says it is the recipient)
@@ -202,8 +208,8 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     const forMe = () => tagsOf(identity.pub).some((t) => t.equals(tag));
     const acil = isKurumTag(tag);
     if (!relay && !forMe() && !(acil && gateway())) return;
-    // shortcut: a stranger's emergency mail is carried like a contact's; a flood of fake ones is bounded by the
-    // per-tick budgets and the authority's server filtering, not yet by anything on the phone (see docs/05)
+    // A stranger's emergency mail is carried like a contact's. Forging it in bulk is bounded by the proof of work
+    // checked below and by its own quota in the store.
     const trusted = known(from) || acil;
     let p = partial.get(key);
     if (!p) {
@@ -216,7 +222,13 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     let env;
     try { env = p.dec.result(); } catch { return; }
     if (!sha256(env, rh).subarray(0, 8).equals(id)) return; // corrupted or forged packets
+    if (acil && !hasWork(env)) return;
     if (!forMe()) {
+      if (acil) {
+        // others' emergency mail has its own quota; when full, the oldest one makes room
+        const others = [...store].filter(([, v]) => v.acil && !v.own);
+        if (others.length >= ACIL_STORE) store.delete(others.sort((a, b) => a[1].at - b[1].at)[0][0]);
+      }
       if (!makeRoom(store, MAX_STORE, STRANGER_STORE, trusted)) return;
       const m = { id: Buffer.from(id), tag, rh, env, tokens: Math.min(Math.max(tokens, 1), MAX_TOKENS), at: now(), trusted, acil };
       store.set(key, m);
@@ -251,10 +263,30 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     if (m.tokens > 1) m.tokens -= Math.min(give, m.tokens - 1); else if (!m.own) store.delete(key);
   }
 
+  // NOTICE: [5][id 8][issued 8][expires 8][len 2][text][sig 64]; signed over everything before the signature.
+  function onNotice(b) {
+    if (!authoritySign || b.length < 27 + 64) return;
+    const len = b.readUInt16BE(25);
+    if (len > NOTICE_TEXT || b.length !== 27 + len + 64) return;
+    const key = hex(b.subarray(1, 9));
+    if (notices.has(key)) return;
+    const issued = Number(b.readBigUInt64BE(9)), expires = Number(b.readBigUInt64BE(17));
+    if (expires <= now() || issued - now() > SKEW_MS) return;
+    if (!verifySignature(authoritySign, b.subarray(0, 27 + len), b.subarray(27 + len))) return;
+    if (notices.size >= MAX_NOTICES) {
+      const soonest = [...notices].sort((x, y) => x[1].expires - y[1].expires)[0];
+      if (soonest[1].expires > expires) return;
+      notices.delete(soonest[0]);
+    }
+    notices.set(key, { frame: Buffer.from(b), expires, sent: -Infinity });
+    onAnnouncement({ id: key, issued, expires, text: b.subarray(27, 27 + len).toString('utf8') });
+  }
+
   function post(pub, body, tokens, acil) {
     const receipt = randomBytes(16), rh = sha256(receipt).subarray(0, 16), sentAt = Buffer.alloc(8);
     sentAt.writeBigUInt64BE(BigInt(now()));
-    const env = seal(identity, pub, Buffer.concat([receipt, sentAt, body]));
+    const sealed = seal(identity, pub, Buffer.concat([receipt, sentAt, body]));
+    const env = acil ? addWork(sealed) : sealed;
     if (Math.ceil((env.length + 4) / SYM) > MAX_K) throw new RangeError('message too large');
     if (!makeRoom(store, MAX_STORE, STRANGER_STORE, true)) throw new Error('outbox full');
     const id = sha256(env, rh).subarray(0, 8);
@@ -270,6 +302,7 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     set relay(on) { relay = on; },
     get delivered() { return [...seen].map(([key, receipt]) => [key, hex(receipt)]); },
     get copies() { return [...store.values()].reduce((sum, m) => sum + m.tokens, 0); },
+    get notices() { return [...notices.values()].map((n) => n.frame); },
     sendMessage(name, text) {
       const pub = contacts.get(name);
       if (!pub) throw new Error(`unknown contact: ${name}`);
@@ -284,7 +317,7 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     receive(frame) {
       try {
         if (!Buffer.isBuffer(frame) || frame.length < 10) return;
-        ({ [HELLO]: onHello, [SCORE]: onScore, [DATA]: onData, [ACK]: onAck })[frame[0]]?.(frame);
+        ({ [HELLO]: onHello, [SCORE]: onScore, [DATA]: onData, [ACK]: onAck, [NOTICE]: onNotice })[frame[0]]?.(frame);
       } catch { /* malformed frame from an untrusted radio: drop it */ }
     },
     // Call every few seconds: expires old state, refills transmit budgets and announces what we carry.
@@ -299,6 +332,15 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
         met(KURUM);
         for (const [k, m] of store) if (m.acil) upload(k, m); // includes mail picked up while offline
       }
+      // A phone with internet fetches the authority's announcements every few minutes and brings them into the mesh.
+      if (downlink && online() && now() - lastDownlink > 5 * NOTICE_EVERY_MS) {
+        lastDownlink = now();
+        Promise.resolve().then(downlink).then((frames) => { for (const f of frames ?? []) onNotice(Buffer.from(f)); }, () => {});
+      }
+      for (const [k, n] of notices) if (n.expires <= now()) notices.delete(k);
+      let sent = 0;
+      for (const n of notices.values())
+        if (sent < NOTICES_PER_TICK && now() - n.sent >= NOTICE_EVERY_MS) { n.sent = now(); sent++; send(n.frame); }
       // emergency mail is announced first, so it wins the HELLO slots and the transmit budget
       const all = [...store.values()].sort((a, b) => (b.acil ? 1 : 0) - (a.acil ? 1 : 0));
       const n = Math.min(all.length, HELLO_SLOTS), me = eid();

@@ -3,7 +3,7 @@
 // test vector. The sender's key is hidden from carriers and authenticated to the recipient.
 // Unaudited; no forward secrecy for stored envelopes (a property of X, not of this code).
 import { generateKeyPairSync, diffieHellman, createPublicKey, createPrivateKey, hkdfSync,
-  createCipheriv, createDecipheriv, createHash, createHmac } from 'node:crypto';
+  createCipheriv, createDecipheriv, createHash, createHmac, sign as edSign, verify as edVerify } from 'node:crypto';
 
 const SPKI = Buffer.from('302a300506032b656e032100', 'hex');
 const PKCS8 = Buffer.from('302e020100300506032b656e04220420', 'hex');
@@ -24,6 +24,39 @@ export function createIdentity(secret) {
     secret: privateKey.export({ format: 'der', type: 'pkcs8' }).subarray(-32),
   };
 }
+
+// The authority's signing key (Ed25519), separate from its sealing key: announcements it broadcasts to the public
+// are signed with it, and phones ship with the public half.
+const ED_SPKI = Buffer.from('302a300506032b6570032100', 'hex');
+const ED_PKCS8 = Buffer.from('302e020100300506032b657004220420', 'hex');
+export function createSigner(secret) {
+  const privateKey = secret
+    ? createPrivateKey({ key: Buffer.concat([ED_PKCS8, secret]), format: 'der', type: 'pkcs8' })
+    : generateKeyPairSync('ed25519').privateKey;
+  return {
+    pub: createPublicKey(privateKey).export({ format: 'der', type: 'spki' }).subarray(-32),
+    secret: privateKey.export({ format: 'der', type: 'pkcs8' }).subarray(-32),
+    sign: (msg) => edSign(null, msg, privateKey),
+  };
+}
+export function verifySignature(pub, msg, sig) {
+  if (pub?.length !== 32 || sig?.length !== 64) return false;
+  try { return edVerify(null, msg, createPublicKey({ key: Buffer.concat([ED_SPKI, pub]), format: 'der', type: 'spki' }), sig); }
+  catch { return false; }
+}
+
+// Proof of work on emergency envelopes: sha256(sealed || nonce) must start with POW_BITS zero bits. About 2^18
+// hashes, under a second on a phone: nothing for one real call, a real cost for someone forging thousands.
+export const POW_BITS = 18;
+const zeros = (h) => { let n = 0; for (const b of h) { if (b === 0) { n += 8; continue; } n += Math.clz32(b) - 24; break; } return n; };
+export function addWork(sealed, bits = POW_BITS) {
+  const nonce = Buffer.alloc(8);
+  for (let i = 0; ; i++) {
+    nonce.writeBigUInt64BE(BigInt(i));
+    if (zeros(sha256(sealed, nonce)) >= bits) return Buffer.concat([sealed, nonce]);
+  }
+}
+export const hasWork = (env, bits = POW_BITS) => env.length > 8 && zeros(sha256(env.subarray(0, -8), env.subarray(-8))) >= bits;
 
 const dh = (privateKey, pub) =>
   diffieHellman({ privateKey, publicKey: createPublicKey({ key: Buffer.concat([SPKI, pub]), format: 'der', type: 'spki' }) });

@@ -4,7 +4,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { rng } from '../src/rng.js';
 import { encoder } from '../src/fountain.js';
 import { ephemeralId } from '../src/ids.js';
-import { createIdentity, seal, sha256, recipientTag, recognitionKey } from '../src/crypto.js';
+import { createIdentity, createSigner, seal, sha256, recipientTag, recognitionKey } from '../src/crypto.js';
+import { createAuthority } from '../src/kurum.js';
 import { createNode } from '../src/node.js';
 
 const T = 1_800_000_123_456;
@@ -33,6 +34,17 @@ writeFileSync(new URL('./app/src/test/resources/vectors.json', import.meta.url),
   keys: { aliSecret: hex(ali.secret), aliPub: hex(ali.pub), boraSecret: hex(bora.secret), boraPub: hex(bora.pub),
     boraTag: hex(recipientTag(bora.pub, T)), boraRk: hex(recognitionKey(bora.pub)) },
   noiseX: JSON.parse(readFileSync(new URL('../test/noise-x-vector.json', import.meta.url))), // published vector, not ours
+  acil: (() => {
+    const kurum = createIdentity(Buffer.from('33'.repeat(32), 'hex'));
+    const signer = createSigner(Buffer.from('44'.repeat(32), 'hex'));
+    const out = [];
+    const n = createNode({ identity: ali, now: () => T, authority: kurum.pub, send: (f) => out.push(f) });
+    n.sendEmergency({ tur: 'enkaz', aciliyet: 1, kisi: 3 });
+    n.tick();
+    const a = createAuthority({ identity: kurum, signer, now: () => T });
+    return { kurumSecret: hex(kurum.secret), kurumPub: hex(kurum.pub), signPub: hex(signer.pub),
+      notice: hex(a.announce('Toplanma alanı: okul bahçesi', 3600000)), hello: hex(out[0]) };
+  })(),
   seal: { body: hex(Buffer.from('merhaba')), envelope: hex(seal(ali, bora.pub, Buffer.from('merhaba'))) },
   exchange: { time: T, text, frames: frames.filter((f) => f[0] === 3).map(hex) },
 }, null, 1));

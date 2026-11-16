@@ -1,2 +1,4 @@
 veri/
+model/*.npz
+model/*.log
 __pycache__/

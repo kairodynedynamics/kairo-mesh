@@ -1,0 +1,109 @@
+<section class="bolum ilk">
+  <div class="sar">
+    <span class="etiket">Doğrulama</span>
+    <h1>Ölçümler ve testler</h1>
+    <p class="lede">Her rakam, kodla birlikte yayımlanan ve herkesin tekrar çalıştırabileceği bir ölçümden gelir. Simülasyon sonuçlarını sahada ölçülmüş gibi sunmuyoruz.</p>
+    <div class="uyari"><p><strong>Henüz yapılmadı:</strong> gerçek telefonlarla saha tatbikatı ve bağımsız güvenlik denetimi. Bluetooth davranışı Android emülatörlerinin sanal radyosunda sınandı; gerçek telefonda bağlantı süresi, menzil, arka plan kısıtları ve pil tüketimi ölçülmedi.</p></div>
+  </div>
+</section>
+
+<section class="bolum">
+  <div class="sar">
+    <h2>Taşıyıcı seçimi</h2>
+    <p><strong>Yöntem:</strong> 80 kişi 6 mahalle arasında hareket eder; kişi zamanının %80'ini kendi mahallesinde, %15'ini düzenli gittiği ikinci yerde geçirir. Bluetooth menzili 30 m, yürüme hızı 1–1,5 m/sn, 300 mesaj, 3 saat ömür. Her kural aynı hareket ve aynı mesaj trafiği üzerinde koşar; 20 tohumun ortalaması ± standart sapma. "Yaygın kural", Bitchat'in yayımlanmış belgesindeki parametrelerin bizim yeniden uygulamamızdır.</p>
+    <h3>80 kişi, 2×2 km</h3>
+    <div class="tablo"><table>
+      <thead><tr><th>Kural</th><th>Teslim oranı</th><th>Medyan gecikme</th><th>İletim / mesaj</th></tr></thead>
+      <tbody>
+        <tr><td>Yaygın kural, 4 kopya</td><td>%89,8 ± 4,2</td><td>33 dk</td><td>2,9</td></tr>
+        <tr class="vurgu"><td>Kairo, 4 kopya</td><td>%99,5 ± 0,7</td><td>34 dk</td><td>5,7</td></tr>
+        <tr><td>Yaygın kural, 8 kopya</td><td>%97,5 ± 1,6</td><td>27 dk</td><td>6,4</td></tr>
+        <tr class="vurgu"><td>Kairo, 8 kopya</td><td>%100,0 ± 0,1</td><td>28 dk</td><td>10,2</td></tr>
+        <tr><td>Salgın yayılım (kuramsal tavan)</td><td>%100,0</td><td>20 dk</td><td>39,6</td></tr>
+      </tbody>
+    </table></div>
+    <h3>Aynı nüfus, 4×4 km (seyrek)</h3>
+    <div class="tablo"><table>
+      <thead><tr><th>Kural</th><th>Teslim oranı</th><th>Medyan gecikme</th><th>İletim / mesaj</th></tr></thead>
+      <tbody>
+        <tr><td>Yaygın kural, 4 kopya</td><td>%68,6 ± 7,7</td><td>60 dk</td><td>2,9</td></tr>
+        <tr class="vurgu"><td>Kairo, 4 kopya</td><td>%85,1 ± 8,0</td><td>68 dk</td><td>5,8</td></tr>
+        <tr><td>Yaygın kural, 8 kopya</td><td>%85,1 ± 6,1</td><td>55 dk</td><td>6,5</td></tr>
+        <tr class="vurgu"><td>Kairo, 8 kopya</td><td>%94,1 ± 5,0</td><td>60 dk</td><td>10,0</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>Dürüst okuma:</strong> Yaygın kuralın varsayılan bütçesine karşı teslim oranı 10–17 puan yüksek, ama iletim sayısı iki katı; bu kazancın çoğu daha çok çalışmaktan gelir. Adil karşılaştırma eşit maliyettedir: Kairo, <em>yarı sayıda depolanan kopyayla</em>, iki kat kopya kullanan kuralla aynı teslim oranına %10–20 daha az iletimle ulaşır. Bedeli, %5–25 daha uzun medyan gecikmedir.</p>
+  </div>
+</section>
+
+<section class="bolum">
+  <div class="sar">
+    <h2>Parçalı aktarım</h2>
+    <p>64 parçalık (~30 KB) içerik. Gönderilmesi gereken paket sayısı, ortalama / %95'lik dilim:</p>
+    <div class="tablo"><table>
+      <thead><tr><th>Senaryo</th><th>Düz parçalar</th><th>Kairo kodlu parçalar</th></tr></thead>
+      <tbody>
+        <tr><td>Tek gönderici, %10 kayıp, geri bildirimsiz</td><td>145 / 212</td><td>73 / 79</td></tr>
+        <tr><td>Tek gönderici, %30 kayıp</td><td>260 / 382</td><td>94 / 105</td></tr>
+        <tr><td>Tek gönderici, %50 kayıp</td><td>441 / 677</td><td>131 / 152</td></tr>
+        <tr><td>Koordinasyonsuz çoklu aktarıcı, kayıpsız</td><td>304 / 453</td><td>66 / 69</td></tr>
+      </tbody>
+    </table></div>
+    <p class="soluk kucuk">Karşılaştırma geri bildirimsiz düz parçalarla yapıldı; onaylı bağlantılarda fark daha küçük olur. Kodlamanın kesin üstünlüğü kısa temas pencerelerinde ve yayında görülür.</p>
+  </div>
+</section>
+
+<section class="bolum" id="triyaj">
+  <div class="sar">
+    <h2>Yardım mesajı anlamlandırma</h2>
+    <p>Telefon yazımını taklit eden sentetik veri: küçük/büyük harf, aksansız yazım, Türkçe Q klavyede komşu tuş hatası, harf atlama ve yer değiştirme, kısaltmalar (mh, sk, apt, kş), bitişik kelimeler, harf uzatma ("acilll"), yazıyla sayılar. 1.000.000 eğitim örneği; test kümesi eğitimde hiç görülmeyen kalıplar, mahalle, sokak, bina ve kişi adlarıyla kurulur.</p>
+    <p>Kural tabanlı taban çizgisi (modelin geçmesi gereken çıta):</p>
+    <div class="tablo"><table>
+      <thead><tr><th>Test kümesi</th><th>Olay türü</th><th>Aciliyet</th><th>Hayati çağrıyı kaçırma</th><th>Kişi sayısı</th><th>İl</th><th>İlçe</th></tr></thead>
+      <tbody>
+        <tr><td>Görülmemiş kalıplar (10.000)</td><td>%80,5</td><td>%82,8</td><td>%5,4</td><td>%91,0</td><td>%94,8</td><td>%67,2</td></tr>
+        <tr><td>En ağır yazım bozukluğu (5.000)</td><td>%76,4</td><td>%78,9</td><td>%9,7</td><td>%88,2</td><td>%90,3</td><td>%60,2</td></tr>
+      </tbody>
+    </table></div>
+    <p class="soluk kucuk">Veri sentetiktir. Gerçek mesajlardan elle etiketlenmiş bir test kümesi kurulmadan sahadaki başarı bilinemez; bu küme pilot ortağıyla kurulacaktır.</p>
+  </div>
+</section>
+
+<section class="bolum" id="saldiri">
+  <div class="sar">
+    <h2>Saldırı testleri</h2>
+    <p>Her test, sistemin önceki bir sürümünde gerçekten işe yarayan bir saldırıdır ve artık başarısız olduğunu doğrular.</p>
+    <div class="tablo"><table>
+      <thead><tr><th>Saldırı</th><th>Önceki sürümde</th><th>Kapatan değişiklik</th></tr></thead>
+      <tbody>
+        <tr><td>İzleme</td><td>Taşınan mesaj kimlikleri cihaz kimliği değişse de aynıydı</td><td>Her alan o anki geçici kimlikle körleştirilir</td></tr>
+        <tr><td>Kara delik</td><td>Sahte taşıyıcı göndericinin son kopyasını alıyordu</td><td>Puan yalnız kişilere; son kopya bırakılmaz</td></tr>
+        <tr><td>Sahte onay</td><td>Devri dinleyen biri onay uydurabiliyordu</td><td>Onay, zarfın tamamına sahip olunduğunun kanıtını ister</td></tr>
+        <tr><td>Alıcı taklidi</td><td>"Alıcı benim" diyene kopya siliniyordu</td><td>Silme yalnız alıcının makbuzuyla</td></tr>
+        <tr><td>Depo doldurma</td><td>Yabancıların çöp zarfları kişilerin postasını siliyordu</td><td>Yabancılara deponun yarısı</td></tr>
+        <tr><td>Yük katlama</td><td>Tek sahte çerçeve yüzlerce gönderim tetikliyordu</td><td>Sınırlı iletim bütçesi</td></tr>
+        <tr><td>Eski mesaj</td><td>Günlerce eski zarf teslim ediliyordu</td><td>Mühürlü gönderim zamanı</td></tr>
+        <tr><td>Yeniden başlatma sonrası tekrar</td><td>Kaydedilen çerçeveler mesajı ikinci kez gösteriyordu</td><td>Teslim listesi diske yazılır</td></tr>
+        <tr><td>Zaman damgası taşması</td><td>Taşan zaman damgası tazelik kontrolünü atlatıyordu</td><td>Sınırlarla karşılaştırma, üç platformda test</td></tr>
+        <tr><td>Makbuz seli</td><td>1000 sahte makbuz teslim listesini taşırıp tekrar oynatmaya izin veriyordu</td><td>Makbuzlar ayrı, sınırlı listede</td></tr>
+        <tr><td>Kişi anahtarı enjeksiyonu (Android)</td><td>Başka bir uygulama kişinin anahtarını değiştirebiliyordu</td><td>Test girişleri yalnız hata ayıklama sürümünde</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<section class="bolum">
+  <div class="sar">
+    <h2>Otomatik testler</h2>
+    <div class="tablo"><table>
+      <thead><tr><th>Platform</th><th>Test</th><th>Kapsam</th></tr></thead>
+      <tbody>
+        <tr><td>Referans (JavaScript)</td><td>38</td><td>Şifreleme test vektörü, gerçek dünya taşıyıcı senaryoları, saldırılar, acil aktarım (HTTP üzerinden uçtan uca dahil)</td></tr>
+        <tr><td>Android (Kotlin)</td><td>14</td><td>Test vektörleriyle bayt bayt uyum, düğüm senaryoları, saldırılar</td></tr>
+        <tr><td>iOS (Swift)</td><td>14</td><td>Aynı test vektörleri; iPhone ve iPad simülatörlerinde arayüz testi</td></tr>
+        <tr><td>Üç sanal Android telefon</td><td>5 senaryo</td><td>Doğrudan mesaj, taşıyıcı üzerinden teslim, arka planda çalışma, şifreli anahtar, düşük pil</td></tr>
+      </tbody>
+    </table></div>
+    <p>Kaynak kod ve test çıktıları: <a href="https://github.com/kairodynedynamics/kairo-mesh">github.com/kairodynedynamics/kairo-mesh</a></p>
+  </div>
+</section>

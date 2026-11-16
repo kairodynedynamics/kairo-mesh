@@ -1,0 +1,72 @@
+<section class="bolum ilk">
+  <div class="sar">
+    <span class="etiket acil">Acil aktarım</span>
+    <h1>Şebekesiz telefondan kuruma</h1>
+    <p class="lede">Kişisel mesaj, yakındaki birine bırakılıp beklenebilir. Yardım çağrısı bırakılamaz. Kairo Mesh'te acil çağrı bir kişiye değil kuruma gider ve yolda kimsenin bir şey yapması, hatta mesajı görmesi gerekmez.</p>
+  </div>
+</section>
+
+<section class="bolum">
+  <div class="sar">
+    <h2>Akış</h2>
+    <ol class="adimlar">
+      <li><div><h3>Ayşe enkaz altında, şebeke yok</h3><p>Uygulamaya "antakya ürgenpaşa mh enkaz altındayız 3 kişi bebek var" yazar. Telefondaki model bunu yapılandırılmış kayda çevirir: tür <em>enkaz</em>, aciliyet <em>1</em>, kişi <em>3</em>, özel durum <em>bebek</em>, il/ilçe/mahalle. GPS konumu ve doğruluğu eklenir. Ham metin de kayıtla birlikte gider; model yanılsa bile kurum asıl mesajı görür.</p></div></li>
+      <li><div><h3>Mesaj kuruma mühürlenir</h3><p>Uygulamaya gömülü kurum anahtarıyla şifrelenir. Taşıyıcılar ve ara telefonlar ne içeriği ne konumu ne de göndereni görebilir.</p></div></li>
+      <li><div><h3>Çevredeki her telefon taşır</h3><p>Tanıdık olmak gerekmez. Acil mesaj, duyurularda ve iletim bütçesinde her zaman önce gelir; mesaj başına 8 kopya dolaşır, tek bir telefona bağımlı kalınmaz.</p></div></li>
+      <li><div><h3>İnternete ulaşan ilk telefon iletir</h3><p>İnterneti olan herhangi bir telefon, sahibine bir şey sormadan mesajı arka planda kurumun sunucusuna yükler. Enkaz bölgesinden çıkıp sinyal bulan bir taşıyıcı da yolda topladığı acil mesajları kendiliğinden iletir.</p></div></li>
+      <li><div><h3>Kurum aldığını kanıtlar</h3><p>Sunucu mesajı açar, kaydeder ve yalnız kendisinin üretebileceği makbuzu döner. Makbuz ağda geri yayılır: Ayşe'nin ekranında "kurum mesajınızı aldı" yazar, taşıyıcılar kopyalarını siler. Aynı mesajı birden çok telefon iletse de kurumda bir kez kaydedilir.</p></div></li>
+    </ol>
+  </div>
+</section>
+
+<section class="bolum">
+  <div class="sar">
+    <h2>Telefonda anlamlandırma</h2>
+    <p>Afet anında yazılan mesajlar bozuktur: büyük-küçük harf karışık, Türkçe karakterler eksik, harfler atlanmış, kelimeler bitişik. Telefonda çalışan küçük bir model mesajı kurumun işleyebileceği bir kayda çevirir ve aciliyete göre sıraya koyar. Kayıt ortalama 60 bayttır; Bluetooth paketine ve gerektiğinde SMS'e sığar.</p>
+    <div class="tablo"><table>
+      <thead><tr><th>Alan</th><th>Örnek</th></tr></thead>
+      <tbody>
+        <tr><td>Olay türü</td><td>enkaz, sağlık, yangın, barınma, gıda/su, kayıp, iş makinesi, güvende, bilgi</td></tr>
+        <tr><td>Aciliyet</td><td>1 (hayati) – 4 (bilgi); bebek, yaralı ya da hamile varsa bir kademe yükselir</td></tr>
+        <tr><td>Kişi sayısı</td><td>rakamla ya da yazıyla ("üç kişiyiz")</td></tr>
+        <tr><td>Adres</td><td>il, ilçe, mahalle, sokak, bina</td></tr>
+        <tr><td>Özel durum</td><td>çocuk, bebek, yaşlı, yaralı, hamile, engelli, ses geliyor, ses gelmiyor</td></tr>
+        <tr><td>Konum</td><td>GPS enlem, boylam, doğruluk (m), ölçüm zamanı</td></tr>
+      </tbody>
+    </table></div>
+    <p>Model, telefon yazımını taklit eden 1 milyon örnekle eğitilecek ve eğitimde hiç görmediği adlar ve kalıplarla ölçülecek. Asıl ölçüt, hayati bir çağrıyı "acil değil" sanma oranıdır. Bugünkü kural tabanlı yöntem bu hatayı %5,4 oranında yapıyor; model bu çıtanın altına inmeden kullanılmayacak. Ayrıntılar <a href="dogrulama.html#triyaj">doğrulama sayfasında</a>.</p>
+  </div>
+</section>
+
+<section class="bolum">
+  <div class="sar">
+    <h2>112 ve AFAD entegrasyonu</h2>
+    <p>Sistemde "kurum", bir açık anahtar ve bir sunucu adresinden ibarettir. Bu yüzden entegrasyon kodu değiştirmeden yapılır:</p>
+    <div class="tablo"><table>
+      <thead><tr><th>Aşama</th><th>Anahtar ve sunucu</th></tr></thead>
+      <tbody>
+        <tr><td>Pilot</td><td>Pilot ortağının (belediye afet birimi, arama-kurtarma derneği) panosu</td></tr>
+        <tr><td>Resmî</td><td>112 Acil Çağrı Merkezi / AFAD kendi anahtarını ve sunucusunu işletir; uygulama o anahtarla dağıtılır</td></tr>
+      </tbody>
+    </table></div>
+    <p>Aynı çağrı birden çok kuruma (örneğin 112 ve il afet birimi) ayrı ayrı mühürlenerek gönderilebilir. Kurum, aynı kanalı ters yönde de kullanabilir: kendi anahtarıyla imzalı duyurular (toplanma alanı, su dağıtım noktası, tehlikeli bina) telefonlar arasında yayılır ve telefonlar imzayı doğrulayarak gösterir.</p>
+  </div>
+</section>
+
+<section class="bolum">
+  <div class="sar iki">
+    <div>
+      <h2>Kişisel veriler</h2>
+      <p>Konum ve sağlık bilgisi yalnız kurum tarafından açılabilir. Taşıyıcılar ve ileten telefonlar şifreli baytları görür. Sunucuda saklama süresi, erişim yetkisi ve silme politikası kurumla birlikte, 6698 sayılı KVKK'ya uygun belirlenir. Uygulama ilk açılışta acil aktarımın nasıl çalıştığını açık rıza metniyle anlatır.</p>
+    </div>
+    <div>
+      <h2>Kötüye kullanım</h2>
+      <ul class="tik">
+        <li>Kurum, gönderenin kalıcı anahtarını görür; tekrar eden asılsız kaynak engellenebilir.</li>
+        <li>İletim bütçeleri sınırlıdır; sahte mesajla ağı doldurmak etkisini yitirir.</li>
+        <li>"Ulaştı" bilgisi taklit edilemez; makbuzu yalnız kurum üretir.</li>
+        <li>Mesaj 8 kopya dolaşır; tek bir kötü niyetli telefon onu durduramaz.</li>
+      </ul>
+    </div>
+  </div>
+</section>

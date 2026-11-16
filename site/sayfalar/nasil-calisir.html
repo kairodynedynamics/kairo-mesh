@@ -1,0 +1,68 @@
+<section class="bolum ilk">
+  <div class="sar">
+    <span class="etiket">Teknoloji</span>
+    <h1>Nasıl çalışır</h1>
+    <p class="lede">Telefonlar Bluetooth ile birbirini bulur, kimin hangi mesajı taşıyacağına karar verir ve mesajı parça parça, şifreli olarak aktarır. Alıcı menzilde değilse mesaj, onunla karşılaşma olasılığı yüksek birinin cebinde yolculuk eder.</p>
+  </div>
+</section>
+
+<section class="bolum">
+  <div class="sar">
+    <h2>1. Taşıyıcı seçimi: kim, kime sık rastlıyor?</h2>
+    <p>Her telefon, rehberindeki kişilerle ne sıklıkla karşılaştığını tutar. Bir mesajın kopyaları, alıcıyla karşılaşma olasılığı daha yüksek telefonlara aktarılır. Yaygın kural ("kopyaları ilk rastladığına dağıt") ile karşılaştırıldığında, aynı teslim oranına yarı sayıda kopyayla ulaşılır. Telefonda kıt olan şey depolamadır; bu yüzden fark önemlidir.</p>
+    <p>Acil mesajlarda alıcı bir kişi değil kurumdur. Taşıyıcı puanı, telefonun ne sıklıkla internete eriştiğidir: mesaj, şebekeye çıkma olasılığı yüksek telefonlara yönelir.</p>
+    <div class="uyari"><p>Bu kazanç insanların düzenli hareket ettiği varsayımına dayanır. Tamamen rastgele hareket eden bir kalabalıkta (ilk kez gelinen bir festival alanı gibi) fark kapanır; bunu ayrıca ölçmedik.</p></div>
+  </div>
+</section>
+
+<section class="bolum">
+  <div class="sar">
+    <h2>2. Parçalı aktarım: kayıplı bağlantıda bile tamamlanır</h2>
+    <p>Afet bölgesinde iki telefon arasındaki temas birkaç saniye sürebilir ve paketlerin bir kısmı kaybolur. Mesaj, "çeşme kodu" (fountain code) ile kodlanmış parçalara bölünür: alıcı hangi parçaları aldığını bildirmek zorunda değildir, yeterli sayıda herhangi parça mesajı kurar. 30 KB'lık bir içerik, geri bildirimsiz aktarıma göre 2 ila 4,6 kat daha az paketle tamamlanır.</p>
+  </div>
+</section>
+
+<section class="bolum">
+  <div class="sar">
+    <h2>3. Şifreleme: standart, doğrulanmış</h2>
+    <p>Her mesaj, alıcının açık anahtarına <strong>Noise protokolünün X kalıbıyla</strong> (<code>Noise_X_25519_ChaChaPoly_SHA256</code>) mühürlenir. Bu, WhatsApp ve WireGuard'ın da üzerine kurulduğu Noise ailesinin tek yönlü mesaj kalıbıdır. Uygulamamız, bağımsız bir Noise kütüphanesinin yayımladığı test vektörünü Android, iOS ve referans uygulamada bayt bayt üretir.</p>
+    <ul class="tik">
+      <li>Gönderenin kimliği taşıyıcılardan gizlenir, alıcıya kanıtlanır.</li>
+      <li>Mesaj boyu 256 baytın katlarına doldurulur; taşıyıcı uzunluktan içerik çıkaramaz.</li>
+      <li>Mesajın içinde mühürlü gönderim zamanı vardır; bir günden eski mesaj teslim edilmez.</li>
+      <li>Saklanan mesajlarda ileri gizlilik yoktur; bu, tek yönlü X kalıbının bilinen bir özelliğidir.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="bolum">
+  <div class="sar">
+    <h2>4. Makbuz: "ulaştı" bilgisi taklit edilemez</h2>
+    <p>Gönderen, mesajın içine rastgele bir sır koyar, dışına yalnızca bu sırrın özetini yazar. Sırrı yalnız mesajı açabilen alıcı öğrenir ve teslimde yayınlar. Taşıyıcılar makbuzu doğrulayınca kopyalarını siler ve makbuzu karşılaştıkları diğer telefonlara iletir. Böylece "alıcı benim" diyen bir yabancı, taşıyıcılara mesaj sildiremez.</p>
+  </div>
+</section>
+
+<section class="bolum">
+  <div class="sar">
+    <h2>5. Mahremiyet: cihaz izlenemez</h2>
+    <p>Telefonun havada yayınladığı kimlik 15 dakikada bir değişir ve yalnız eşleşmiş kişilerce tanınabilir. Taşınan mesajların listesi de her kimlik dönemine göre körleştirilir; aynı cihaz farklı zamanlarda birbirine bağlanamaz.</p>
+  </div>
+</section>
+
+<section class="bolum">
+  <div class="sar">
+    <h2>6. Saldırılara karşı</h2>
+    <p>Her güvenlik testi, sistemin önceki bir sürümünde <em>gerçekten işe yarayan</em> bir saldırıdır ve artık başarısız olduğunu doğrular: izleme, sahte taşıyıcı ("kara delik"), sahte onay, alıcı taklidi, depo doldurma, yük katlama, eski mesajı yeniden oynatma, zaman damgası taşması, makbuz seli ve Android'de kişi anahtarı enjeksiyonu. Ayrıntılar <a href="dogrulama.html#saldiri">doğrulama sayfasında</a>.</p>
+  </div>
+</section>
+
+<section class="bolum">
+  <div class="sar">
+    <h2>7. Platformlar</h2>
+    <div class="izgara">
+      <div class="kart"><h3>Android</h3><p>Kotlin, Bluetooth LE, ön plan servisiyle arka planda çalışma, Android Keystore ile korunan kimlik. Üç sanal telefonda uçtan uca sınandı.</p></div>
+      <div class="kart"><h3>iOS</h3><p>Swift ve CoreBluetooth; kimlik yalnız bu cihazda, Keychain'de. iPhone ve iPad simülatörlerinde çekirdek ve arayüz testleri geçiyor.</p></div>
+      <div class="kart"><h3>Referans uygulama</h3><p>JavaScript (Node 24), bağımlılıksız. Simülatör, ölçümler ve kurum sunucusu bu uygulamayla çalışır.</p></div>
+    </div>
+  </div>
+</section>

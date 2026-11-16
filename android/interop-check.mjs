@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createIdentity, open } from '../src/crypto.js';
 import { createNode } from '../src/node.js';
+import { createAuthority } from '../src/kurum.js';
 
 const file = process.argv[2] ?? new URL('./app/build/interop-from-kotlin.json', import.meta.url);
 const x = JSON.parse(readFileSync(file, 'utf8'));
@@ -21,4 +22,10 @@ const node = createNode({ identity: bora, now: () => x.time, contacts: new Map([
 for (const f of x.frames) node.receive(Buffer.from(f, 'hex'));
 assert.deepEqual(inbox, [['ali', x.text]]);
 assert.ok(out.some((f) => f[0] === 4), 'delivery receipt sent');
+assert.ok(x.acil, 'the port must hand over an emergency envelope');
+{
+  const kurum = createAuthority({ identity: createIdentity(Buffer.from('33'.repeat(32), 'hex')), now: () => x.time });
+  assert.ok(kurum.receive(Buffer.from(x.acil, 'hex')), 'emergency envelope accepted by the authority');
+  assert.deepEqual(kurum.reports[0].report, { tur: 'enkaz', aciliyet: 1, kisi: 2 });
+}
 console.log(`interop ok: JavaScript opened the envelope and received the message in ${file}`);

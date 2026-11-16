@@ -14,6 +14,7 @@ class InteropTest {
     private val keys = v.getJSONObject("keys")
     private val ali = Identity.create(keys.getString("aliSecret").unhex())
     private val bora = Identity.create(keys.getString("boraSecret").unhex())
+    private var acilEnv: ByteArray? = null
 
     @Test fun rng() {
         val r = v.getJSONObject("rng")
@@ -35,6 +36,19 @@ class InteropTest {
             if (i > 0) dec.add(p.getLong("seed"), p.getString("data").unhex()) // decode without the first plain fragment
         }
         assertArrayEquals(message, dec.result())
+    }
+
+    // An announcement signed in JavaScript is accepted; a tampered copy is not.
+    @Test fun acceptsTheAuthorityAnnouncementSignedInJavaScript() {
+        val a = v.getJSONObject("acil")
+        val t = v.getJSONObject("exchange").getLong("time")
+        val heard = mutableListOf<String>()
+        val node = Node(bora, {}, now = { t }, authoritySign = a.getString("signPub").unhex(), onAnnouncement = { heard += it.text })
+        val frame = a.getString("notice").unhex()
+        val bad = frame.copyOf().also { it[30] = (it[30].toInt() xor 1).toByte() }
+        node.receive(bad)
+        node.receive(frame)
+        assertEquals(listOf("Toplanma alanı: okul bahçesi"), heard)
     }
 
     @Test fun identitiesAndTags() {
@@ -90,9 +104,24 @@ class InteropTest {
         node.receive(cat(u8(2), boraEid, hello.sub(1, 9), hello.sub(10, 18), u8(4), ByteArray(8)))
         val data = out.filter { it[0].toInt() == 3 }
         assertTrue(data.isNotEmpty())
+        // an emergency envelope for the JavaScript authority: it must carry valid work and open there
+        val kurumPub = v.getJSONObject("acil").getString("kurumPub").unhex()
+        val toGw = ArrayDeque<ByteArray>()
+        val toSender = ArrayDeque<ByteArray>()
+        val acilNode = Node(ali, { toGw += it }, now = { t }, authority = kurumPub)
+        acilNode.sendEmergency("{\"tur\":\"enkaz\",\"aciliyet\":1,\"kisi\":2}")
+        val gw = Node(bora, { toSender += it }, now = { t }, authority = kurumPub, online = { true },
+            uplink = { env, done -> acilEnv = env; done(null) })
+        acilNode.tick()
+        repeat(4) {
+            while (toGw.isNotEmpty()) gw.receive(toGw.removeFirst())
+            while (toSender.isNotEmpty()) acilNode.receive(toSender.removeFirst())
+        }
+        assertTrue("gateway received the emergency envelope", acilEnv != null)
         val json = JSONObject().put("time", t).put("text", "Kotlin'den merhaba ✓")
             .put("envelope", seal(ali, bora.pub, "merhaba".toByteArray()).hex())
             .put("frames", org.json.JSONArray(data.map { it.hex() }))
+            .put("acil", acilEnv?.hex())
         File("build/interop-from-kotlin.json").writeText(json.toString())
     }
 }

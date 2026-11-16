@@ -55,6 +55,20 @@ final class InteropTests: XCTestCase {
         XCTAssertEqual(hex(n, "payload"), read.body)
     }
 
+    // An announcement signed in JavaScript is accepted; a tampered copy is not.
+    func testAcceptsTheAuthorityAnnouncementSignedInJavaScript() throws {
+        let a = obj("acil")
+        let t = int(obj("exchange"), "time")
+        var heard: [String] = []
+        let node = Node(identity: bora, send: { _ in }, now: { t }, authoritySign: hex(a, "signPub"), onAnnouncement: { heard.append($0.text) })
+        let frame = hex(a, "notice")
+        var bad = frame
+        bad[30] ^= 1
+        node.receive(bad)
+        node.receive(frame)
+        XCTAssertEqual(["Toplanma alanı: okul bahçesi"], heard)
+    }
+
     func testOpensAnEnvelopeSealedInJavaScript() throws {
         let s = obj("seal")
         let opened = try open(bora, hex(s, "envelope"))
@@ -85,7 +99,22 @@ final class InteropTests: XCTestCase {
         node.receive(cat(u8(2), boraEid, hello.sub(1, 9), hello.sub(10, 18), u8(4), Bytes(repeating: 0, count: 8)))
         let data = out.filter { $0[0] == 3 }
         XCTAssertFalse(data.isEmpty)
-        let json: [String: Any] = ["time": t, "text": text, "envelope": try seal(ali, bora.pub, Array("merhaba".utf8)).hex, "frames": data.map(\.hex)]
+        // an emergency envelope for the JavaScript authority: it must carry valid work and open there
+        let kurumPub = hex(obj("acil"), "kurumPub")
+        var toGw: [Bytes] = [], toSender: [Bytes] = []
+        var acilEnv: Bytes? = nil
+        let sender = Node(identity: ali, send: { toGw.append($0) }, now: { t }, authority: kurumPub)
+        try sender.sendEmergency("{\"tur\":\"enkaz\",\"aciliyet\":1,\"kisi\":2}")
+        let gw = Node(identity: bora, send: { toSender.append($0) }, now: { t }, authority: kurumPub, online: { true },
+                      uplink: { env, done in acilEnv = env; done(nil) })
+        sender.tick()
+        for _ in 0..<4 {
+            while !toGw.isEmpty { gw.receive(toGw.removeFirst()) }
+            while !toSender.isEmpty { sender.receive(toSender.removeFirst()) }
+        }
+        XCTAssertNotNil(acilEnv, "gateway received the emergency envelope")
+        let json: [String: Any] = ["time": t, "text": text, "envelope": try seal(ali, bora.pub, Array("merhaba".utf8)).hex, "frames": data.map(\.hex),
+                                   "acil": acilEnv?.hex ?? ""]
         let dir = Self.root.appendingPathComponent("ios/.build")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try JSONSerialization.data(withJSONObject: json).write(to: dir.appendingPathComponent("interop-from-swift.json"))

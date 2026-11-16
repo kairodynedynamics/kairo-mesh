@@ -13,6 +13,8 @@ export function world(names, loss = 0, seed = 1, opts = {}) {
       identity: ids[n], now: () => clock.t,
       authority: opts.authority ?? null, uplink: opts.uplink ?? null, online: () => online.has(n),
       onEmergencyDelivered: (id) => delivered[n].push(id),
+      authoritySign: opts.authoritySign ?? null, downlink: opts.downlink ?? null,
+      onAnnouncement: (d) => opts.onAnnouncement?.(n, d),
       contacts: new Map(names.filter((m) => m !== n).map((m) => [m, ids[m].pub])),
       onMessage: (from, text) => inbox[n].push([from, text]),
       send: (f) => { for (const m of names) if (links.has(n + m) && r() >= loss) queueMicrotask(() => nodes[m].receive(f)); },
