@@ -37,6 +37,11 @@ targets:
       path: Info.plist
       properties:
         CFBundleDisplayName: KairoMesh
+        # iOS refuses to install a bundle without these (same numbers as the Android build)
+        CFBundleShortVersionString: "0.2.0"
+        CFBundleVersion: "2"
+        CFBundleExecutable: $(EXECUTABLE_NAME)
+        CFBundlePackageType: APPL
         UILaunchScreen: {}
         NSBluetoothAlwaysUsageDescription: KairoMesh, yakındaki telefonlar arasında şifreli mesajları Bluetooth ile taşır.
         NSLocationWhenInUseUsageDescription: Acil yardım çağrınıza konumunuz eklenir; GPS internet olmadan da çalışır.
