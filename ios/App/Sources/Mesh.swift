@@ -60,7 +60,9 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         // the authority's code is built into the app: nobody has to find and paste one (release builds get the real
         // authority's root-approved code when there is a contract). "-demoKurumYok": the UI test of a build without one.
         if ProcessInfo.processInfo.arguments.contains("-demoKurumYok") { defaults.removeObject(forKey: "kurum") }
-        else if defaults.string(forKey: "kurum") == nil { defaults.set(Mesh.demoKurum, forKey: "kurum") }
+        else if defaults.string(forKey: "kurum")?.contains("demo.kairodynedynamics.com") ?? true {
+            defaults.set(Mesh.demoKurum, forKey: "kurum") // the old demo authority had no server: move to the operator demo
+        }
         #endif
         buildNode()
         show("READY code=\(code)")
@@ -241,7 +243,7 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     #if DEBUG
-    static let demoKurum = "l4vew+gipwYt/slp5jbANEAJUMUlh8kIaJrqtm4qoTI=;2Yf1lkYhSXUsE63q0Y2QludMtFtN5/5kvEeHDnPYXho=;https://demo.kairodynedynamics.com;Deneme Kurumu - test;0J+695S+ON5pK6u3HEdWqCqYQ6yssnwJDuW3VY6HW2iQlG4zMOFJEC39+ntGOw4rf51trwv0mVq4DWDg6BSICw=="
+    static let demoKurum = "mdUshEx3g4fN93giVHNo85Sj514ZAnJmwzN2mBU/bTU=;tIp0lLyJX6b7Co+dC7Ipt5BjJBNZXUzbnk9UVuDqQy4=;https://kairodynedynamics.com/operator;KairoMesh Operatör Demo - test;W5eevjIWZV2sLHFwyYrsWO9EjfyGC6fZYSf/Zm94HxcKPMr/1DnYSCW4QQpiTL/hm/fHl6EhtlcIXO6VMlWCBA=="
     #endif
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {

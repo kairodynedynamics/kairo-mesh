@@ -53,7 +53,8 @@ class MeshService : Service() {
         profile = Profile(this)
         // debug (demo) builds come with a code approved by the public test root, so the app can be tried at once;
         // release builds have none and trust only the production root
-        if (profile.kurum == null && BuildConfig.DEMO_KURUM.isNotEmpty()) profile.kurum = BuildConfig.DEMO_KURUM
+        if (BuildConfig.DEMO_KURUM.isNotEmpty() && (profile.kurum == null || profile.kurum!!.contains("demo.kairodynedynamics.com")))
+            profile.kurum = BuildConfig.DEMO_KURUM // the old demo authority had no server: move to the operator demo
         getSystemService(NotificationManager::class.java)
             .createNotificationChannel(NotificationChannel(UYARI, "Kurum ve çağrı", NotificationManager.IMPORTANCE_HIGH))
         transport = BleTransport(this) { frame -> synchronized(this) { node.receive(frame) } }

@@ -8,9 +8,12 @@ site/stil.css. Her sayfa aynı üst çubuk, alt bilgi ve SEO başlıklarıyla sa
 
 Yayın hedefleri:
 - kairodynedynamics.com: Netlify'ın yayımladığı GitHub deposu (commit + push ayrı adım).
-- HF Space: WSL'deki `site/` klasörü; oradaki `_canli_yukle.py` değişen dosyayı
-  saniyeler içinde Space'e yükler. Kaldırılan eski dosyaları silmek için
-  `--hf-temizle` ayrı çalıştırılır.
+- HF Space: derlemenin birebir aynası (fazla dosya silinir, geçmiş tek commit'e indirilir).
+İkisinde de yalnız bu sitenin dosyaları bulunur; eski projelerin adresleri 410 (kalıcı olarak kaldırıldı) döner ve
+yayından sonra arama motorlarına IndexNow ile haber verilir.
+
+Operatör demosu: site/operator-adres.txt varsa (kurum sunucusunun tünel adresi), /operator/* oraya aktarılır;
+deneme sürümlerindeki kurum kodu https://kairodynedynamics.com/operator adresini taşır.
 """
 import argparse
 import html
@@ -30,7 +33,7 @@ HF_SITE = r"\\wsl.localhost\Ubuntu-22.04\home\emre\private-llm\geliştirme\site"
 
 # (dosya, menü adı, başlık, açıklama)
 SAYFALAR = [
-    ("index", "Ana sayfa", "KairoMesh — şebeke çöktüğünde de yardım çağrısı kuruma ulaşır",
+    ("index", "Ana sayfa", "KairoMesh · Kairodyne Dynamics — şebeke çöktüğünde de yardım çağrısı ulaşır",
      "KairoMesh, telefonların internet ve baz istasyonu olmadan Bluetooth ile birbirinin şifreli mesajını taşıdığı yerli afet haberleşme sistemidir. Yardım çağrısı, internete ulaşan ilk telefon üzerinden 112 ve afet birimlerine iletilir."),
     ("nasil-calisir", "Nasıl çalışır", "Nasıl çalışır — KairoMesh",
      "Taşıyıcı seçimi, çeşme kodlu parçalı aktarım, Noise X şifreleme, taklit edilemez makbuz ve izlenemeyen cihaz kimliği."),
@@ -47,7 +50,7 @@ SAYFALAR = [
     ("en", "English", "KairoMesh — when the network is down, the call for help still reaches the authority",
      "KairoMesh carries encrypted emergency calls from phone to phone over Bluetooth, with no internet or cell towers; the first phone that reaches the internet delivers them to the emergency authority."),
 ]
-# Önceki dil modeli projesinin adresleri: ana sayfaya kalıcı yönlendirme.
+# Önceki dil modeli projesinin adresleri: 410 (kalıcı olarak kaldırıldı); arama motorları dizinden düşürür.
 ESKI = ["modeller", "algoritma", "rla", "omniprint", "egitim", "asama", "haberler", "notlar", "rapor"]
 
 
@@ -77,9 +80,12 @@ def sar(dosya, baslik, aciklama, govde):
         f'<a href="{d + ".html" if d != "index" else "./"}"{secili if d == dosya else ""}>{ad}</a>'
         for d, ad, _, _ in SAYFALAR)
     ld = json.dumps({"@context": "https://schema.org", "@graph": [
-        {"@type": "Organization", "@id": ALAN + "/#org", "name": "Kairodyne Dynamics", "url": ALAN + "/",
-         "logo": ALAN + "/icon-512.png", "sameAs": ["https://github.com/kairodynedynamics"]},
-        {"@type": "SoftwareApplication", "@id": ALAN + "/#kairo-mesh", "name": "KairoMesh",
+        {"@type": "Organization", "@id": ALAN + "/#org", "name": "Kairodyne Dynamics", "alternateName": ["Kairodyne", "Kairo"],
+         "url": ALAN + "/", "logo": ALAN + "/icon-512.png",
+         "sameAs": ["https://github.com/kairodynedynamics", "https://huggingface.co/kairodynedynamics"]},
+        {"@type": "WebSite", "@id": ALAN + "/#site", "url": ALAN + "/", "name": "KairoMesh",
+         "alternateName": ["Kairodyne Dynamics", "Kairo Mesh"], "publisher": {"@id": ALAN + "/#org"}, "inLanguage": "tr"},
+        {"@type": "SoftwareApplication", "@id": ALAN + "/#kairo-mesh", "name": "KairoMesh", "alternateName": "Kairo Mesh",
          "applicationCategory": "CommunicationApplication", "operatingSystem": "Android, iOS",
          "description": SAYFALAR[0][3], "creator": {"@id": ALAN + "/#org"}, "inLanguage": "tr",
          "license": "https://www.gnu.org/licenses/agpl-3.0.html"},
@@ -150,14 +156,6 @@ setTimeout(function(){{if(!window.kairoHareket)k.classList.remove('js');}},3000)
 """
 
 
-def yonlendirme(hedef="./"):
-    return f"""<!doctype html><html lang="tr"><head><meta charset="utf-8">
-<meta http-equiv="refresh" content="0; url={hedef}"><link rel="canonical" href="{ALAN}/">
-<meta name="robots" content="noindex"><title>KairoMesh</title></head>
-<body><p>Bu sayfa kaldırıldı. <a href="{hedef}">KairoMesh ana sayfası</a></p></body></html>
-"""
-
-
 def triyaj_tablosu():
     """Kural taban çizgisi ve model ölçümü (triyaj/model/kural-*.json, olcum.json) -> HTML tablo."""
     m = URUN / "triyaj" / "model"
@@ -193,8 +191,6 @@ def derle():
             govde = re.sub(r"<!--TRIYAJ_SAYI:(\w+)\.(\w+)-->",
                            lambda m: "%" + f"{100 * o[m[1]][m[2]]:.1f}".replace(".", ","), govde)
         (CIKTI / f"{dosya}.html").write_text(sar(dosya, baslik, aciklama, govde), encoding="utf-8")
-    for eski in ESKI:
-        (CIKTI / f"{eski}.html").write_text(yonlendirme(), encoding="utf-8")
     (CIKTI / "404.html").write_text(sar("404", "Sayfa bulunamadı — KairoMesh", "Aradığınız sayfa bulunamadı.",
         '<section class="bolum ilk"><div class="sar"><h1>Sayfa bulunamadı</h1><p><a href="./">Ana sayfaya dönün</a>.</p></div></section>'),
         encoding="utf-8")
@@ -216,7 +212,9 @@ def derle():
         "".join(f"- [{ad}]({ALAN}/{'' if d == 'index' else d}): {ack}\n" for d, ad, _, ack in SAYFALAR), encoding="utf-8")
     (CIKTI / "netlify.toml").write_text(
         '[build]\n  publish = "."\n\n[build.processing.html]\n  pretty_urls = true\n\n' +
-        "".join(f'[[redirects]]\n  from = "/{e}"\n  to = "/"\n  status = 301\n  force = true\n\n' for e in ESKI) +
+        operator_yonlendirme() +
+        "".join(f'[[redirects]]\n  from = "/{e}{u}"\n  to = "/404.html"\n  status = 410\n  force = true\n\n'
+                for e in ESKI for u in ("", ".html")) +
         '[[headers]]\n  for = "/*"\n  [headers.values]\n    X-Content-Type-Options = "nosniff"\n    Referrer-Policy = "strict-origin-when-cross-origin"\n'
         '    Content-Security-Policy = "default-src \'self\'; script-src \'self\' \'unsafe-inline\'; style-src \'self\' \'unsafe-inline\'; img-src \'self\' data:; frame-ancestors \'self\' https://huggingface.co"\n\n'
         '[[headers]]\n  for = "/*.txt"\n  [headers.values]\n    Content-Type = "text/plain; charset=utf-8"\n', encoding="utf-8")
@@ -228,18 +226,42 @@ def derle():
     print("derlendi:", len(list(CIKTI.rglob("*"))), "dosya")
 
 
-# Hedefte kaldırılacak eski dil modeli dosyaları (yayın klasörü yalnız bu sitenin dosyalarını taşısın).
-ESKI_DOSYALAR = ["assets", "data", "docs", "state", "og-kairodyne.jpg"]
+def operator_yonlendirme():
+    adres_dosyasi = KOK / "operator-adres.txt"
+    if not adres_dosyasi.exists():
+        return ""
+    adres = adres_dosyasi.read_text(encoding="utf-8").strip().rstrip("/")
+    assert re.fullmatch(r"https://[a-z0-9-]+\.trycloudflare\.com", adres), adres
+    return f'[[redirects]]\n  from = "/operator/*"\n  to = "{adres}/:splat"\n  status = 200\n  force = true\n\n'
+
+
+# IndexNow (Bing, Yandex, Seznam; Bing'in dizinini kullanan arama ve yapay zekâ araçları): anahtar dosyası sitede durur.
+INDEXNOW = "3ed33dff55babe05b900c6e88d4cec5c"
+
+
+def indexnow():
+    import urllib.request
+    adresler = [f"{ALAN}/{'' if d == 'index' else d}" for d, *_ in SAYFALAR] + [f"{ALAN}/{e}" for e in ESKI]
+    govde = json.dumps({"host": "kairodynedynamics.com", "key": INDEXNOW, "keyLocation": f"{ALAN}/{INDEXNOW}.txt",
+                        "urlList": adresler}).encode()
+    istek = urllib.request.Request("https://api.indexnow.org/indexnow", data=govde,
+                                   headers={"Content-Type": "application/json; charset=utf-8"})
+    try:
+        with urllib.request.urlopen(istek, timeout=20) as y:
+            print("indexnow:", y.status, len(adresler), "adres")
+    except Exception as h:  # yayın bundan etkilenmez; Bing birkaç gün içinde yine tarar
+        print("indexnow başarısız:", h)
 
 
 def yayinla():
-    """GitHub deposuna yazar (commit/push ayrı); HF Space'i derlemeyle birebir aynalar (fazla dosyayı siler)."""
-    for ad in ESKI_DOSYALAR:
-        p = GITHUB_SITE / ad
-        if p.is_dir():
-            shutil.rmtree(p)
-        elif p.exists():
-            p.unlink()
+    """GitHub deposunu ve HF Space'i derlemenin birebir aynası yapar: derlemede olmayan her dosya silinir
+    (commit/push ayrı adım). HF Space'in geçmişi tek commit'e indirilir: eski projelerin dosyaları geçmişte de kalmaz."""
+    (CIKTI / f"{INDEXNOW}.txt").write_text(INDEXNOW, encoding="utf-8")
+    for p in GITHUB_SITE.iterdir():
+        if p.name == ".git" or (CIKTI / p.name).exists():
+            continue
+        shutil.rmtree(p) if p.is_dir() else p.unlink()
+        print("silindi:", p.name)
     shutil.copytree(CIKTI, GITHUB_SITE, dirs_exist_ok=True)
     print("yazildi:", GITHUB_SITE)
     # HF: token WSL'deki kairo/.env'de kalır; derleme /mnt/d üzerinden okunur.
@@ -248,7 +270,9 @@ def yayinla():
         "api = HfApi(token=_env_token()); "
         "r = api.upload_folder(repo_id='kairodynedynamics/KairodyneDynamics', repo_type='space', "
         "folder_path='/mnt/d/Kairodyne-Dynamics/site/cikti', delete_patterns=['*'], "
-        "commit_message='KairoMesh resmi sitesi'); print('hf:', r)")
+        "commit_message='KairoMesh resmi sitesi'); print('hf:', r); "
+        "api.super_squash_history(repo_id='kairodynedynamics/KairodyneDynamics', repo_type='space', "
+        "commit_message='KairoMesh resmi sitesi'); print('hf gecmis tek commit')")
     subprocess.run(["wsl.exe", "-d", "Ubuntu-22.04", "--", "bash", "-c",
                     f"cd /home/emre/private-llm/geli*tirme && python3 -c \"{betik}\""], check=True,
                    env={**__import__("os").environ, "MSYS_NO_PATHCONV": "1"})
@@ -261,3 +285,4 @@ if __name__ == "__main__":
     derle()
     if a.yayinla:
         yayinla()
+        indexnow()

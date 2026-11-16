@@ -10,8 +10,8 @@ android {
         applicationId = "com.kairodyne.mesh"
         minSdk = 33 // X25519 (XDH) in the platform crypto provider
         targetSdk = 34
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.4.1"
         // Root keys that may approve authority codes (src/kurum-cli.js kok/onayla). Release builds trust only the
         // production root, whose private half is kept offline; debug builds also trust the public test root
         // (test/kok-test) so tests and emulators can mint codes.
@@ -25,7 +25,7 @@ android {
             buildConfigField("String", "KOKLER", "\"KMrne+ak0Iqr3rLzZ9uI7Qic8fWv6o/Na2H15FF25So=,mCZWxnPAXq0pTVoc5wwzaPbHgJvMARPQX626+hmR+zs=\"")
             manifestPlaceholders["cleartext"] = "true"
             // demo authority (test root, no real server): calls are queued and carried, never delivered
-            buildConfigField("String", "DEMO_KURUM", "\"l4vew+gipwYt/slp5jbANEAJUMUlh8kIaJrqtm4qoTI=;2Yf1lkYhSXUsE63q0Y2QludMtFtN5/5kvEeHDnPYXho=;https://demo.kairodynedynamics.com;Deneme Kurumu - test;0J+695S+ON5pK6u3HEdWqCqYQ6yssnwJDuW3VY6HW2iQlG4zMOFJEC39+ntGOw4rf51trwv0mVq4DWDg6BSICw==\"")
+            buildConfigField("String", "DEMO_KURUM", "\"mdUshEx3g4fN93giVHNo85Sj514ZAnJmwzN2mBU/bTU=;tIp0lLyJX6b7Co+dC7Ipt5BjJBNZXUzbnk9UVuDqQy4=;https://kairodynedynamics.com/operator;KairoMesh Operatör Demo - test;W5eevjIWZV2sLHFwyYrsWO9EjfyGC6fZYSf/Zm94HxcKPMr/1DnYSCW4QQpiTL/hm/fHl6EhtlcIXO6VMlWCBA==\"")
         }
     }
     buildFeatures { buildConfig = true }
