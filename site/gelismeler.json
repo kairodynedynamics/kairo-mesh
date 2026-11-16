@@ -1,6 +1,26 @@
 [
  {
   "tarih": "2026-11-16",
+  "baslik": "Yeni KairoMesh uygulaması: enkaz altında kullanılabilsin diye",
+  "metin": "Android ve iOS'ta aynı yeni ekran: açık gri, göz almayan ama karanlıkta okunan tema; dört büyük hayati durum düğmesi; seçilen her şey yazıyla gösterilir ve tek dokunuşla geri alınır; gönderilecek bilgilerin özeti; yanlış dokunuşa karşı 5 saniyelik İPTAL; 'yanlışlıkla gönderdim' düzeltmesi; kurtarıcılar için sesli sinyal; ekran kararmaz. Tasarım gerekçeleri docs/08'de."
+ },
+ {
+  "tarih": "2026-11-16",
+  "baslik": "Sahte ihbar analizi ve kurum panosunda uyarı işaretleri",
+  "metin": "Kaynak kodu değiştiren biri kendi çağrısında yalan yazabilir ama başkasının çağrısını okuyamaz, değiştiremez, sahte makbuz ya da sahte kurum kodu üretemez. Kurum panosu artık şüpheli çağrıları işaretliyor: uygulamanın kuralıyla tutmayan aciliyet (değiştirilmiş uygulama), aynı cihazdan çok çağrı, birçok cihazdan aynı metin, gönderenin geri çektiği çağrı. Hiçbir çağrı gizlenmez. Ayrıntı docs/09'da."
+ },
+ {
+  "tarih": "2026-11-16",
+  "baslik": "Android 14'te imza doğrulama düzeltildi",
+  "metin": "Android 14'ün kripto sağlayıcısında Ed25519 yok; bu yüzden kurum kodları ve imzalı duyurular gerçek telefonlarda reddediliyordu. Bağımlılıksız bir RFC 8032 doğrulayıcısı eklendi ve resmî test vektörleriyle sınandı."
+ },
+ {
+  "tarih": "2026-11-16",
+  "baslik": "Yeni ad, logo ve simgeler: KairoMesh",
+  "metin": "Ürünün adı tek kelime: KairoMesh. Logo ürünün kendisini anlatıyor: enkaz altındaki telefondan çıkan çağrı telefondan telefona atlayıp internete ulaşan telefona gider."
+ },
+ {
+  "tarih": "2026-11-16",
   "baslik": "Deprem simülasyonu: enkaz altından gelen çağrı",
   "metin": "4.000 kişilik, merkezinde şebekenin çöktüğü bir deprem senaryosunda ürünün kendi kodu ve kurum sunucusuyla ölçüm yapıldı. Uygulama nüfusun %10'unda yüklüyken çağrıların %53'ü 3 saatte, %92'si 12 saatte kuruma ulaşıyor; %20'sinde yüklüyken 3 saatte ulaşan pay %71. Bugün aynı koşulda 12 saatte ulaşan pay %34. Kurtarma ekiplerinde sürekli bağlı birer telefon bulunması, uygulamanın iki kat yaygınlaşmasıyla aynı etkiyi veriyor. Rakamlar sahada doğrulanmadı."
  },
