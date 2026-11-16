@@ -1,0 +1,62 @@
+name: ios-havuz
+# Manual iOS build on a chosen macOS pool, for when the default pool has no capacity.
+on:
+  workflow_dispatch:
+    inputs:
+      havuz: { description: 'runs-on label', required: true, default: macos-14 }
+
+jobs:
+  ios:
+    # arm64 pool; the Intel pool cancelled jobs mid-step (being retired). The app is built and uploaded
+    # before the slow simulator tests, so a cut-off run still leaves a downloadable build.
+    runs-on: ${{ inputs.havuz }}
+    timeout-minutes: 75
+    defaults: { run: { working-directory: ios } }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Core on macOS (CryptoKit)
+        run: swift test
+      - name: "Interop: JavaScript reads the Swift node's frames"
+        run: node ../android/interop-check.mjs .build/interop-from-swift.json
+      - name: Generate the Xcode project
+        run: brew install xcodegen && cd App && xcodegen generate
+      - name: Pick two different simulators (an iPhone and an iPad)
+        id: sims
+        run: |
+          pick() { xcrun simctl list devices available -j | python3 -c "import json,sys; print(next(d['udid'] for r,ds in json.load(sys.stdin)['devices'].items() if 'iOS' in r for d in ds if d['name'].startswith('$1')))"; }
+          echo "iphone=$(pick iPhone)" >> "$GITHUB_OUTPUT"
+          echo "ipad=$(pick iPad)" >> "$GITHUB_OUTPUT"
+      - name: Build the app for the simulator (downloadable)
+        working-directory: ios/App
+        run: |
+          set -o pipefail
+          xcodebuild build -project KairoMesh.xcodeproj -scheme KairoMesh -configuration Debug -sdk iphonesimulator \
+            -derivedDataPath ../.build/dd | tail -3
+          cd ../.build/dd/Build/Products/Debug-iphonesimulator && ditto -c -k --keepParent KairoMesh.app ../../../../KairoMesh-simulator.zip
+      - uses: actions/upload-artifact@v4
+        with: { name: KairoMesh-ios-simulator, path: ios/.build/KairoMesh-simulator.zip }
+      - name: Build and test on both simulators
+        working-directory: ios/App
+        run: |
+          xcodebuild test -project KairoMesh.xcodeproj -scheme KairoMesh \
+            -destination "id=${{ steps.sims.outputs.iphone }}" -destination "id=${{ steps.sims.outputs.ipad }}" \
+            -resultBundlePath ../.build/results.xcresult | tail -60
+          exit ${PIPESTATUS[0]}
+      - name: Failure details
+        if: failure()
+        run: |
+          xcrun xcresulttool get test-results tests --path .build/results.xcresult > .build/tests.json
+          python3 - <<'PY'
+          import json
+          def walk(n, path):
+              path = path + ' / ' + n.get('name', '')
+              if n.get('nodeType') == 'Failure Message':
+                  print(path)
+              for c in n.get('children', []):
+                  walk(c, path)
+          for n in json.load(open('.build/tests.json')).get('testNodes', []):
+              walk(n, '')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: ios-test-results, path: ios/.build/results.xcresult, if-no-files-found: ignore }
