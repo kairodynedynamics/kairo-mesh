@@ -106,6 +106,26 @@ def main():
         ciz(logo_yatay(acik=True), MARKA / "kairomesh-logo-acik.png", 1120, 240)
         for klasor, boyut in (("mdpi", 48), ("hdpi", 72), ("xhdpi", 96), ("xxhdpi", 144), ("xxxhdpi", 192)):
             ciz(ISARET, ANDROID_RES / f"mipmap-{klasor}" / "ic_launcher.png", boyut, boyut)
+        # Android adaptive icon: the mark without its square on a 108 dp canvas, inside the 72 dp safe zone; the
+        # launcher supplies the shape (circle, squircle) and the slate background below
+        on = ISARET.replace('<rect width="512" height="512" rx="114" fill="url(#z)"/>', "").replace(
+            '<rect width="512" height="512" rx="114" fill="url(#p)"/>', "").replace('viewBox="0 0 512 512"', 'viewBox="-136 -136 784 784"')
+        for klasor, boyut in (("mdpi", 108), ("hdpi", 162), ("xhdpi", 216), ("xxhdpi", 324), ("xxxhdpi", 432)):
+            ciz(on, ANDROID_RES / f"mipmap-{klasor}" / "ic_launcher_on.png", boyut, boyut)
+        (ANDROID_RES / "mipmap-anydpi-v26").mkdir(parents=True, exist_ok=True)
+        (ANDROID_RES / "mipmap-anydpi-v26" / "ic_launcher.xml").write_text("""<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ikon_zemin" />
+    <foreground android:drawable="@mipmap/ic_launcher_on" />
+    <monochrome android:drawable="@mipmap/ic_launcher_on" />
+</adaptive-icon>
+""", encoding="utf-8")
+        (ANDROID_RES / "values").mkdir(parents=True, exist_ok=True)
+        (ANDROID_RES / "values" / "renkler.xml").write_text("""<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ikon_zemin">#1E2B34</color>
+</resources>
+""", encoding="utf-8")
         # iOS: one 1024 icon, opaque (App Store refuses transparency); the rounded corners come from iOS itself
         kare = ISARET.replace('rx="114"', 'rx="0"')
         ciz(kare, IOS_IKON / "AppIcon-1024.png", 1024, 1024, saydam=False)
