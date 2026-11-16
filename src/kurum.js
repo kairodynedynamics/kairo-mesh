@@ -39,6 +39,30 @@ export function kurumKoduAc(kod, kokler) {
   return kok ? { muhur, imza, adres: p[2], ad: p[3], kok } : null;
 }
 
+// A report comes from an unknown phone: only known fields of the right type and size are kept. Without this one
+// envelope with `"ozel": "x"` crashed the dashboard (and, saved in the log, again after every restart), and
+// `"aciliyet": -1` put a fake report above every real call. An urgency that is missing or out of range counts as 2:
+// below "life-threatening", above everything routine.
+const METIN = (v, n) => (typeof v === 'string' ? v.slice(0, n) : undefined);
+const SAYI = (v, a, b) => (Number.isFinite(v) && v >= a && v <= b ? v : undefined);
+export function raporTemizle(r) {
+  if (typeof r !== 'object' || r === null || Array.isArray(r)) return null;
+  const k = typeof r.konum === 'object' && r.konum !== null ? r.konum : {};
+  const enlem = SAYI(k.enlem, -90, 90), boylam = SAYI(k.boylam, -180, 180);
+  const t = {
+    v: SAYI(r.v, 0, 99), tur: METIN(r.tur, 32),
+    aciliyet: Number.isInteger(r.aciliyet) && r.aciliyet >= 1 && r.aciliyet <= 4 ? r.aciliyet : 2,
+    kisi: Number.isInteger(r.kisi) ? SAYI(r.kisi, 0, 10000) : undefined,
+    ozel: Array.isArray(r.ozel) ? r.ozel.filter((o) => typeof o === 'string').slice(0, 12).map((o) => o.slice(0, 32)) : [],
+    metin: METIN(r.metin, 1000), kaynak: METIN(r.kaynak, 32),
+    il: METIN(r.il, 80), ilce: METIN(r.ilce, 80), mahalle: METIN(r.mahalle, 120), sokak: METIN(r.sokak, 120), bina: METIN(r.bina, 120),
+    konum: enlem !== undefined && boylam !== undefined
+      ? { enlem, boylam, dogruluk_m: SAYI(k.dogruluk_m, 0, 1e6), zaman: SAYI(k.zaman, 0, 1e14) } : undefined,
+    zaman: SAYI(r.zaman, 0, 1e14),
+  };
+  return JSON.parse(JSON.stringify(t)); // drops undefined fields
+}
+
 // `identity`: the sealing key (X25519). `signer`: the announcement key (Ed25519). `log`: a JSON-lines file the
 // reports are appended to and reloaded from on restart (a real deployment backs it with its own database).
 export function createAuthority({ identity, signer = null, now = Date.now, onReport = () => {}, log = null }) {
@@ -46,8 +70,10 @@ export function createAuthority({ identity, signer = null, now = Date.now, onRep
   const notices = [];
   if (log && existsSync(log))
     for (const line of readFileSync(log, 'utf8').split('\n').filter(Boolean)) {
-      const e = JSON.parse(line);
-      reports.set(e.key, { ...e, receipt: Buffer.from(e.receipt, 'hex') });
+      let e;
+      try { e = JSON.parse(line); } catch { continue; } // a torn last line after a crash must not stop the server
+      const report = raporTemizle(e.report); // logs written before field checks existed are cleaned on load
+      if (report && typeof e.key === 'string') reports.set(e.key, { ...e, report, receipt: Buffer.from(String(e.receipt), 'hex') });
     }
 
   // Returns the 16-byte receipt, or null if the envelope lacks its proof of work, is not for us, altered, stale
@@ -63,8 +89,8 @@ export function createAuthority({ identity, signer = null, now = Date.now, onRep
     const sentAt = Number(msg.body.readBigUInt64BE(16));
     if (now() - sentAt > DAY_MS + SKEW_MS || sentAt - now() > SKEW_MS) return null;
     let report;
-    try { report = JSON.parse(msg.body.subarray(24).toString('utf8')); } catch { return null; }
-    if (typeof report !== 'object' || report === null) return null;
+    try { report = raporTemizle(JSON.parse(msg.body.subarray(24).toString('utf8'))); } catch { return null; }
+    if (!report) return null;
     const receipt = Buffer.from(msg.body.subarray(0, 16));
     const entry = { key, receipt, report, sender: msg.senderPub.toString('hex'), sentAt, receivedAt: now() };
     reports.set(key, entry);
@@ -139,13 +165,26 @@ export function gatewayServer(authority, { token = null } = {}) {
     const want = Buffer.from(token);
     return got.length === want.length && timingSafeEqual(got, want);
   };
-  const body = (req, done) => {
+  const body = (req, done, res) => {
     const parts = [];
     let size = 0;
+    req.on('error', () => {});
     req.on('data', (c) => { size += c.length; if (size > MAX_REPORT) req.destroy(); else parts.push(c); });
-    req.on('end', () => done(Buffer.concat(parts)));
+    req.on('end', () => {
+      try { done(Buffer.concat(parts)); } catch (e) {
+        console.error(`${new Date().toISOString()} istek hatası: ${e?.message}`);
+        if (!res.headersSent) res.writeHead(500).end();
+      }
+    });
   };
+  // No request may stop the server: uploads from every other gateway depend on it.
   return createServer((req, res) => {
+    try { yonet(req, res); } catch (e) {
+      console.error(`${new Date().toISOString()} istek hatası: ${e?.message}`);
+      if (!res.headersSent) res.writeHead(500).end(); else res.end();
+    }
+  });
+  function yonet(req, res) {
     const path = new URL(req.url, 'http://x').pathname;
     res.setHeader('X-Content-Type-Options', 'nosniff');
     if (path === '/v1/acil' && req.method === 'POST')
@@ -153,7 +192,7 @@ export function gatewayServer(authority, { token = null } = {}) {
         const receipt = authority.receive(env);
         if (!receipt) return res.writeHead(422).end();
         res.writeHead(200, { 'content-type': 'application/octet-stream' }).end(receipt);
-      });
+      }, res);
     if (path === '/v1/duyuru' && req.method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json' });
       return res.end(JSON.stringify(authority.notices.map((n) => n.frame.toString('hex'))));
@@ -170,9 +209,9 @@ export function gatewayServer(authority, { token = null } = {}) {
           const frame = authority.announce(text.toString('utf8'));
           res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ frame: frame.toString('hex') }));
         } catch (e) { res.writeHead(400).end(String(e.message)); }
-      });
+      }, res);
     res.writeHead(404).end();
-  });
+  }
 }
 
 // What a phone does once it has internet: post the envelope, return the receipt (or null to retry later)...

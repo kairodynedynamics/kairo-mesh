@@ -113,6 +113,37 @@ test('acil: end to end over HTTP, as a phone with internet would upload it', asy
   }
 });
 
+test('acil: a malformed report cannot crash the dashboard, nor after a restart, nor jump the queue', async () => {
+  const { mkdtempSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  const log = join(mkdtempSync(join(tmpdir(), 'kurum-temiz-')), 'cagrilar.jsonl');
+  const id = createIdentity(), s = createIdentity();
+  const zarf = (r, n) => addWork(seal(s, id.pub, Buffer.concat([Buffer.alloc(16, n), sentNow(), Buffer.from(JSON.stringify(r))])));
+  const a = createAuthority({ identity: id, log });
+  assert.ok(a.receive(zarf({ ...RAPOR, aciliyet: 1 }, 1)));
+  // the review's proof of concept: "ozel" as a string crashed /pano; a negative urgency sorted first
+  assert.ok(a.receive(zarf({ tur: 'enkaz', aciliyet: -1, ozel: 'x', kisi: 'çok', metin: 7, konum: { enlem: 999, boylam: 'a' } }, 2)));
+  const bak = async (kurum) => {
+    const server = gatewayServer(kurum, { token: 't' }).listen(0);
+    await new Promise((res) => server.once('listening', res));
+    try {
+      const r = await fetch(`http://127.0.0.1:${server.address().port}/pano?t=t`);
+      assert.equal(r.status, 200);
+      return await r.text();
+    } finally { server.close(); }
+  };
+  await bak(a);
+  const b = createAuthority({ identity: id, log }); // reloaded from the log, as after a restart
+  await bak(b);
+  assert.equal(b.reports[0].report.aciliyet, 1, 'the real life-threatening call stays first');
+  const kotu = b.reports[1].report;
+  assert.equal(kotu.aciliyet, 2);
+  assert.deepEqual(kotu.ozel, []);
+  assert.equal(kotu.kisi, undefined);
+  assert.equal(kotu.konum, undefined);
+});
+
 function sentNow(offset = 0) {
   const b = Buffer.alloc(8);
   b.writeBigUInt64BE(BigInt(Date.now() + offset));
