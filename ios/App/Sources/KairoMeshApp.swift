@@ -20,6 +20,8 @@ struct ContentView: View {
     @State private var metin = ""
     @State private var geriSayim: Int?
     @State private var sinyal = false
+    @State private var arkaPlan: Date?
+    @Environment(\.scenePhase) private var faz
     private let sayac = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -55,6 +57,11 @@ struct ContentView: View {
         }
         .preferredColorScheme(.light)
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true; mesh.konumIste() } // the screen must not go dark under rubble
+        // back after a while: nothing left selected from before (a short switch keeps a half-written call)
+        .onChange(of: faz) { _, yeni in
+            if yeni == .background { arkaPlan = Date() }
+            if yeni == .active, let a = arkaPlan, Date().timeIntervalSince(a) > 120, geriSayim == nil { formuTemizle() }
+        }
         .onReceive(sayac) { _ in
             guard let k = geriSayim else { return }
             if k <= 1 { gonder() } else { geriSayim = k - 1; UIAccessibility.post(notification: .announcement, argument: "\(k - 1)") }
@@ -217,7 +224,10 @@ struct ContentView: View {
     private func gonder() {
         geriSayim = nil
         mesh.emergency(tur: tur, kisi: kisi, ozel: ozel, metin: metin)
+        formuTemizle() // what went out is in the status card; the next call starts from nothing selected
     }
+
+    private func formuTemizle() { tur = nil; kisi = nil; ozel = []; metin = "" }
 
     private func sinyalDegistir() {
         sinyal.toggle()

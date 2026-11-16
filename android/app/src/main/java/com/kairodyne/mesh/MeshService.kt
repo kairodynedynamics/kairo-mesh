@@ -212,8 +212,9 @@ class MeshService : Service() {
                         put("ozel", JSONArray(it.ozel))
                     }
                 }
-                // an unrecognised or off-topic message still goes out as a call for rescue: missing a call costs more
-                val tur = p[0].takeIf { it in Cagri.TURLER } ?: k?.tur?.takeIf { it in Cagri.TURLER } ?: "enkaz"
+                // a message the model could not place still goes out, as "another emergency" (urgency 2): missing a
+                // call costs more than a needless one, but nonsense must not jump to the top as "under rubble"
+                val tur = p[0].takeIf { it in Cagri.TURLER } ?: k?.tur?.takeIf { it in Cagri.TURLER } ?: "yardim"
                 val ozel = p[2].split(",").filter { it in Cagri.OZEL }.toSet() + (k?.ozel?.filter { it in Cagri.OZEL } ?: emptyList())
                 val json = Cagri.rapor(tur, p[1].toIntOrNull() ?: k?.kisi, ozel, p[3],
                     loc?.latitude, loc?.longitude, loc?.accuracy, loc?.time ?: System.currentTimeMillis(),
@@ -269,16 +270,23 @@ class MeshService : Service() {
      * A call must never stay without a location. If it went with none, an old one or a coarse one, the phone keeps
      * listening to GPS for a few minutes and sends the first good fix as a follow-up the dashboard shows with the call.
      */
+    private var konumDinleyici: android.location.LocationListener? = null
+
     private fun konumTakip(ilk: Location?) {
         if (!konumIzni()) return show("KONUM_IZNI_YOK")
         if (ilk == null) show("KONUM_YOK")
-        val iyi = ilk != null && System.currentTimeMillis() - ilk.time < 60_000 && ilk.hasAccuracy() && ilk.accuracy <= 50f
-        if (iyi) return
+        val taze = ilk != null && System.currentTimeMillis() - ilk.time < 60_000 && ilk.hasAccuracy()
+        if (taze && ilk!!.accuracy <= 50f) return
+        // decided now, not when a fix arrives: only a clearly more precise fix is worth a follow-up (the same
+        // network fix again and again was sent as "updates")
+        val esik = if (taze) ilk!!.accuracy * 0.7f else Float.MAX_VALUE
         val lm = getSystemService(LocationManager::class.java)
+        konumDinleyici?.let { lm.removeUpdates(it) } // a new call replaces the previous follow-up
         val dinleyici = object : android.location.LocationListener {
             override fun onLocationChanged(l: Location) {
-                if (ilk != null && System.currentTimeMillis() - ilk.time < 60_000 && l.accuracy >= ilk.accuracy) return
+                if (!l.hasAccuracy() || l.accuracy >= esik) return
                 lm.removeUpdates(this)
+                konumDinleyici = null
                 Thread {
                     try {
                         synchronized(this@MeshService) { node.sendEmergency(Cagri.konumGuncel(l.latitude, l.longitude, l.accuracy, l.time)) }
@@ -290,6 +298,7 @@ class MeshService : Service() {
         try {
             for (s in listOf(LocationManager.GPS_PROVIDER, LocationManager.FUSED_PROVIDER, LocationManager.NETWORK_PROVIDER))
                 if (runCatching { lm.isProviderEnabled(s) }.getOrDefault(false)) lm.requestLocationUpdates(s, 2000L, 0f, dinleyici, main.looper)
+            konumDinleyici = dinleyici
             main.postDelayed({ lm.removeUpdates(dinleyici) }, KONUM_TAKIP_MS)
         } catch (e: SecurityException) { show("KONUM_IZNI_YOK") }
     }

@@ -199,8 +199,21 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
             DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             let gecerli = Set(Cagri.turler.map(\.0)), ozelGecerli = Set(Cagri.ozel.map(\.0))
-            // an unrecognised or off-topic message still goes out as a call for rescue: missing a call costs more
-            let tur = secilen ?? k.flatMap { gecerli.contains($0.tur) ? $0.tur : nil } ?? "enkaz"
+            // a message the model could not place still goes out, as "another emergency" (urgency 2), never as
+            // "under rubble" (see MeshService.kt)
+            let tur = secilen ?? k.flatMap { gecerli.contains($0.tur) ? $0.tur : nil } ?? "yardim"
+            // what the caller tapped, and what the phone's model read from the text (see Kurum.kt)
+            var secimSozluk: [String: Any] = ["ozel": ozel.sorted()]
+            if let secilen { secimSozluk["tur"] = secilen }
+            if let kisi { secimSozluk["kisi"] = kisi }
+            var okumaSozluk: [String: Any]? = nil
+            if let o = k {
+                var d: [String: Any] = ["model": model?.modelAdi ?? "", "ms": ms, "tur": o.tur, "aciliyet": o.aciliyet, "ozel": o.ozel]
+                if let v = o.kisi { d["kisi"] = v }
+                let adres: [(String, String?)] = [("il", o.il), ("ilce", o.ilce), ("mahalle", o.mahalle), ("sokak", o.sokak), ("bina", o.bina)]
+                for (a, v) in adres { if let v, !v.isEmpty { d[a] = v } }
+                okumaSozluk = d
+            }
             let json = Cagri.rapor(tur: tur, kisi: kisi ?? k?.kisi, ozel: ozel.union((k?.ozel ?? []).filter(ozelGecerli.contains)), metin: metin,
                                    enlem: loc?.coordinate.latitude, boylam: loc?.coordinate.longitude,
                                    dogruluk: loc?.horizontalAccuracy, zaman: loc?.timestamp ?? Date(),
@@ -209,17 +222,7 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
                                    // still ranks ~3% of life-threatening calls too low; triyaj/model/kodlayici-olcum.json)
                                    aciliyet: k.map { secilen == nil ? min($0.aciliyet, 2) : $0.aciliyet },
                                    model: k != nil && secilen == nil,
-                                   secim: (secilen.map { ["tur": $0] } ?? [:]).merging(kisi.map { ["kisi": $0] } ?? [:]) { a, _ in a }
-                                       .merging(["ozel": ozel.sorted()]) { a, _ in a },
-                                   cihaz: Mesh.cihaz(),
-                                   okuma: k.map { o in
-                                       var d: [String: Any] = ["model": model?.modelAdi ?? "", "ms": ms, "tur": o.tur, "aciliyet": o.aciliyet, "ozel": o.ozel]
-                                       if let v = o.kisi { d["kisi"] = v }
-                                       for (a, v) in [("il", o.il), ("ilce", o.ilce), ("mahalle", o.mahalle), ("sokak", o.sokak), ("bina", o.bina)] {
-                                           if let v, !v.isEmpty { d[a] = v }
-                                       }
-                                       return d
-                                   })
+                                   secim: secimSozluk, okuma: okumaSozluk, cihaz: Mesh.cihaz())
             do {
                 let id = try self.node.sendEmergency(json)
                 self.defaults.set(json, forKey: "bekleyenAcil") // kept until the authority's receipt arrives
@@ -274,17 +277,19 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// The sending phone, for the dispatcher: model, system, app version, battery.
     static func cihaz() -> [String: Any] {
         var u = utsname(); uname(&u)
-        let makine = withUnsafeBytes(of: &u.machine) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) } // e.g. iPhone15,2
+        let makine = withUnsafeBytes(of: &u.machine) { b in String(decoding: b.prefix { $0 != 0 }, as: UTF8.self) } // e.g. iPhone15,2
         UIDevice.current.isBatteryMonitoringEnabled = true
         var c: [String: Any] = ["model": "Apple \(makine)", "sistem": "iOS \(UIDevice.current.systemVersion)",
                                 "uygulama": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""]
         let pil = UIDevice.current.batteryLevel
-        if pil >= 0 { c["pil"] = Int(pil * 100); c["sarj"] = [.charging, .full].contains(UIDevice.current.batteryState) }
+        let durum = UIDevice.current.batteryState
+        if pil >= 0 { c["pil"] = Int(pil * 100); c["sarj"] = durum == .charging || durum == .full }
         return c
     }
 
     private var konumTakipBitis: Date?
     private var ilkKonum: CLLocation?
+    private var konumEsik: CLLocationAccuracy = .greatestFiniteMagnitude
 
     /// A call must never stay without a location: with none, an old or a coarse one, the phone listens to GPS for a
     /// few minutes and sends the first good fix as a follow-up the dashboard shows with the call.
@@ -293,7 +298,10 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
             acilDurum += "\n\nKonum izni kapalı: kurtarıcılar yerinizi bilemez. Ayarlar > KairoMesh > Konum'u açın."
             return show("KONUM_IZNI_YOK")
         }
-        if let ilk, Date().timeIntervalSince(ilk.timestamp) < 60, ilk.horizontalAccuracy >= 0, ilk.horizontalAccuracy <= 50 { return }
+        let taze = ilk.map { Date().timeIntervalSince($0.timestamp) < 60 && $0.horizontalAccuracy >= 0 } ?? false
+        if taze, let ilk, ilk.horizontalAccuracy <= 50 { return }
+        // decided now, not when a fix arrives: only a clearly more precise fix is worth a follow-up
+        konumEsik = taze ? (ilk?.horizontalAccuracy ?? 0) * 0.7 : .greatestFiniteMagnitude
         if ilk == nil { acilDurum += "\n\nKonum henüz alınamadı; telefon aramayı sürdürüyor ve bulunca kuruma ayrıca gönderecek." }
         ilkKonum = ilk
         konumTakipBitis = Date().addingTimeInterval(300)
@@ -305,7 +313,7 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let bitis = konumTakipBitis, Date() < bitis, let l = locations.last, l.horizontalAccuracy >= 0 else { return }
-        if let ilk = ilkKonum, Date().timeIntervalSince(ilk.timestamp) < 60, l.horizontalAccuracy >= ilk.horizontalAccuracy { return }
+        if l.horizontalAccuracy >= konumEsik { return }
         konumTakipBitir()
         do {
             _ = try node.sendEmergency(Cagri.konumGuncel(l))

@@ -86,6 +86,21 @@ class MainActivity : Activity() {
         automation(intent)?.let(::toService)
     }
 
+    private var arkaPlan = 0L
+
+    override fun onStop() { super.onStop(); arkaPlan = System.currentTimeMillis() }
+
+    override fun onStart() {
+        super.onStart()
+        // back after a while: nothing left selected from before (a short switch keeps a half-written call)
+        if (arkaPlan != 0L && System.currentTimeMillis() - arkaPlan > 120_000 && geriSayim.visibility != View.VISIBLE) formuTemizle()
+    }
+
+    private fun formuTemizle() {
+        secilenTur = null; kisi = null; ozel.clear(); metin.setText("")
+        yenile()
+    }
+
     override fun onDestroy() {
         MeshService.listener = null
         sinyalDurdur()
@@ -105,6 +120,7 @@ class MainActivity : Activity() {
                 else "Çağrınız gönderildi · ${saat(line)}\nYakındaki telefonlar taşıyor; internete ilk ulaşan telefon kuruma iletecek. Uygulamayı açık tutun.")
                 duzeltDugme.visibility = View.VISIBLE
                 duyur("Çağrınız gönderildi")
+                formuTemizle() // what went out is in the status card; the next call starts from nothing selected
             }
             line.startsWith("ACIL_YENIDEN") -> sonCagriId = line.substringAfter("id=").substringBefore(" ")
             line.startsWith("ACIL_ULASTI") -> {

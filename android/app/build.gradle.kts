@@ -10,8 +10,8 @@ android {
         applicationId = "com.kairodyne.mesh"
         minSdk = 33 // X25519 (XDH) in the platform crypto provider
         targetSdk = 34
-        versionCode = 6
-        versionName = "0.5.0"
+        versionCode = 7
+        versionName = "0.5.1"
         // Root keys that may approve authority codes (src/kurum-cli.js kok/onayla). Release builds trust only the
         // production root, whose private half is kept offline; debug builds also trust the public test root
         // (test/kok-test) so tests and emulators can mint codes.
