@@ -132,6 +132,17 @@ In Turkish: [Bitchat research](docs/01-bitchat-arastirmasi.md) · [Design](docs/
 
 We are looking for one disaster-response, operator or event app to field-test with. [Open a pilot enquiry](https://github.com/kairodynedynamics/kairo-mesh/issues/new?title=Pilot%20enquiry).
 
+## What is open, what is not
+
+| Open in this repository (AGPL-3.0) | Not published |
+|---|---|
+| Protocol and encryption cores (JS, Kotlin, Swift), Android and iOS apps | Root keys and authority keys: never in any repository |
+| Reference authority server and dashboard, setup tool | Enterprise dashboard (maps, users and roles, audit log), 112 / AFAD integration adapters, authority-specific builds |
+| Earthquake simulation, synthetic triage data generator, triage model and its measurements | Real help messages and their labels (personal data, KVKK) |
+| Tests, documents, website sources' numbers | Contracts and business documents |
+
+Everything a phone runs, and everything needed to check how a call is protected, is open. Security rests on keys, not on hidden code.
+
 ## Licence
 
 Open core, dual licensed:
