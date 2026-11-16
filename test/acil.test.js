@@ -168,6 +168,21 @@ test('acil: warning signs mark forged urgency, floods, copied text and withdrawn
   assert.equal(birler.at(-1), birler.find((e) => kodlar(e).includes('iptal-edildi')), 'a withdrawn call sinks within its level');
 });
 
+test('acil: an envelope the authority refuses for good (422) is dropped by the gateway, not re-uploaded all day', async () => {
+  let yukleme = 0;
+  const w = world(['ayse', 'gecit'], 0, 1, { authority: createIdentity().pub, uplink: async () => { yukleme++; return Buffer.alloc(0); } });
+  w.online.add('gecit');
+  w.nodes.ayse.sendEmergency(RAPOR);
+  w.link('ayse', 'gecit');
+  for (let i = 0; i < 6; i++) { await w.run(1); await settle(); }
+  w.link('ayse', 'gecit', false); // ayse walks away; only the gateway's copy is left to test
+  const once = yukleme;
+  for (let i = 0; i < 6; i++) { await w.run(1); await settle(); }
+  assert.ok(once >= 1, 'it was uploaded');
+  assert.equal(yukleme, once, 'and not uploaded again after the refusal');
+  assert.equal(w.nodes.gecit.carrying, 0, 'the gateway no longer carries it');
+});
+
 function sentNow(offset = 0) {
   const b = Buffer.alloc(8);
   b.writeBigUInt64BE(BigInt(Date.now() + offset));

@@ -131,7 +131,11 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     if (m.uploading) return;
     m.uploading = true;
     Promise.resolve().then(() => uplink(m.env)).then((receipt) => {
-      if (receipt && settle(key, receipt)) ack(Buffer.alloc(8), m.id, receipt);
+      // an empty receipt: the authority refused the envelope for good, so carrying it on only wastes the
+      // emergency quota and the radio (a junk flood was re-uploaded every tick for a day). The owner's own call
+      // is sent again by the app, in a fresh envelope.
+      if (receipt && receipt.length === 0) store.delete(key);
+      else if (receipt && settle(key, receipt)) ack(Buffer.alloc(8), m.id, receipt);
       else m.uploading = false;
     }, () => { m.uploading = false; }); // no signal after all: keep carrying, retry on a later tick
   }

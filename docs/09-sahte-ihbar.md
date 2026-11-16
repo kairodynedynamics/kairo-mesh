@@ -83,7 +83,7 @@ Bunlar yapılmadı. Dürüstçe listeliyoruz:
 
 1. **Cihaz doğrulaması (Play Integrity / App Attest).** Telefon internete bağlıyken anahtarının resmî, değiştirilmemiş uygulamaya ait olduğuna dair bir belge alır; çağrı bu belgeyi taşır. Panoda "doğrulanmış uygulama" işareti çıkar. Bu, "kurala aykırı" işaretinin göremediği, kuralı taklit eden değiştirilmiş uygulamaları da ayırır. Google ve Apple geliştirici hesabı gerekir.
 2. **İş kanıtını güne ve kuruma bağlamak.** Afetten önce çöp zarf biriktirilemesin. Üç platformda protokol değişikliği gerekir (güvenlik incelemesi bulgusu).
-3. **Kalıcı ret.** Kurum bir zarfı kalıcı olarak reddederse (422) ağ geçidi o zarfı yeniden yüklemeyi bırakmalı. Bugün ağ hatası gibi tekrar deniyor.
+3. ~~**Kalıcı ret.**~~ **Yapıldı:** kurum bir zarfı kalıcı olarak reddederse (422) ağ geçidi telefon onu bırakır, bir gün boyunca yeniden yüklemez (üç platform; `test/acil.test.js`).
 4. **Kota boşaltma kuralı.** Kota dolunca en eskiyi değil, en çok kopyası olanı ya da iş kanıtı en zayıf olanı atmak.
 5. **Kurum tarafında oran sınırı ve saklama süresi** (KVKK).
 6. **Hukuk.** Asılsız ihbarın yaptırımı ve göndericinin anahtarının bu amaçla kullanılabilirliği avukatla netleştirilmeli (`internal/kosgeb/04-hukuk-sorulari.md`).

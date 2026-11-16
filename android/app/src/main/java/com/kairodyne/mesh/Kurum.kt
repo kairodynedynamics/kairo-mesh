@@ -21,7 +21,9 @@ class Kurum(val pub: ByteArray, val signPub: ByteArray, val url: String, val ad:
                 requestMethod = "POST"; doOutput = true; connectTimeout = 10_000; readTimeout = 15_000
                 setRequestProperty("content-type", "application/octet-stream")
                 outputStream.use { it.write(env) }
-                if (responseCode == 200) inputStream.use { it.readBytes() }.takeIf { it.size == 16 } else null
+                // 422: refused for good, an empty receipt tells the node to drop it; otherwise null retries later
+                if (responseCode == 422) ByteArray(0)
+                else if (responseCode == 200) inputStream.use { it.readBytes() }.takeIf { it.size == 16 } else null
             }
         }.getOrNull())
     }

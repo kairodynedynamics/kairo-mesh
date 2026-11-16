@@ -168,7 +168,11 @@ class Node(
         val up = uplink ?: return
         if (m.uploading) return
         m.uploading = true
-        up(m.env) { receipt -> if (receipt != null && settle(key, receipt)) ack(ByteArray(8), m.id, receipt) else m.uploading = false }
+        // an empty receipt: the authority refused the envelope for good (see src/node.js): stop carrying it
+        up(m.env) { receipt ->
+            if (receipt != null && receipt.isEmpty()) store.remove(key)
+            else if (receipt != null && settle(key, receipt)) ack(ByteArray(8), m.id, receipt) else m.uploading = false
+        }
     }
 
     private fun onHello(b: ByteArray) {

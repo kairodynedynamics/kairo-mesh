@@ -198,7 +198,9 @@ public final class Node {
         m.uploading = true
         up(m.env) { [weak self] receipt in
             guard let self else { return }
-            if let r = receipt, self.settle(key, r) { self.ack(Bytes(repeating: 0, count: 8), m.id, r) } else { m.uploading = false }
+            // an empty receipt: the authority refused the envelope for good (see src/node.js): stop carrying it
+            if let r = receipt, r.isEmpty { self.store[key] = nil }
+            else if let r = receipt, self.settle(key, r) { self.ack(Bytes(repeating: 0, count: 8), m.id, r) } else { m.uploading = false }
         }
     }
 

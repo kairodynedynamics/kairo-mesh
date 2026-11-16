@@ -31,8 +31,10 @@ struct Kurum {
         req.setValue("application/octet-stream", forHTTPHeaderField: "content-type")
         req.httpBody = Data(env)
         URLSession.shared.dataTask(with: req) { data, res, _ in
-            let ok = (res as? HTTPURLResponse)?.statusCode == 200 && data?.count == 16
-            DispatchQueue.main.async { done(ok ? Bytes(data!) : nil) }
+            let kod = (res as? HTTPURLResponse)?.statusCode
+            let ok = kod == 200 && data?.count == 16
+            // 422: refused for good, an empty receipt tells the node to drop it; otherwise nil retries later
+            DispatchQueue.main.async { done(kod == 422 ? [] : ok ? Bytes(data!) : nil) }
         }.resume()
     }
 

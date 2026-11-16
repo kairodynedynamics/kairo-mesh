@@ -259,6 +259,8 @@ export function gatewayServer(authority, { token = null } = {}) {
 // What a phone does once it has internet: post the envelope, return the receipt (or null to retry later)...
 export const httpUplink = (url) => async (envelope) => {
   const res = await fetch(url, { method: 'POST', body: envelope, headers: { 'content-type': 'application/octet-stream' } });
+  // 422: refused for good (empty receipt: drop it); anything else is a network problem (null: retry later)
+  if (res.status === 422) return Buffer.alloc(0);
   return res.ok ? Buffer.from(await res.arrayBuffer()) : null;
 };
 // ...and fetch the current announcements to carry into the mesh.
