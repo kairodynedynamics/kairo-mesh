@@ -317,6 +317,15 @@ def olc(yol):
     return sonuc
 
 
+def rapor():
+    """İki test kümesinde ölç ve model/olcum.json yaz (site, sunum ve belgeler rakamları buradan okur)."""
+    t, a = olc(VERI / "test.jsonl"), olc(VERI / "test_agir_gurultu.jsonl")
+    d = {"test": t, "agir": a, "boyut_mb": round((TELEFON / "triyaj.bin").stat().st_size / 1e6, 1) if (TELEFON / "triyaj.bin").exists() else None,
+         "ms": round(t["ms_mesaj_basina_cpu_tek_cekirdek_degil"]),
+         "not": "test: eğitimde hiç geçmeyen ifadeler; ms: masaüstü CPU, PyTorch, mesaj başına"}
+    (MODEL / "olcum.json").write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
 def aktar():
     sz = sozluk_kur()
     m = Triyaj(len(sz.harfler) + 2)
@@ -373,4 +382,4 @@ def agirlik():
 
 
 if __name__ == "__main__":
-    {"egit": egit, "olc": lambda: olc(sys.argv[2]), "esik": esik_sec, "aktar": aktar, "agirlik": agirlik}[sys.argv[1]]()
+    {"egit": egit, "olc": lambda: olc(sys.argv[2]), "esik": esik_sec, "rapor": rapor, "aktar": aktar, "agirlik": agirlik}[sys.argv[1]]()

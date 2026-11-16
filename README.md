@@ -10,7 +10,7 @@ built for disaster, event and field apps.
 [![Live demo](https://img.shields.io/badge/live_demo-run_the_simulation-2da77a?style=for-the-badge)](https://kairodynedynamics.github.io/kairo-mesh/#run)
 
 ![status](https://img.shields.io/badge/status-research_prototype-f2b134)
-![tests](https://img.shields.io/badge/tests-57_passing-2da77a)
+![tests](https://img.shields.io/badge/tests-86_passing-2da77a)
 ![dependencies](https://img.shields.io/badge/dependencies-0-2da77a)
 ![node](https://img.shields.io/badge/node-24-8b949e)
 ![licence](https://img.shields.io/badge/licence-AGPL--3.0-8b949e)
@@ -76,7 +76,7 @@ Tag `T` changes daily and only the recipient's contacts can compute it. A strang
 Node 24, no dependencies.
 
 ```bash
-npm test          # 41 tests
+npm test          # 42 tests
 npm run bench     # the measurement tables (a few minutes)
 node src/cli.js   # chat over the local network
 ```
@@ -95,7 +95,9 @@ Or skip the install and [run the simulation in your browser](https://kairodynedy
 | ✅ | Working node that chats over a local network |
 | ✅ | Android app with Bluetooth LE transport, byte-compatible with the JS node; courier delivery verified on three emulators |
 | ✅ | Swift core for iOS (`ios/`), byte-compatible with the JS and Kotlin nodes |
-| ✅ | 41 tests in JS (11 attacks, 11 real-world courier scenarios, 2 Noise vector checks, 8 emergency and announcement scenarios), 19 in Kotlin, 19 in Swift |
+| ✅ | 42 tests in JS (11 attacks, 11 real-world courier scenarios, 2 Noise vector checks, 8 emergency and announcement scenarios), 22 in Kotlin, 22 in Swift |
+| ✅ | Emergency call screens on Android and iOS: tap the situation or just type it; GPS added; the call is kept until the authority confirms it |
+| 🟨 | On-device Turkish triage model (`triyaj/`, 0.84 M parameters, 3.4 MB): reads a rushed, misspelt help message into type, people, address. On phrasings it never saw it still ranks about 13% of life-threatening calls too low, so a typed call is always sent as urgent; being improved ([measurements](triyaj/README.md), Turkish) |
 | ✅ | Emergency relay on all three nodes: reports sealed to an authority key, carried by any phone, uploaded in the background by whichever phone has internet; the authority's receipt returns through the mesh. Proof of work and a quota bound forged emergency mail ([design](docs/05-acil-aktarim.md), Turkish) |
 | ✅ | Authority announcements: Ed25519-signed, brought into the mesh by phones with internet, verified and passed on by every phone |
 | ✅ | Authority server: reports log, dispatcher dashboard behind a token, announcement endpoints (`src/kurum.js`) |
@@ -109,9 +111,21 @@ Or skip the install and [run the simulation in your browser](https://kairodynedy
 > [!WARNING]
 > This is a research prototype. The envelope follows the Noise X pattern exactly and matches a published test vector, but the implementation has not been audited. Do not rely on it for safety.
 
+## Repository layout
+
+| Folder | What | Run |
+|---|---|---|
+| `src/` | JS reference node, crypto, fountain codec, authority server and CLI | `npm test` · `node src/kurum-cli.js` |
+| `android/` | Android app and Kotlin core | `./gradlew testDebugUnitTest` · `bash android/acil-emulator-test.sh` |
+| `ios/` | iOS app and Swift core (`KairoCore`) | `swift test` · `bash ios/test-linux.sh` |
+| `triyaj/` | Triage model: data generator, training, measurement, phone export | `bash triyaj/calistir.sh hepsi` |
+| `sim/` | Earthquake scenario on the product's own code | `bash sim/calistir.sh` · `node sim/rapor.js md` |
+| `site/` | kairodynedynamics.com sources; numbers are read from the measurement files | `python site/yap.py` |
+| `docs/` | Design, validation, emergency relay, earthquake simulation, authority setup (Turkish) | |
+
 ## Documents
 
-In Turkish: [Bitchat research](docs/01-bitchat-arastirmasi.md) · [Design](docs/02-tasarim.md) · [Validation](docs/04-dogrulama.md)
+In Turkish: [Bitchat research](docs/01-bitchat-arastirmasi.md) · [Design](docs/02-tasarim.md) · [Validation](docs/04-dogrulama.md) · [Emergency relay](docs/05-acil-aktarim.md) · [Earthquake simulation](docs/06-deprem-simulasyonu.md) · [Authority setup](docs/07-kurum-kurulumu.md) · [Triage model](triyaj/README.md)
 
 ## Pilot partners
 

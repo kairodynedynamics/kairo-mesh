@@ -40,10 +40,13 @@ Ağır gürültüde (5.000) model: tür %62,3, acil kaçırma %13,6, il %96,0. K
 
 `model.py`: harf gömme + büyük/küçük harf özelliği, 2 katmanlı çift yönlü GRU (839.201 parametre), harf başına alan etiketi (BIO) ve tür, aciliyet, özel durum, il, ilçe başları.
 
+Hepsi tek komutla: `bash triyaj/calistir.sh hepsi` (veri → eğitim → telefon ağırlıkları → ölçüm). Adım adım:
+
 ```
 python model.py egit                 # TRIYAJ_CIHAZ=cuda ile GPU; TRIYAJ_DONEM (varsayılan 2)
 python model.py olc veri/test.jsonl
 python model.py esik                 # veri/ayar.jsonl üzerinde aciliyet eşiği
+python model.py rapor                # iki test kümesi -> model/olcum.json
 python model.py agirlik              # telefon/: triyaj.bin (3,4 MB), triyaj.json, altin.json
 ```
 
