@@ -148,6 +148,23 @@ def yonlendirme(hedef="./"):
 """
 
 
+def triyaj_tablosu():
+    """Kural taban çizgisi ve model ölçümü (triyaj/model/kural-*.json, olcum.json) -> HTML tablo."""
+    m = URUN / "triyaj" / "model"
+    y = lambda x: "%" + f"{100 * x:.1f}".replace(".", ",")  # noqa: E731
+    satirlar = []
+    for ad, dosya, anahtar in (("Görülmemiş ifadeler", "test", "test"), ("En ağır yazım bozukluğu", "test_agir_gurultu", "agir")):
+        k = json.loads((m / f"kural-{dosya}.json").read_text(encoding="utf-8"))
+        satirlar.append((f"Kural tabanlı — {ad} ({k['ornek']:,})".replace(",", "."), k, False))
+        if (m / "olcum.json").exists():
+            o = json.loads((m / "olcum.json").read_text(encoding="utf-8"))[anahtar]
+            satirlar.append((f"Telefondaki model — {ad}", o, True))
+    alan = [("tur", "Olay türü"), ("aciliyet", "Aciliyet"), ("acil_kacirma", "Hayati çağrıyı kaçırma"), ("kisi", "Kişi sayısı"), ("il", "İl"), ("ilce", "İlçe")]
+    return ('<div class="tablo"><table><thead><tr><th>Yöntem ve test kümesi</th>' + "".join(f"<th>{b}</th>" for _, b in alan) + "</tr></thead><tbody>"
+            + "".join(("<tr class=\"vurgu\">" if v else "<tr>") + f"<td>{html.escape(a)}</td>" + "".join(f"<td>{y(d[k])}</td>" for k, _ in alan) + "</tr>" for a, d, v in satirlar)
+            + "</tbody></table></div>")
+
+
 def derle():
     if CIKTI.exists():
         shutil.rmtree(CIKTI)
@@ -157,6 +174,7 @@ def derle():
         if "<!--AFET_TABLO-->" in govde:  # deprem simülasyonu rakamları yalnız sim/rapor.js'ten gelir
             govde = govde.replace("<!--AFET_TABLO-->", subprocess.run(["node", str(URUN / "sim" / "rapor.js"), "html"],
                                   capture_output=True, text=True, encoding="utf-8", check=True).stdout)
+        govde = govde.replace("<!--TRIYAJ_TABLO-->", triyaj_tablosu()) if "<!--TRIYAJ_TABLO-->" in govde else govde
         (CIKTI / f"{dosya}.html").write_text(sar(dosya, baslik, aciklama, govde), encoding="utf-8")
     for eski in ESKI:
         (CIKTI / f"{eski}.html").write_text(yonlendirme(), encoding="utf-8")

@@ -57,14 +57,8 @@
   <div class="sar">
     <h2>Yardım mesajı anlamlandırma</h2>
     <p>Telefon yazımını taklit eden sentetik veri: küçük/büyük harf, aksansız yazım, Türkçe Q klavyede komşu tuş hatası, harf atlama ve yer değiştirme, kısaltmalar (mh, sk, apt, kş), bitişik kelimeler, harf uzatma ("acilll"), yazıyla sayılar. 1.000.000 eğitim örneği; test kümesi eğitimde hiç görülmeyen kalıplar, mahalle, sokak, bina ve kişi adlarıyla kurulur.</p>
-    <p>Kural tabanlı taban çizgisi (modelin geçmesi gereken çıta):</p>
-    <div class="tablo"><table>
-      <thead><tr><th>Test kümesi</th><th>Olay türü</th><th>Aciliyet</th><th>Hayati çağrıyı kaçırma</th><th>Kişi sayısı</th><th>İl</th><th>İlçe</th></tr></thead>
-      <tbody>
-        <tr><td>Görülmemiş kalıplar (10.000)</td><td>%80,5</td><td>%82,8</td><td>%5,4</td><td>%91,0</td><td>%94,8</td><td>%67,2</td></tr>
-        <tr><td>En ağır yazım bozukluğu (5.000)</td><td>%76,4</td><td>%78,9</td><td>%9,7</td><td>%88,2</td><td>%90,3</td><td>%60,2</td></tr>
-      </tbody>
-    </table></div>
+    <p>Test kümesindeki olay ifadeleri ("tavan çöktü üstümüze", "susuz kaldık" gibi) eğitimde hiç geçmez. Bu yüzden anahtar kelime arayan kural tabanlı yöntem burada çöker. Telefondaki model 3,4 MB'tır, internet istemez ve Android ile iOS'ta aynı sonucu verir. Güvenlik kuralı: model bir çağrıyı kuraldan daha az acil sayamaz.</p>
+    <!--TRIYAJ_TABLO-->
     <p class="soluk kucuk">Veri sentetiktir. Gerçek mesajlardan elle etiketlenmiş bir test kümesi kurulmadan sahadaki başarı bilinemez; bu küme pilot ortağıyla kurulacaktır.</p>
   </div>
 </section>
