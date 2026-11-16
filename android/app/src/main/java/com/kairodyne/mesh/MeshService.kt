@@ -1,55 +1,92 @@
 package com.kairodyne.mesh
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.content.IntentFilter
-import android.os.BatteryManager
-import android.os.PowerManager
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.location.Location
+import android.location.LocationManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.util.Base64
 import android.util.Log
 import com.kairodyne.mesh.core.Node
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Runs the mesh as a foreground service so the phone keeps carrying mail with the screen off or the app closed.
- * Takes the same "add" and "send" extras as MainActivity, which forwards them here.
+ * Takes the "add", "send", "kurum" and "acil" extras, which MainActivity forwards here.
+ *
+ * Emergency relay: with an authority code set, the phone carries everyone's emergency calls, and whenever it has a
+ * validated internet connection it uploads them to the authority in the background and fetches the authority's
+ * signed announcements to pass on. Uploads and fetches run on worker threads; their results come back under the
+ * same lock as every other call into the node.
  */
 class MeshService : Service() {
     private val main = Handler(Looper.getMainLooper())
     private lateinit var profile: Profile
     private lateinit var node: Node
     private lateinit var transport: BleTransport
+    private var kurum: Kurum? = null
 
     override fun onCreate() {
         super.onCreate()
         getSystemService(NotificationManager::class.java)
             .createNotificationChannel(NotificationChannel(CHANNEL, "Mesh", NotificationManager.IMPORTANCE_LOW))
         startForeground(1, Notification.Builder(this, CHANNEL).setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
-            .setContentTitle("Kairo Mesh").setContentText("Carrying messages for nearby contacts").setOngoing(true).build(),
+            .setContentTitle("Kairo Mesh").setContentText("Yakındaki telefonlar için mesaj taşıyor").setOngoing(true).build(),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
 
         profile = Profile(this)
         transport = BleTransport(this) { frame -> synchronized(this) { node.receive(frame) } }
-        node = Node(profile.identity, transport::send, { from, text ->
-            profile.delivered = node.delivered // on disk before it is shown, so a restart cannot be used to replay it
-            show("RECV from=$from text=$text")
-        }, delivered = profile.delivered)
-        for ((name, pub) in profile.contacts) node.addContact(name, pub)
+        buildNode()
         show("READY code=${profile.code}")
+        kurum?.let { show("KURUM ${it.url}") }
         // a newly met phone is greeted at once, but never more often than the node's 2-second budget allows
         transport.onPeer = { main.post { if (System.currentTimeMillis() - lastTick >= BUSY_MS) { main.removeCallbacks(ticker); ticker.run() } } }
         transport.start()
         main.post(ticker)
     }
 
+    /** (Re)creates the node, e.g. when the authority code changes. Mail queued in memory is not kept across it. */
+    private fun buildNode() = synchronized(this) {
+        kurum = profile.kurum?.let(Kurum::parse)
+        val k = kurum
+        node = Node(profile.identity, transport::send, { from, text ->
+            profile.delivered = node.delivered // on disk before it is shown, so a restart cannot be used to replay it
+            show("RECV from=$from text=$text")
+        }, delivered = profile.delivered,
+            authority = k?.pub, online = ::online,
+            uplink = k?.let { kk -> { env: ByteArray, done: (ByteArray?) -> Unit -> kk.upload(env) { r -> synchronized(this) { done(r) } } } },
+            onEmergencyDelivered = { id -> show("ACIL_ULASTI id=$id saat=${saat()}") },
+            authoritySign = k?.signPub,
+            downlink = k?.let { kk -> { done: (List<ByteArray>) -> Unit -> kk.announcements { f -> synchronized(this) { done(f) } } } },
+            onAnnouncement = { n -> show("DUYURU ${n.text}") })
+        for ((name, pub) in profile.contacts) node.addContact(name, pub)
+    }
+
+    private fun online(): Boolean {
+        val cm = getSystemService(ConnectivityManager::class.java)
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         intent?.getStringExtra("add")?.split("=", limit = 2)?.takeIf { it.size == 2 }?.let { addContact(it[0], it[1]) }
         intent?.getStringExtra("send")?.split("=", limit = 2)?.takeIf { it.size == 2 }?.let { send(it[0], it[1]) }
+        intent?.getStringExtra("kurum")?.let(::setKurum)
+        intent?.getStringExtra("acil")?.let(::emergency)
         return START_STICKY
     }
 
@@ -76,6 +113,41 @@ class MeshService : Service() {
         } catch (e: RuntimeException) { show("ERROR ${e.message}") }
     }
 
+    private fun setKurum(code: String) {
+        val k = Kurum.parse(code) ?: return show("ERROR kurum kodu geçersiz")
+        profile.kurum = k.code
+        buildNode()
+        show("KURUM ${k.url}")
+    }
+
+    /** `form`: "tur|kisi|ozel1,ozel2|metin" from the emergency screen. Location is added here, if permitted. */
+    private fun emergency(form: String) {
+        val p = form.split("|", limit = 4)
+        if (p.size < 4 || p[0] !in Cagri.TURLER) return show("ERROR acil formu eksik")
+        if (kurum == null) return show("ERROR kurum kodu yok: çağrının gideceği kurum tanımlı değil")
+        val loc = lastLocation()
+        val json = Cagri.rapor(p[0], p[1].toIntOrNull(), p[2].split(",").filter { it in Cagri.OZEL }.toSet(), p[3],
+            loc?.latitude, loc?.longitude, loc?.accuracy, loc?.time ?: System.currentTimeMillis())
+        // the proof of work takes under a second: off the main thread, then queued under the node lock
+        Thread {
+            try {
+                val id = synchronized(this) { node.sendEmergency(json) }
+                show("ACIL_GONDERILDI id=$id konum=${if (loc != null) "var" else "yok"} saat=${saat()}")
+            } catch (e: RuntimeException) { show("ERROR ${e.message}") }
+        }.start()
+    }
+
+    private fun lastLocation(): Location? {
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) return null
+        val lm = getSystemService(LocationManager::class.java)
+        // GPS works without a network; the freshest fix from any provider is used
+        return try {
+            listOf(LocationManager.GPS_PROVIDER, LocationManager.FUSED_PROVIDER, LocationManager.NETWORK_PROVIDER)
+                .mapNotNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }.maxByOrNull { it.time }
+        } catch (e: SecurityException) { null }
+    }
+
     private var lastTick = 0L
 
     private val ticker = object : Runnable {
@@ -92,10 +164,12 @@ class MeshService : Service() {
             val peers = transport.peerCount
             // HELLOs only matter to phones in range, and only often while there is mail to offer them
             val next = if (peers > 0 && carrying > 0) BUSY_MS else IDLE_MS
-            Log.i(BleTransport.TAG, "STATUS peers=$peers carrying=$carrying relay=$relay battery=$level next=${next / 1000}s")
+            Log.i(BleTransport.TAG, "STATUS peers=$peers carrying=$carrying relay=$relay battery=$level online=${online()} next=${next / 1000}s")
             main.postDelayed(this, next)
         }
     }
+
+    private fun saat() = SimpleDateFormat("HH:mm", Locale("tr")).format(Date())
 
     private fun show(line: String) {
         Log.i(BleTransport.TAG, line)

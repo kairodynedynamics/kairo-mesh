@@ -36,6 +36,11 @@ class Profile(context: Context) {
         prefs.edit().putStringSet("contacts", prefs.getStringSet("contacts", emptySet())!! + "$name=$code").apply()
     }
 
+    /** The authority code (see Kurum), or null before the authority has given one. */
+    var kurum: String?
+        get() = prefs.getString("kurum", null)
+        set(value) { prefs.edit().putString("kurum", value).commit() }
+
     var delivered: List<Pair<String, String>>
         get() = prefs.getString("delivered", "")!!.split(",").filter { it.isNotEmpty() }.map { it.substringBefore(":") to it.substringAfter(":") }
         // commit, not apply: the message is shown only once its id is on disk, so a crash cannot reopen a replay

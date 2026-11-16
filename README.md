@@ -76,7 +76,7 @@ Tag `T` changes daily and only the recipient's contacts can compute it. A strang
 Node 24, no dependencies.
 
 ```bash
-npm test          # 38 tests
+npm test          # 41 tests
 npm run bench     # the measurement tables (a few minutes)
 node src/cli.js   # chat over the local network
 ```
@@ -95,8 +95,11 @@ Or skip the install and [run the simulation in your browser](https://kairodynedy
 | ✅ | Working node that chats over a local network |
 | ✅ | Android app with Bluetooth LE transport, byte-compatible with the JS node; courier delivery verified on three emulators |
 | ✅ | Swift core for iOS (`ios/`), byte-compatible with the JS and Kotlin nodes |
-| ✅ | 38 tests in JS (11 attacks, 11 real-world courier scenarios, 2 Noise vector checks, 5 emergency relay scenarios), 14 in Kotlin, 14 in Swift |
-| ✅ | Emergency relay (JS reference): reports sealed to an authority key, carried by any phone, uploaded in the background by whichever phone has internet; the authority's receipt returns through the mesh ([design](docs/05-acil-aktarim.md), Turkish) |
+| ✅ | 41 tests in JS (11 attacks, 11 real-world courier scenarios, 2 Noise vector checks, 8 emergency and announcement scenarios), 19 in Kotlin, 19 in Swift |
+| ✅ | Emergency relay on all three nodes: reports sealed to an authority key, carried by any phone, uploaded in the background by whichever phone has internet; the authority's receipt returns through the mesh. Proof of work and a quota bound forged emergency mail ([design](docs/05-acil-aktarim.md), Turkish) |
+| ✅ | Authority announcements: Ed25519-signed, brought into the mesh by phones with internet, verified and passed on by every phone |
+| ✅ | Authority server: reports log, dispatcher dashboard behind a token, announcement endpoints (`src/kurum.js`) |
+| ✅ | Earthquake scenario simulation on the product's own node code (`sim/afet.js`) |
 | ✅ | Battery-aware courier duty: below 20% battery or in power-saving mode a phone carries only its own mail (low battery verified on Android emulators) |
 | ✅ | iOS app (SwiftUI + CoreBluetooth): builds and passes core and UI tests on iPhone and iPad simulators in CI |
 | ⬜ | Bluetooth between iPhones (simulators have no Bluetooth; needs real devices) |

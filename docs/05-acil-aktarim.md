@@ -44,8 +44,8 @@ Anahtar uygulamaya gömülü olduğu için resmî aşamaya geçişte kod değiş
 
 | Risk | Karşılık | Durum |
 |---|---|---|
-| Sahte acil çağrı | Kurum gönderenin kalıcı anahtarını görür; tekrar eden sahte kaynak engellenir. 112'yi asılsız meşgul etmenin yasal yaptırımı uygulama içinde hatırlatılır. | Sunucu tarafı, yapılacak |
-| Telefonları sahte acil zarfla doldurmak | Tur başına iletim bütçeleri sınırlı; acil zarflar ayrı kotada tutulmalı ve basit bir iş kanıtı (proof-of-work) istenmeli | Bütçe var; kota ve iş kanıtı yapılacak |
+| Sahte acil çağrı | Kurum gönderenin kalıcı anahtarını görür; tekrar eden sahte kaynak engellenebilir. 112'yi asılsız meşgul etmenin yasal yaptırımı uygulama içinde hatırlatılır. | Anahtar kayıtta var; engelleme kuralı kurumla birlikte yazılacak |
+| Telefonları sahte acil zarfla doldurmak | Her acil zarf 18 bitlik iş kanıtı taşır (gerçek bir çağrı için telefonda bir saniyenin altında, binlerce sahte çağrı için ciddi bir bedel). Taşıyıcılar kanıtsız zarfı reddeder; başkalarının acil zarfları için ayrı kota (24), dolunca en eskisi çıkar. Sunucu da kanıtsız zarfı reddeder. | Var (JS, Kotlin, Swift) |
 | Ağ geçidinin zarfı yüklememesi | Zarf 8 kopya taşınır; tek bir ağ geçidine bağlı değil | Var |
 | Sahte "ulaştı" bilgisi | Makbuzu yalnız kurum üretebilir | Var |
 
@@ -57,14 +57,14 @@ Konum ve sağlık bilgisi özel nitelikli veri sayılabilir. Bu veriyi yalnız k
 
 Deprem sonrasında veri bağlantısı çökerken SMS çoğu zaman geçer. İnterneti olmayan ama SMS çekebilen bir telefon, sıkıştırılmış kaydı (`triyaj/uret.py::sikistir`, ortalama ~60 bayt) mühürleyip birleştirilmiş SMS ile kurumun numarasına gönderebilir. Noise X ek yükü 96 bayt olduğundan bir kayıt 2 SMS'e sığar.
 
-## Kurumdan halka (yapılacak)
+## Kurumdan halka
 
-Aynı kanal ters yönde de çalışır: kurum, kendi anahtarıyla imzalı duyuruları (toplanma alanı, su dağıtım noktası, tehlikeli bina) ağa bırakır; telefonlar imzayı doğrulayıp gösterir ve yayar.
+Kurum, ayrı bir Ed25519 imza anahtarıyla imzalı duyurular yayımlar (toplanma alanı, su dağıtım noktası, tehlikeli bina; en çok 600 bayt, geçerlilik süresiyle). İnterneti olan telefonlar duyuruları birkaç dakikada bir sunucudan çeker (`GET /v1/duyuru`) ve ağa bırakır; her telefon imzayı doğrulayıp gösterir ve dakikada bir yeniden yayar. İmzası tutmayan ya da süresi geçmiş duyuru yok sayılır. Telefonlar en çok 32 duyuru tutar.
 
 ## Kodda ne var
 
-- `src/node.js`: `sendEmergency(rapor)`, ağ geçidi görevi (`online`, `uplink`), acil önceliği, internet erişimine göre taşıyıcı puanı, `onEmergencyDelivered`.
-- `src/kurum.js`: kurum tarafı (`createAuthority`), ağ geçitlerinin yüklediği HTTP ucu (`gatewayServer`, `POST /v1/acil`), telefon tarafı yükleyici (`httpUplink`).
-- `test/acil.test.js`: 5 senaryo; menzildeki ağ geçidi, şebekesiz taşıyıcının sonradan yüklemesi, öncelik, tekrar ve sahte zarf, HTTP üzerinden uçtan uca.
+- `src/node.js` (ve `android/.../core/Node.kt`, `ios/Sources/KairoCore/Node.swift`, bayt bayt aynı): `sendEmergency(rapor)`, ağ geçidi görevi (`online`, `uplink`), acil önceliği, internet erişimine göre taşıyıcı puanı, `onEmergencyDelivered`, iş kanıtı ve acil kotası, imzalı duyurular (`authoritySign`, `downlink`, `onAnnouncement`).
+- `src/kurum.js`: kurum tarafı (`createAuthority`: iş kanıtı denetimi, tekrar eden zarfı bir kez kaydetme, JSON satırlarına kalıcı kayıt, imzalı duyuru üretme), HTTP ucu (`gatewayServer`: `POST /v1/acil`, `GET /v1/duyuru`; anahtarla korunan `GET /pano`, `GET /v1/acil`, `POST /v1/duyuru`), telefon tarafı (`httpUplink`, `httpDownlink`).
+- `test/acil.test.js` (8 senaryo), `AcilTest.kt` ve `AcilTests.swift` (4'er): menzildeki ağ geçidi, şebekesiz taşıyıcının sonradan yüklemesi, öncelik, tekrar ve sahte zarf, iş kanıtı olmayan zarfın reddi, imzalı duyurunun yayılması ve sahte/eski duyurunun reddi, sunucu yeniden başlatma, HTTP üzerinden uçtan uca. Platformlar arası: JS kurumu Kotlin ve Swift'in acil zarfını açar; Kotlin ve Swift, JS'nin imzaladığı duyuruyu doğrular.
 
-Kotlin ve Swift düğümlerine taşınmadı; tel biçimi (çerçeveler) değişmedi, yalnız zarf içeriği ve düğüm davranışı eklendi. Sunucu tarafında TLS, kalıcı depolama ve pano yetkilendirmesi yoktur.
+Henüz yok: uygulama arayüzünde acil çağrı ekranı ve duyuru listesi (çekirdek hazır), sunucuda TLS (ters vekil sunucunun işi), harita destekli pano, SMS yedeği.

@@ -1,39 +1,77 @@
+import CoreLocation
 import Foundation
 import KairoCore
+import Network
 import Security
 import UIKit
 
 /// The phone's node: identity in the Keychain, contacts and delivered set in UserDefaults, frames over BleTransport.
-/// Everything runs on the main thread (the Bluetooth managers deliver there too), so the node needs no lock.
-final class Mesh: ObservableObject {
+/// Everything runs on the main thread (the Bluetooth managers, network callbacks and timers deliver there), so the
+/// node needs no lock.
+///
+/// Emergency relay: with an authority code set, the phone carries everyone's emergency calls, and whenever it has
+/// internet it uploads them to the authority in the background and fetches the authority's signed announcements.
+final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published private(set) var log: [String] = []
     @Published private(set) var status = ""
+    @Published private(set) var acilDurum = ""
+    @Published private(set) var duyurular: [String] = []
+    @Published private(set) var kurumVar = false
     let code: String
+    private let identity: Identity
     private var node: Node!
     private var transport: BleTransport!
     private var timer: Timer?
     private let defaults = UserDefaults.standard
+    private let path = NWPathMonitor()
+    private var online = false
+    private let location = CLLocationManager()
 
-    init() {
-        let identity: Identity
+    override init() {
         // no identity means no mesh; refusing to start beats inventing a key that is not kept safely
         do { identity = try Identity.create(Keychain.secret()) } catch { fatalError("cannot load identity from the Keychain: \(error)") }
         code = Data(identity.pub).base64EncodedString()
+        super.init()
+        transport = BleTransport(onFrame: { [weak self] in self?.node.receive($0) }, log: { [weak self] in self?.show($0) })
+        buildNode()
+        show("READY code=\(code)")
+        path.pathUpdateHandler = { [weak self] p in DispatchQueue.main.async { self?.online = p.status == .satisfied } }
+        path.start(queue: DispatchQueue(label: "kairo.path"))
+        location.delegate = self
+        location.requestWhenInUseAuthorization()
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        tick()
+    }
+
+    /// (Re)creates the node, e.g. when the authority code changes. Mail queued in memory is not kept across it.
+    private func buildNode() {
+        let k = defaults.string(forKey: "kurum").flatMap(Kurum.init(code:))
+        kurumVar = k != nil
         let delivered = (defaults.stringArray(forKey: "delivered") ?? []).compactMap { entry -> (String, String)? in
             let parts = entry.split(separator: ":")
             return parts.count == 2 ? (String(parts[0]), String(parts[1])) : nil
         }
-        transport = BleTransport(onFrame: { [weak self] in self?.node.receive($0) }, log: { [weak self] in self?.show($0) })
+        let uplink: ((Bytes, @escaping (Bytes?) -> Void) -> Void)? = k.map { kk in { env, done in kk.upload(env, done) } }
+        let downlink: ((@escaping ([Bytes]) -> Void) -> Void)? = k.map { kk in { done in kk.announcements(done) } }
         node = Node(identity: identity, send: { [weak self] in self?.transport.send($0) }, onMessage: { [weak self] from, text in
             guard let self else { return }
             // on disk before it is shown, so a restart cannot be used to replay it
             self.defaults.set(self.node.delivered.map { "\($0.0):\($0.1)" }, forKey: "delivered")
             self.show("RECV from=\(from) text=\(text)")
-        }, delivered: delivered)
+        }, delivered: delivered,
+        authority: k?.pub, online: { [weak self] in self?.online ?? false },
+        uplink: uplink,
+        onEmergencyDelivered: { [weak self] id in
+            self?.acilDurum = "✓ KURUM ÇAĞRINIZI ALDI (\(Mesh.saat()))."
+            self?.show("ACIL_ULASTI id=\(id)")
+        },
+        authoritySign: k?.signPub,
+        downlink: downlink,
+        onAnnouncement: { [weak self] n in
+            self?.duyurular.insert(n.text, at: 0)
+            self?.show("DUYURU \(n.text)")
+        })
         for (name, code) in contacts { if let pub = Data(base64Encoded: code) { try? node.addContact(name, Bytes(pub)) } }
-        show("READY code=\(code)")
-        UIDevice.current.isBatteryMonitoringEnabled = true
-        tick()
     }
 
     private func tick() {
@@ -44,7 +82,7 @@ final class Mesh: ObservableObject {
         // Carrying for others is a favour: it stops when the owner needs the battery, and resumes on the charger.
         node.relay = charging || (!ProcessInfo.processInfo.isLowPowerModeEnabled && level > 20)
         node.tick()
-        status = "STATUS peers=\(transport.peerCount) carrying=\(node.carrying) relay=\(node.relay)"
+        status = "STATUS peers=\(transport.peerCount) carrying=\(node.carrying) relay=\(node.relay) online=\(online)"
         // HELLOs only matter to phones in range, and only often while there is mail to offer them
         let next: TimeInterval = transport.peerCount > 0 && node.carrying > 0 ? 2 : 10
         timer = Timer.scheduledTimer(withTimeInterval: next, repeats: false) { [weak self] _ in self?.tick() }
@@ -68,6 +106,45 @@ final class Mesh: ObservableObject {
             try node.sendMessage(name, text)
             show("QUEUED to=\(name)")
         } catch { show("ERROR \(error)") }
+    }
+
+    func setKurum(_ code: String) {
+        guard let k = Kurum(code: code) else { return show("ERROR kurum kodu geçersiz") }
+        defaults.set(k.code, forKey: "kurum")
+        buildNode()
+        show("KURUM \(k.url)")
+    }
+
+    func emergency(tur: String, kisi: Int?, ozel: Set<String>, metin: String) {
+        guard kurumVar else {
+            acilDurum = "Kurum kodu tanımlı değil: çağrının gideceği kurumun kodunu Ayarlar'a girin."
+            return show("ERROR kurum kodu yok")
+        }
+        let loc = location.location // GPS works without a network
+        let json = Cagri.rapor(tur: tur, kisi: kisi, ozel: ozel, metin: metin, enlem: loc?.coordinate.latitude,
+                               boylam: loc?.coordinate.longitude, dogruluk: loc?.horizontalAccuracy, zaman: loc?.timestamp ?? Date())
+        acilDurum = "Çağrı hazırlanıyor…"
+        // the proof of work takes under a second; let the screen update first
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            do {
+                let id = try self.node.sendEmergency(json)
+                self.acilDurum = "Çağrınız gönderildi (\(Mesh.saat())). Yakındaki telefonlar taşıyor; internete ulaşan ilk telefon kuruma iletecek."
+                self.show("ACIL_GONDERILDI id=\(id) konum=\(loc == nil ? "yok" : "var")")
+            } catch { self.show("ERROR \(error)") }
+        }
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        if manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways {
+            manager.startUpdatingLocation()
+        }
+    }
+
+    static func saat() -> String {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f.string(from: Date())
     }
 
     private func show(_ line: String) {

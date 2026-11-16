@@ -24,6 +24,24 @@ final class KairoMeshUITests: XCTestCase {
         return app.staticTexts.matching(identifier: "log").matching(predicate).firstMatch.waitForExistence(timeout: 10)
     }
 
+    // Without an authority code the call is refused and the screen says why; with one, it is sealed and queued.
+    func testEmergencyCall() {
+        let app = XCUIApplication()
+        launch(app)
+        app.buttons["tur_enkaz"].tap()
+        app.buttons["acilGonder"].tap()
+        XCTAssertTrue(app.staticTexts["acilDurum"].waitForExistence(timeout: 5))
+        XCTAssertTrue(log(app, contains: "ERROR kurum kodu yok"))
+        // a well-formed code: two 32-byte keys and a server address (the server need not be reachable here)
+        let key = Data(repeating: 7, count: 32).base64EncodedString()
+        type(app, "kurum", "\(key);\(key);https://kurum.example")
+        app.buttons["kurumKaydet"].tap()
+        XCTAssertTrue(log(app, contains: "KURUM https://kurum.example"))
+        app.buttons["tur_enkaz"].tap()
+        app.buttons["acilGonder"].tap()
+        XCTAssertTrue(log(app, contains: "ACIL_GONDERILDI"))
+    }
+
     func testPairSendAndKeepIdentity() {
         let app = XCUIApplication()
         launch(app)
@@ -32,14 +50,14 @@ final class KairoMeshUITests: XCTestCase {
 
         type(app, "name", "kendim")
         type(app, "pairing", "not-a-key")
-        app.buttons["Add contact"].tap()
+        app.buttons["addContact"].tap()
         XCTAssertTrue(log(app, contains: "ERROR bad pairing code"))
 
         app.textFields["pairing"].clearAndType(code)
-        app.buttons["Add contact"].tap()
+        app.buttons["addContact"].tap()
         type(app, "to", "kendim")
         type(app, "message", "merhaba")
-        app.buttons["Send"].tap()
+        app.buttons["send"].tap()
         XCTAssertTrue(log(app, contains: "QUEUED to=kendim"))
 
         app.terminate()
