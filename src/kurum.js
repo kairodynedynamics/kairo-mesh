@@ -53,8 +53,8 @@ export function raporTemizle(r) {
     v: SAYI(r.v, 0, 99), tur: METIN(r.tur, 32),
     aciliyet: Number.isInteger(r.aciliyet) && r.aciliyet >= 1 && r.aciliyet <= 4 ? r.aciliyet : 2,
     kisi: Number.isInteger(r.kisi) ? SAYI(r.kisi, 0, 10000) : undefined,
-    ozel: Array.isArray(r.ozel) ? r.ozel.filter((o) => typeof o === 'string').slice(0, 12).map((o) => o.slice(0, 32)) : [],
-    metin: METIN(r.metin, 1000), kaynak: METIN(r.kaynak, 32),
+    ozel: Array.isArray(r.ozel) ? r.ozel.filter((o) => typeof o === 'string').slice(0, 12).map((o) => o.slice(0, 32)) : undefined,
+    metin: METIN(r.metin, 1000), kaynak: METIN(r.kaynak, 32), iptal_ref: METIN(r.iptal_ref, 64),
     il: METIN(r.il, 80), ilce: METIN(r.ilce, 80), mahalle: METIN(r.mahalle, 120), sokak: METIN(r.sokak, 120), bina: METIN(r.bina, 120),
     konum: enlem !== undefined && boylam !== undefined
       ? { enlem, boylam, dogruluk_m: SAYI(k.dogruluk_m, 0, 1e6), zaman: SAYI(k.zaman, 0, 1e14) } : undefined,
@@ -116,15 +116,53 @@ export function createAuthority({ identity, signer = null, now = Date.now, onRep
     return frame;
   }
 
-  // Most urgent first, then oldest first: the order a dispatcher works through.
-  const sorted = () => [...reports.values()].sort((a, b) =>
-    ((a.report.aciliyet ?? 4) - (b.report.aciliyet ?? 4)) || (a.sentAt - b.sentAt));
+  // Most urgent first, then oldest first: the order a dispatcher works through. Each entry carries its warning
+  // signs (sinyaller); a call its own sender withdrew sinks below the rest of its urgency level.
+  const sorted = () => {
+    const tum = [...reports.values()];
+    return tum.map((e) => ({ ...e, sinyaller: sinyaller(e, tum) })).sort((a, b) =>
+      ((a.report.aciliyet ?? 4) - (b.report.aciliyet ?? 4))
+      || (a.sinyaller.some((s) => s.kod === 'iptal-edildi') - b.sinyaller.some((s) => s.kod === 'iptal-edildi'))
+      || (a.sentAt - b.sentAt));
+  };
 
   return {
     pub: identity.pub, signPub: signer?.pub ?? null, receive, announce,
     get reports() { return sorted(); },
     get notices() { return notices.filter((n) => n.expires > now()); },
   };
+}
+
+// --- Warning signs on a report (docs/09-sahte-ihbar.md) ---------------------------------------------------------
+// Nothing can prove a call is true: the authority only learns what the sender wrote. These signs put the calls
+// that look forged or abusive in front of the dispatcher; none of them deletes or hides a call.
+const TEMEL = { enkaz: 1, yangin: 1, saglik: 2, yardim: 2, kayip: 2, barinma: 3, gida_su: 3, guvende: 4, iptal: 4 };
+export function kuralAciliyet(tur, ozel = []) {
+  const a = TEMEL[tur] ?? 4;
+  return a > 1 && !['guvende', 'iptal'].includes(tur) && ozel.some((o) => ['bebek', 'yarali', 'hamile'].includes(o)) ? a - 1 : a;
+}
+const SAAT = 3600000;
+export function sinyaller(e, tum) {
+  const r = e.report, out = [];
+  const ekle = (kod, metin) => out.push({ kod, metin });
+  if (!(r.tur in TEMEL)) ekle('bilinmeyen-tur', `Uygulamada olmayan durum türü: "${r.tur ?? '—'}"`);
+  // a call tapped in the official app always carries exactly the table's urgency; only typed calls (the phone's
+  // model) may differ, and then only to be more urgent
+  else if (r.kaynak !== 'telefon-modeli' && r.tur !== 'iptal' && r.aciliyet !== kuralAciliyet(r.tur, r.ozel ?? []))
+    ekle('kural-disi', 'Aciliyet uygulamanın kuralıyla tutmuyor: değiştirilmiş bir uygulamadan gelmiş olabilir');
+  const ayni = tum.filter((o) => o !== e && o.sender === e.sender && o.report.tur !== 'iptal' && Math.abs(o.sentAt - e.sentAt) < SAAT);
+  if (r.tur !== 'iptal' && ayni.length >= 3) ekle('cok-cagri', `Aynı cihazdan bir saat içinde ${ayni.length + 1} çağrı`);
+  if (tum.some((o) => o.sender === e.sender && o.report.tur === 'iptal' && o.sentAt > e.sentAt) && r.tur !== 'iptal')
+    ekle('iptal-edildi', 'Gönderen sonradan "yanlışlıkla gönderdim / yardım gerekmiyor" dedi');
+  const metin = (r.metin ?? '').trim().toLocaleLowerCase('tr');
+  if (metin.length >= 10) {
+    const cihaz = new Set(tum.filter((o) => (o.report.metin ?? '').trim().toLocaleLowerCase('tr') === metin
+      && Math.abs(o.sentAt - e.sentAt) < SAAT / 2).map((o) => o.sender));
+    if (cihaz.size >= 3) ekle('kopya-metin', `Aynı metin yarım saatte ${cihaz.size} farklı cihazdan geldi: toplu sahte çağrı olabilir`);
+  }
+  if (r.tur !== 'iptal' && !r.konum) ekle('konum-yok', 'Konum yok (izin verilmemiş ya da GPS alınamamış)');
+  else if (r.konum?.dogruluk_m > 1000) ekle('konum-belirsiz', `Konum belirsiz (±${Math.round(r.konum.dogruluk_m)} m)`);
+  return out;
 }
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -141,6 +179,7 @@ function dashboard(authority) {
           + ` · <a href="https://www.openstreetmap.org/?mlat=${k.enlem}&amp;mlon=${k.boylam}#map=18/${k.enlem}/${k.boylam}" target="_blank" rel="noopener">haritada aç</a></small>`
         : ''}</td>`
       + `<td>${esc((r.ozel ?? []).join(', '))}</td><td>${esc(r.metin)}</td>`
+      + `<td>${(e.sinyaller ?? []).map((s) => `<span class="s ${esc(s.kod)}">${esc(s.metin)}</span>`).join('')}</td>`
       + `<td>${new Date(e.sentAt).toLocaleString('tr-TR')}<br><small>alındı ${new Date(e.receivedAt).toLocaleString('tr-TR')}</small></td></tr>`;
   }).join('');
   return `<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta http-equiv="refresh" content="15">
@@ -148,9 +187,12 @@ function dashboard(authority) {
 body{font:15px system-ui,sans-serif;margin:20px;color:#14202b;background:#f6f5f1}table{border-collapse:collapse;width:100%;background:#fff}
 td,th{border-bottom:1px solid #ddd;padding:8px;text-align:left;vertical-align:top}th{background:#ecebe5}
 tr.a1 td:first-child{background:#b3261e;color:#fff;font-weight:700}tr.a2 td:first-child{background:#e8a33d;font-weight:700}
-small{color:#5d6a76}</style></head><body><h1>Gelen yardım çağrıları (${authority.reports.length})</h1>
-<p>Aciliyete, sonra gönderim zamanına göre sıralı. Sayfa 15 saniyede bir yenilenir.</p>
-<table><thead><tr><th>Aciliyet</th><th>Tür</th><th>Kişi</th><th>Yer</th><th>Özel durum</th><th>Mesaj</th><th>Zaman</th></tr></thead>
+small{color:#5d6a76}.s{display:block;margin:2px 0;padding:2px 6px;border-radius:6px;background:#fbf1dc;color:#6b4500;font-size:13px}
+.s.kural-disi,.s.kopya-metin,.s.bilinmeyen-tur{background:#fbe4e1;color:#8c1d16}.s.iptal-edildi{background:#e4e8ec;color:#26343e}
+</style></head><body><h1>Gelen yardım çağrıları (${authority.reports.length})</h1>
+<p>Aciliyete, sonra gönderim zamanına göre sıralı. Sayfa 15 saniyede bir yenilenir. "Dikkat" sütunu sahte ya da kötüye kullanım
+belirtilerini gösterir; hiçbir çağrı gizlenmez, karar görevlinindir.</p>
+<table><thead><tr><th>Aciliyet</th><th>Tür</th><th>Kişi</th><th>Yer</th><th>Özel durum</th><th>Mesaj</th><th>Dikkat</th><th>Zaman</th></tr></thead>
 <tbody>${rows}</tbody></table></body></html>`;
 }
 

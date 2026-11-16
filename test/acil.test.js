@@ -139,9 +139,33 @@ test('acil: a malformed report cannot crash the dashboard, nor after a restart, 
   assert.equal(b.reports[0].report.aciliyet, 1, 'the real life-threatening call stays first');
   const kotu = b.reports[1].report;
   assert.equal(kotu.aciliyet, 2);
-  assert.deepEqual(kotu.ozel, []);
+  assert.equal(kotu.ozel, undefined);
   assert.equal(kotu.kisi, undefined);
   assert.equal(kotu.konum, undefined);
+});
+
+test('acil: warning signs mark forged urgency, floods, copied text and withdrawn calls; none is hidden', async () => {
+  const id = createIdentity();
+  const a = createAuthority({ identity: id });
+  const gonder = (s, r, n) => a.receive(addWork(seal(s, id.pub, Buffer.concat([Buffer.alloc(16, n), sentNow(-n * 1000), Buffer.from(JSON.stringify(r))]))));
+  const durust = createIdentity(), sahte = createIdentity(), tekrar = createIdentity();
+  const konum = { enlem: 36.2, boylam: 36.16, dogruluk_m: 12 };
+  gonder(durust, { v: 1, tur: 'enkaz', aciliyet: 1, ozel: [], konum }, 1);
+  // a modified app: "I am safe" ranked life-threatening (the official app cannot produce this)
+  gonder(sahte, { v: 1, tur: 'guvende', aciliyet: 1, ozel: [], konum }, 2);
+  for (let i = 0; i < 4; i++) gonder(tekrar, { v: 1, tur: 'enkaz', aciliyet: 1, ozel: [], konum }, 10 + i);
+  for (let i = 0; i < 3; i++) gonder(createIdentity(), { v: 1, tur: 'enkaz', aciliyet: 1, metin: 'Atatürk Cd 5 enkaz 20 kişi', konum }, 20 + i);
+  gonder(durust, { v: 1, tur: 'iptal', aciliyet: 4, iptal_ref: 'x' }, 0); // later: "sent by mistake"
+  const bul = (s) => a.reports.filter((e) => e.sender === s.pub.toString('hex'));
+  const kodlar = (e) => e.sinyaller.map((s) => s.kod);
+  assert.deepEqual(kodlar(bul(sahte)[0]), ['kural-disi']);
+  assert.ok(bul(tekrar).every((e) => kodlar(e).includes('cok-cagri')));
+  assert.ok(a.reports.filter((e) => e.report.metin).every((e) => kodlar(e).includes('kopya-metin')));
+  const geri = bul(durust).find((e) => e.report.tur === 'enkaz');
+  assert.ok(kodlar(geri).includes('iptal-edildi'));
+  assert.equal(a.reports.length, 10, 'every call is still listed (1 + 1 + 4 + 3 + 1)');
+  const birler = a.reports.filter((e) => e.report.aciliyet === 1);
+  assert.equal(birler.at(-1), birler.find((e) => kodlar(e).includes('iptal-edildi')), 'a withdrawn call sinks within its level');
 });
 
 function sentNow(offset = 0) {
