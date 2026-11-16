@@ -2,15 +2,15 @@
 
 # Kairo Mesh
 
-**Messages that still arrive when the network is gone.**
+**When the network is down, the call for help still reaches the authority.**
 
-An embeddable engine that lets phones carry each other's encrypted messages with no internet,<br>
-built for disaster, event and field apps.
+Phones carry each other's encrypted messages over Bluetooth with no internet. A call for help from under the rubble<br>
+is sealed to the emergency authority (112, AFAD, a municipality) and delivered by the first phone that gets online.
 
 [![Live demo](https://img.shields.io/badge/live_demo-run_the_simulation-2da77a?style=for-the-badge)](https://kairodynedynamics.github.io/kairo-mesh/#run)
 
 ![status](https://img.shields.io/badge/status-research_prototype-f2b134)
-![tests](https://img.shields.io/badge/tests-86_passing-2da77a)
+![tests](https://img.shields.io/badge/tests-92_passing-2da77a)
 ![dependencies](https://img.shields.io/badge/dependencies-0-2da77a)
 ![node](https://img.shields.io/badge/node-24-8b949e)
 ![licence](https://img.shields.io/badge/licence-AGPL--3.0-8b949e)
@@ -76,7 +76,7 @@ Tag `T` changes daily and only the recipient's contacts can compute it. A strang
 Node 24, no dependencies.
 
 ```bash
-npm test          # 42 tests
+npm test          # 44 tests
 npm run bench     # the measurement tables (a few minutes)
 node src/cli.js   # chat over the local network
 ```
@@ -95,13 +95,14 @@ Or skip the install and [run the simulation in your browser](https://kairodynedy
 | ✅ | Working node that chats over a local network |
 | ✅ | Android app with Bluetooth LE transport, byte-compatible with the JS node; courier delivery verified on three emulators |
 | ✅ | Swift core for iOS (`ios/`), byte-compatible with the JS and Kotlin nodes |
-| ✅ | 42 tests in JS (11 attacks, 11 real-world courier scenarios, 2 Noise vector checks, 8 emergency and announcement scenarios), 22 in Kotlin, 22 in Swift |
+| ✅ | 44 tests in JS (11 attacks, 11 real-world courier scenarios, 2 Noise vector checks, emergency, announcement and authority-code scenarios), 24 in Kotlin, 24 in Swift |
+| ✅ | Authority codes must be approved by a root key built into the app: a fake "new AFAD code" cannot redirect calls and locations ([setup](docs/07-kurum-kurulumu.md), Turkish) |
 | ✅ | Emergency call screens on Android and iOS: tap the situation or just type it; GPS added; the call is kept until the authority confirms it |
 | 🟨 | On-device Turkish triage model (`triyaj/`, 0.84 M parameters, 3.4 MB): reads a rushed, misspelt help message into type, people, address. On phrasings it never saw it still ranks about 13% of life-threatening calls too low, so a typed call is always sent as urgent; being improved ([measurements](triyaj/README.md), Turkish) |
 | ✅ | Emergency relay on all three nodes: reports sealed to an authority key, carried by any phone, uploaded in the background by whichever phone has internet; the authority's receipt returns through the mesh. Proof of work and a quota bound forged emergency mail ([design](docs/05-acil-aktarim.md), Turkish) |
 | ✅ | Authority announcements: Ed25519-signed, brought into the mesh by phones with internet, verified and passed on by every phone |
 | ✅ | Authority server: reports log, dispatcher dashboard behind a token, announcement endpoints (`src/kurum.js`) |
-| ✅ | Earthquake scenario simulation on the product's own node code (`sim/afet.js`) |
+| ✅ | Earthquake scenario simulation on the product's own node code (`sim/afet.js`): with the app on 10% of phones, 53% of calls from under the rubble reach the authority within 3 hours (today: 0%); [results](docs/06-deprem-simulasyonu.md), Turkish |
 | ✅ | Battery-aware courier duty: below 20% battery or in power-saving mode a phone carries only its own mail (low battery verified on Android emulators) |
 | ✅ | iOS app (SwiftUI + CoreBluetooth): builds and passes core and UI tests on iPhone and iPad simulators in CI |
 | ⬜ | Bluetooth between iPhones (simulators have no Bluetooth; needs real devices) |
