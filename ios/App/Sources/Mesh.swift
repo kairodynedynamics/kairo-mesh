@@ -57,9 +57,10 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         transport = BleTransport(onFrame: { [weak self] in self?.node.receive($0); self?.uyanikTick() }, log: { [weak self] in self?.show($0) })
         // debug builds come with a demo authority approved by the public test root, so the app can be tried at once
         #if DEBUG
-        if defaults.string(forKey: "kurum") == nil, !ProcessInfo.processInfo.arguments.contains("-demoKurumYok") {
-            defaults.set(Mesh.demoKurum, forKey: "kurum")
-        }
+        // the authority's code is built into the app: nobody has to find and paste one (release builds get the real
+        // authority's root-approved code when there is a contract). "-demoKurumYok": the UI test of a build without one.
+        if ProcessInfo.processInfo.arguments.contains("-demoKurumYok") { defaults.removeObject(forKey: "kurum") }
+        else if defaults.string(forKey: "kurum") == nil { defaults.set(Mesh.demoKurum, forKey: "kurum") }
         #endif
         buildNode()
         show("READY code=\(code)")
@@ -137,7 +138,7 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         node.relay = charging || (!ProcessInfo.processInfo.isLowPowerModeEnabled && level > 20)
         node.tick()
         status = "STATUS peers=\(transport.peerCount) carrying=\(node.carrying) relay=\(node.relay) online=\(online)"
-        yakin = transport.peerCount
+        yakin = node.yakin()
         internet = online
         if kurumVar, defaults.string(forKey: "bekleyenAcil") != nil,
            Date().timeIntervalSince1970 - defaults.double(forKey: "bekleyenZaman") > 6 * 3600 { yenidenGonder() }
@@ -218,7 +219,7 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
     func iptalBildir() { acilDurum = "Çağrı iptal edildi; hiçbir şey gönderilmedi." }
 
     func kurumYok() {
-        acilDurum = "Çağrı gönderilemez: çağrının gideceği kurum tanımlı değil. Aşağıdaki Ayarlar bölümüne kurumun kodunu girin."
+        acilDurum = "Çağrı gönderilemez: bu sürümde çağrıların gideceği kurum tanımlı değil (kurumla sözleşme öncesi sürüm)."
         show("ERROR kurum kodu yok")
     }
 

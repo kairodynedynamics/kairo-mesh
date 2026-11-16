@@ -179,6 +179,7 @@ class Node(
         val from = b.sub(1, 9)
         val n = b[9].toInt() and 255
         if (n > HELLO_SLOTS || b.size != 10 + n * 16 || isMe(from)) return
+        yakinlar[from.hex()] = now()
         recognise(from, recognition, now())?.let { met(it) }
         if (n == 0) return
         val have = store.values.map { blind(it.id, from).hex() }.toSet()
@@ -362,6 +363,17 @@ class Node(
     }
 
     /** Call every few seconds: expires old state, refills transmit budgets and announces what we carry. */
+    // ephemeral id -> last HELLO heard: counts phones, not Bluetooth connections (an Android phone changes its
+    // Bluetooth address every ~15 min, so one phone could hold two connections and be counted twice)
+    private val yakinlar = HashMap<String, Long>()
+
+    /** Phones running KairoMesh heard from in the last [pencereMs] (each greets every few seconds). */
+    fun yakin(pencereMs: Long = 30_000): Int {
+        val t = now() - pencereMs
+        yakinlar.values.removeAll { it < t }
+        return yakinlar.size
+    }
+
     fun tick() {
         store.entries.removeIf { now() - it.value.at > TTL_MS }
         partial.entries.removeIf { now() - it.value.at > PARTIAL_MS }

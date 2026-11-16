@@ -208,6 +208,7 @@ public final class Node {
         let from = b.sub(1, 9)
         let n = Int(b[9])
         guard n <= HELLO_SLOTS, b.count == 10 + n * 16, !isMe(from) else { return }
+        yakinlar[from.hex] = now()
         if let name = recognise(from, recognition.pairs, now()) { met(name) }
         if n == 0 { return }
         let have = Set(store.values.map { blind($0.id, from).hex })
@@ -388,6 +389,17 @@ public final class Node {
     }
 
     /// Call every few seconds: expires old state, refills transmit budgets and announces what we carry.
+    // ephemeral id -> last HELLO heard: counts phones, not Bluetooth connections (a phone that changes its Bluetooth
+    // address keeps its old connection open for a while and would be counted twice)
+    private var yakinlar: [String: Int64] = [:]
+
+    /// Phones running KairoMesh heard from in the last `pencereMs` (each greets every few seconds).
+    public func yakin(pencereMs: Int64 = 30_000) -> Int {
+        let t = now() - pencereMs
+        yakinlar = yakinlar.filter { $0.value >= t }
+        return yakinlar.count
+    }
+
     public func tick() {
         let t = now()
         store.removeAll { t - $0.at > TTL_MS }

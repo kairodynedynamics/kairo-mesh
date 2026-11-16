@@ -24,6 +24,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.ParcelUuid
+import android.os.SystemClock
 import android.util.Log
 import java.util.UUID
 
@@ -39,6 +40,7 @@ class BleTransport(private val context: Context, private val onFrame: (ByteArray
         val queue = ArrayDeque<ByteArray>()
         var busy = false
         var fast = false // connection interval shortened for a transfer
+        var gorulme = SystemClock.elapsedRealtime() // last advertisement seen from this address
     }
 
     private val manager = context.getSystemService(BluetoothManager::class.java)
@@ -125,6 +127,16 @@ class BleTransport(private val context: Context, private val onFrame: (ByteArray
         }.onFailure { Log.i(TAG, "ERROR radyo: ${it.message}"); kapat() }
     }
 
+    /**
+     * Closes connections to addresses no longer advertising. A phone changes its Bluetooth address every ~15 min for
+     * privacy; the connection to the old address stays up while the scan connects again to the new one, so without
+     * this one phone ends up with several connections, each frame is sent to it several times and the battery pays.
+     */
+    fun temizle() {
+        val esik = SystemClock.elapsedRealtime() - SESSIZ_MS
+        synchronized(peers) { peers.values.filter { it.gorulme < esik }.forEach { runCatching { it.gatt.disconnect() } } }
+    }
+
     fun stop() {
         runCatching { context.unregisterReceiver(durumAlici) }
         kapat()
@@ -158,7 +170,8 @@ class BleTransport(private val context: Context, private val onFrame: (ByteArray
             val address = result.device.address
             synchronized(peers) {
                 // each open connection wakes the radio every interval; a crowd would drain the battery for little gain
-                if (address in peers || peers.size >= MAX_PEERS) return
+                peers[address]?.let { it.gorulme = SystemClock.elapsedRealtime(); return }
+                if (peers.size >= MAX_PEERS) return
                 peers[address] = Peer(result.device.connectGatt(context, false, clientCallback, BluetoothDevice.TRANSPORT_LE))
             }
             Log.i(TAG, "connecting $address")
@@ -219,5 +232,7 @@ class BleTransport(private val context: Context, private val onFrame: (ByteArray
         private const val MAX_QUEUE = 600
         private const val MAX_PEERS = 7
         private const val BURST = 20 // queued frames that make a transfer worth a faster connection
+        // a phone advertises at least once a second, and even a low-power scan hears it every few seconds
+        private const val SESSIZ_MS = 60_000L
     }
 }

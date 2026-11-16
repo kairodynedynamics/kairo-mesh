@@ -266,14 +266,15 @@ class MeshService : Service() {
             // Carrying for others is a favour: it stops when the owner needs the battery, and resumes on the charger.
             val relay = charging || (!power.isPowerSaveMode && level > LOW_BATTERY)
             transport.setLowPower(!charging && (!power.isInteractive || !relay))
-            val carrying = synchronized(this@MeshService) { node.relay = relay; node.tick(); node.carrying }
+            val (carrying, yakin) = synchronized(this@MeshService) { node.relay = relay; node.tick(); node.carrying to node.yakin() }
+            transport.temizle()
             if (kurum != null && profile.bekleyenAcil != null && System.currentTimeMillis() - profile.bekleyenZaman > YENIDEN_MS) yenidenGonder()
             val peers = transport.peerCount
             // HELLOs only matter to phones in range, and only often while there is mail to offer them
             val next = if (peers > 0 && carrying > 0) BUSY_MS else IDLE_MS
             val net = online()
             Log.i(BleTransport.TAG, "STATUS peers=$peers carrying=$carrying relay=$relay battery=$level online=$net next=${next / 1000}s")
-            val ag = "AG yakin=$peers internet=$net bluetooth=${transport.acik}"
+            val ag = "AG yakin=$yakin internet=$net bluetooth=${transport.acik}"
             if (ag != sonAg) { sonAg = ag; show(ag) } // the screen's network line, only when it changes
             main.postDelayed(this, next)
         }
