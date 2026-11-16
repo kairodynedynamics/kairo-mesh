@@ -1,6 +1,21 @@
 [
  {
   "tarih": "2026-11-16",
+  "baslik": "Deprem simülasyonu: enkaz altından gelen çağrı",
+  "metin": "4.000 kişilik, merkezinde şebekenin çöktüğü bir deprem senaryosunda ürünün kendi kodu ve kurum sunucusuyla ölçüm. Uygulama nüfusun %10'unda yüklüyken çağrıların %53'ü 3 saatte, %92'si 12 saatte kuruma ulaşıyor; bugün aynı koşulda 12 saatte ulaşan pay %34. Kurtarma ekiplerinde sürekli bağlı tek bir telefon, ilk 30 dakikada ulaşan payı %9'dan %23'e çıkarıyor. Sahada doğrulanmadı."
+ },
+ {
+  "tarih": "2026-11-16",
+  "baslik": "Telefonda Türkçe yardım mesajı anlamlandırma",
+  "metin": "Çağrıyı yazan kişi dokunmadan yalnızca yazabiliyor, örneğin 'antakya ürgenpaşa mh enkazdayız 3 kişi bebek var'. Telefondaki küçük model (3,4 MB, internet gerekmez) metinden durum türünü, kişi sayısını, il, ilçe, mahalle ve sokağı, yanındakileri çıkarıp kuruma yapılandırılmış kayıt olarak gönderiyor. Kişinin dokunarak seçtiği her zaman önceliklidir. Model bir çağrıyı kuralın verdiğinden daha az acil sayamaz. Android ve iOS'ta aynı sonucu verdiği testle doğrulanıyor."
+ },
+ {
+  "tarih": "2026-11-16",
+  "baslik": "Kurum onaylayana kadar çağrı telefonda saklanıyor",
+  "metin": "Uygulama kapanır ya da telefon yeniden başlarsa, kurumun henüz almadığı çağrı yeniden gönderiliyor. Kurum aynı çağrıyı iki kez alabilir; çift kayıt, kaybolan çağrıdan ucuzdur."
+ },
+ {
+  "tarih": "2026-11-16",
   "baslik": "Kurumun kendi anahtarı ve sunucusu: kurulum aracı",
   "metin": "Kurum, mühür ve imza anahtarlarını kendi bilgisayarında üretir; özel anahtar oradan çıkmaz. Aynı araç kurum sunucusunu çalıştırır: çağrı kaydı, aciliyete göre sıralı pano (konum ve harita bağlantısıyla), duyuru yayımlama. Kurulum belgesi yayımlandı."
  },

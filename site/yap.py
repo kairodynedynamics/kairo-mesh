@@ -39,8 +39,8 @@ SAYFALAR = [
      "Simülasyon yöntemi ve sonuçları, parçalı aktarım ölçümleri, Türkçe yardım mesajı anlamlandırma taban çizgisi, saldırı testleri ve platform testleri."),
     ("kurumlar", "Kurumlar için", "Kurumlar için: lisans ve pilot — Kairo Mesh",
      "Kamu kurumları, belediyeler, arama-kurtarma kuruluşları ve operatörler için lisans modeli, pilot süreci ve kamu taahhütleri."),
-    ("simulasyon", "Simülasyon", "Simülasyonu tarayıcıda çalıştırın — Kairo Mesh",
-     "80 kişilik bir mahalle simülasyonunu ürünle aynı kodla tarayıcınızda çalıştırın ve taşıyıcı kurallarını karşılaştırın."),
+    ("simulasyon", "Simülasyon", "Deprem simülasyonu — Kairo Mesh",
+     "4.000 kişilik deprem senaryosunda enkaz altından gelen çağrının kuruma ulaşma süresi; ayrıca tarayıcıda çalışan mahalle simülasyonu."),
     ("gelismeler", "Gelişmeler", "Gelişmeler — Kairo Mesh",
      "Kairo Mesh'in tarihli geliştirme kayıtları."),
     ("en", "English", "Kairo Mesh — when the network is down, the call for help still reaches the authority",
@@ -154,6 +154,9 @@ def derle():
     CIKTI.mkdir()
     for dosya, _, baslik, aciklama in SAYFALAR:
         govde = gelismeler_govdesi() if dosya == "gelismeler" else (KOK / "sayfalar" / f"{dosya}.html").read_text(encoding="utf-8")
+        if "<!--AFET_TABLO-->" in govde:  # deprem simülasyonu rakamları yalnız sim/rapor.js'ten gelir
+            govde = govde.replace("<!--AFET_TABLO-->", subprocess.run(["node", str(URUN / "sim" / "rapor.js"), "html"],
+                                  capture_output=True, text=True, encoding="utf-8", check=True).stdout)
         (CIKTI / f"{dosya}.html").write_text(sar(dosya, baslik, aciklama, govde), encoding="utf-8")
     for eski in ESKI:
         (CIKTI / f"{eski}.html").write_text(yonlendirme(), encoding="utf-8")

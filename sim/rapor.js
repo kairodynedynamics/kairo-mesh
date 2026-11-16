@@ -2,15 +2,19 @@
 //   node sim/rapor.js md     node sim/rapor.js html
 import { readFileSync } from 'node:fs';
 
-const satirlar = readFileSync(new URL('./sonuc-afet.jsonl', import.meta.url), 'utf8').split('\n').filter(Boolean)
+const oku = (ad) => { try { return readFileSync(new URL(ad, import.meta.url), 'utf8'); } catch { return ''; } };
+// sonuc-afet-ekip.jsonl: `--ekip-ag-gecidi` koşusu (kurtarma ekiplerinde sürekli bağlı telefon)
+const satirlar = (oku('./sonuc-afet.jsonl') + '\n' + oku('./sonuc-afet-ekip.jsonl')).split('\n').filter(Boolean)
   .flatMap((s) => { try { return [JSON.parse(s)]; } catch { return []; } })
-  .sort((a, b) => a.yayginlik - b.yayginlik);
+  .sort((a, b) => a.yayginlik - b.yayginlik || (a.ekipAgGecidi ? 1 : 0) - (b.ekipAgGecidi ? 1 : 0));
+// Türkçe ek: %5'inde, %10'unda, %20'sinde
+const ek = (n) => ({ 5: "'inde", 10: "'unda", 20: "'sinde", 50: "'sinde" }[n] ?? "'inde");
 const SURE = ['30 dk', '1 saat', '3 saat', '6 saat', '12 saat'];
 const y = (x) => '%' + Math.round(100 * x);
 const dk = (x) => (x == null ? '—' : x < 90 ? `${Math.round(x)} dk` : `${(x / 60).toFixed(1).replace('.', ',')} saat`);
 
 const kayit = [];
-for (const r of satirlar) kayit.push([`Kairo Mesh, uygulama nüfusun %${Math.round(r.yayginlik * 100)}'inde`, ...r.kairo.map(y), dk(r.medyanKairo), r.cagri]);
+for (const r of satirlar) kayit.push([`Kairo Mesh, uygulama nüfusun %${Math.round(r.yayginlik * 100)}${ek(Math.round(r.yayginlik * 100))}${r.ekipAgGecidi ? ' + ekiplerde uydu bağlantılı telefon' : ''}`, ...r.kairo.map(y), dk(r.medyanKairo), r.cagri]);
 if (satirlar.length) {
   const b = satirlar[0];
   kayit.push(['Bugün: yalnız kendi telefonu şebeke bulursa', ...b.bugun.map(y), dk(b.medyanBugun), b.cagri]);
