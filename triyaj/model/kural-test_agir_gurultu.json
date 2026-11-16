@@ -1,0 +1,16 @@
+{
+ "ornek": 5000,
+ "tam_eslesme": 0.0818,
+ "acil_kacirma": 0.5226,
+ "tur": 0.3886,
+ "aciliyet": 0.5176,
+ "kisi": 0.8138,
+ "il": 0.9142,
+ "ilce": 0.6506,
+ "mahalle": 0.3596,
+ "sokak": 0.4678,
+ "bina": 0.4654,
+ "ad": 0.8442,
+ "tel": 1.0,
+ "ozel_f1": 0.6176
+}
