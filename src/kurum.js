@@ -45,6 +45,9 @@ export function kurumKoduAc(kod, kokler) {
 // below "life-threatening", above everything routine.
 const METIN = (v, n) => (typeof v === 'string' ? v.slice(0, n) : undefined);
 const SAYI = (v, a, b) => (Number.isFinite(v) && v >= a && v <= b ? v : undefined);
+const ALT = (x, f) => (typeof x === 'object' && x !== null && !Array.isArray(x) ? f(x) : undefined);
+const LISTE = (x) => (Array.isArray(x) ? x.filter((o) => typeof o === 'string').slice(0, 12).map((o) => o.slice(0, 32)) : undefined);
+
 export function raporTemizle(r) {
   if (typeof r !== 'object' || r === null || Array.isArray(r)) return null;
   const k = typeof r.konum === 'object' && r.konum !== null ? r.konum : {};
@@ -57,8 +60,19 @@ export function raporTemizle(r) {
     metin: METIN(r.metin, 1000), kaynak: METIN(r.kaynak, 32), iptal_ref: METIN(r.iptal_ref, 64),
     il: METIN(r.il, 80), ilce: METIN(r.ilce, 80), mahalle: METIN(r.mahalle, 120), sokak: METIN(r.sokak, 120), bina: METIN(r.bina, 120),
     konum: enlem !== undefined && boylam !== undefined
-      ? { enlem, boylam, dogruluk_m: SAYI(k.dogruluk_m, 0, 1e6), zaman: SAYI(k.zaman, 0, 1e14) } : undefined,
+      ? { enlem, boylam, dogruluk_m: SAYI(k.dogruluk_m, 0, 1e6), zaman: SAYI(k.zaman, 0, 1e14), kaynak: METIN(k.kaynak, 16) } : undefined,
     zaman: SAYI(r.zaman, 0, 1e14),
+    // the sending phone: model, system, app version, battery (a rescuer needs to know a phone may die soon)
+    cihaz: ALT(r.cihaz, (c) => ({ model: METIN(c.model, 64), sistem: METIN(c.sistem, 32), uygulama: METIN(c.uygulama, 16),
+      pil: SAYI(c.pil, 0, 100), sarj: typeof c.sarj === 'boolean' ? c.sarj : undefined })),
+    // what the caller tapped, and what the phone's model read from the text (shown side by side to the dispatcher)
+    secim: ALT(r.secim, (s) => ({ tur: METIN(s.tur, 32), kisi: Number.isInteger(s.kisi) ? SAYI(s.kisi, 0, 10000) : undefined, ozel: LISTE(s.ozel) })),
+    okuma: ALT(r.okuma, (o) => ({
+      model: METIN(o.model, 16), ms: SAYI(o.ms, 0, 600000), tur: METIN(o.tur, 32),
+      aciliyet: Number.isInteger(o.aciliyet) && o.aciliyet >= 1 && o.aciliyet <= 4 ? o.aciliyet : undefined,
+      kisi: Number.isInteger(o.kisi) ? SAYI(o.kisi, 0, 10000) : undefined, ozel: LISTE(o.ozel),
+      il: METIN(o.il, 80), ilce: METIN(o.ilce, 80), mahalle: METIN(o.mahalle, 120), sokak: METIN(o.sokak, 120), bina: METIN(o.bina, 120),
+    })),
   };
   return JSON.parse(JSON.stringify(t)); // drops undefined fields
 }
@@ -118,11 +132,12 @@ export function createAuthority({ identity, signer = null, now = Date.now, onRep
 
   // Most urgent first, then oldest first: the order a dispatcher works through. Each entry carries its warning
   // signs (sinyaller); a call its own sender withdrew sinks below the rest of its urgency level.
+  const asagi = (e) => e.sinyaller.some((s) => s.kod === 'iptal-edildi' || s.kod === 'metin-ilgisiz');
   const sorted = () => {
     const tum = [...reports.values()];
     return tum.map((e) => ({ ...e, sinyaller: sinyaller(e, tum) })).sort((a, b) =>
       ((a.report.aciliyet ?? 4) - (b.report.aciliyet ?? 4))
-      || (a.sinyaller.some((s) => s.kod === 'iptal-edildi') - b.sinyaller.some((s) => s.kod === 'iptal-edildi'))
+      || (asagi(a) - asagi(b))
       || (a.sentAt - b.sentAt));
   };
 
@@ -136,12 +151,21 @@ export function createAuthority({ identity, signer = null, now = Date.now, onRep
 // --- Warning signs on a report (docs/09-sahte-ihbar.md) ---------------------------------------------------------
 // Nothing can prove a call is true: the authority only learns what the sender wrote. These signs put the calls
 // that look forged or abusive in front of the dispatcher; none of them deletes or hides a call.
-const TEMEL = { enkaz: 1, yangin: 1, saglik: 2, yardim: 2, kayip: 2, barinma: 3, gida_su: 3, guvende: 4, iptal: 4 };
+const TEMEL = { enkaz: 1, yangin: 1, saglik: 2, yardim: 2, kayip: 2, barinma: 3, gida_su: 3, guvende: 4, iptal: 4, konum: 4 };
+const EK = ['iptal', 'konum']; // follow-ups to a call (a correction, a fresher location), not calls themselves
 export function kuralAciliyet(tur, ozel = []) {
   const a = TEMEL[tur] ?? 4;
-  return a > 1 && !['guvende', 'iptal'].includes(tur) && ozel.some((o) => ['bebek', 'yarali', 'hamile'].includes(o)) ? a - 1 : a;
+  return a > 1 && !['guvende', ...EK].includes(tur) && ozel.some((o) => ['bebek', 'yarali', 'hamile'].includes(o)) ? a - 1 : a;
 }
 const SAAT = 3600000;
+// the freshest location the sender sent after this call (and before their next call): phones keep looking for a
+// GPS fix after sending and send it as a follow-up
+export function sonKonum(e, tum) {
+  const sonraki = tum.filter((o) => o.sender === e.sender && !EK.includes(o.report.tur) && o.sentAt > e.sentAt)
+    .reduce((m, o) => Math.min(m, o.sentAt), Infinity);
+  return tum.filter((o) => o.sender === e.sender && o.report.tur === 'konum' && o.report.konum && o.sentAt > e.sentAt && o.sentAt < sonraki)
+    .reduce((m, o) => (!m || o.sentAt > m.sentAt ? o : m), null);
+}
 export function sinyaller(e, tum) {
   const r = e.report, out = [];
   const ekle = (kod, metin) => out.push({ kod, metin });
@@ -150,50 +174,128 @@ export function sinyaller(e, tum) {
   // model) may differ, and then only to be more urgent
   else if (r.kaynak !== 'telefon-modeli' && r.tur !== 'iptal' && r.aciliyet !== kuralAciliyet(r.tur, r.ozel ?? []))
     ekle('kural-disi', 'Aciliyet uygulamanın kuralıyla tutmuyor: değiştirilmiş bir uygulamadan gelmiş olabilir');
-  const ayni = tum.filter((o) => o !== e && o.sender === e.sender && o.report.tur !== 'iptal' && Math.abs(o.sentAt - e.sentAt) < SAAT);
-  if (r.tur !== 'iptal' && ayni.length >= 3) ekle('cok-cagri', `Aynı cihazdan bir saat içinde ${ayni.length + 1} çağrı`);
-  if (tum.some((o) => o.sender === e.sender && o.report.tur === 'iptal' && o.sentAt > e.sentAt) && r.tur !== 'iptal')
+  const ayni = tum.filter((o) => o !== e && o.sender === e.sender && !EK.includes(o.report.tur) && Math.abs(o.sentAt - e.sentAt) < SAAT);
+  if (!EK.includes(r.tur) && ayni.length >= 3) ekle('cok-cagri', `Aynı cihazdan bir saat içinde ${ayni.length + 1} çağrı`);
+  // a correction withdraws the sender's call just before it, not every earlier call of theirs
+  const cagrilari = tum.filter((o) => o.sender === e.sender && !EK.includes(o.report.tur));
+  const sonraki = cagrilari.filter((o) => o.sentAt > e.sentAt).reduce((m, o) => Math.min(m, o.sentAt), Infinity);
+  if (!EK.includes(r.tur) && tum.some((o) => o.sender === e.sender && o.report.tur === 'iptal' && o.sentAt > e.sentAt && o.sentAt < sonraki))
     ekle('iptal-edildi', 'Gönderen sonradan "yanlışlıkla gönderdim / yardım gerekmiyor" dedi');
+  // the phone's model read the text (r.okuma): text that is no call for help at all is a sign of a joke or a forgery.
+  // Only a sign: a real caller may write badly, so the call stays listed with its urgency.
+  const o = r.okuma;
+  if (o && r.metin && !EK.includes(r.tur) && r.tur !== 'guvende') {
+    const adresVar = [o.il, o.ilce, o.mahalle, o.sokak, o.bina].some(Boolean);
+    if (o.tur === 'alakasiz')
+      ekle('metin-ilgisiz', 'Yazılan metin bir yardım çağrısına benzemiyor (telefonun dil modeli: ilgisiz mesaj); şaka ya da sahte olabilir');
+    else if (o.tur === 'bilgi' && !adresVar)
+      ekle('metin-istek-yok', 'Yazıda yardım isteği ya da adres yok (telefonun dil modeli: bilgi); seçilen durumla birlikte değerlendirin');
+    else if (o.tur in TEMEL && !EK.includes(o.tur) && o.tur !== r.tur && r.secim?.tur)
+      ekle('tur-farki', `Seçilen durum ile yazı farklı: seçilen "${TUR_AD[r.tur] ?? r.tur}", yazıdan anlaşılan "${TUR_AD[o.tur] ?? o.tur}"`);
+  }
   const metin = (r.metin ?? '').trim().toLocaleLowerCase('tr');
   if (metin.length >= 10) {
     const cihaz = new Set(tum.filter((o) => (o.report.metin ?? '').trim().toLocaleLowerCase('tr') === metin
       && Math.abs(o.sentAt - e.sentAt) < SAAT / 2).map((o) => o.sender));
     if (cihaz.size >= 3) ekle('kopya-metin', `Aynı metin yarım saatte ${cihaz.size} farklı cihazdan geldi: toplu sahte çağrı olabilir`);
   }
-  if (r.tur !== 'iptal' && !r.konum) ekle('konum-yok', 'Konum yok (izin verilmemiş ya da GPS alınamamış)');
+  if (!EK.includes(r.tur) && !r.konum && !sonKonum(e, tum)) ekle('konum-yok', 'Konum yok (izin verilmemiş ya da GPS alınamamış)');
   else if (r.konum?.dogruluk_m > 1000) ekle('konum-belirsiz', `Konum belirsiz (±${Math.round(r.konum.dogruluk_m)} m)`);
   return out;
 }
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
+// Plain Turkish for the dispatcher (the app's own words for each situation and special status)
+const TUR_AD = { enkaz: 'Enkaz altında', saglik: 'Yaralı / hasta', yangin: 'Yangın / gaz', yardim: 'Başka acil durum',
+  guvende: 'Güvende', iptal: 'İptal', kayip: 'Kayıp kişi', barinma: 'Barınma', gida_su: 'Gıda / su', bilgi: 'Bilgi', alakasiz: 'İlgisiz mesaj' };
+const OZEL_AD = { bebek: 'bebek', cocuk: 'çocuk', yasli: 'yaşlı', yarali: 'yaralı', hamile: 'hamile', engelli: 'engelli' };
+const turAd = (t) => TUR_AD[t] ?? t ?? '—';
+const ozelAd = (l) => (l ?? []).map((o) => OZEL_AD[o] ?? o).join(', ');
+const saatTR = (t) => new Date(t).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' });
+
+// What came from the person (tapped) and what the phone's model read from the text, side by side
+function okumaHucresi(r) {
+  const s = r.secim, o = r.okuma, satir = [];
+  if (s) {
+    const parca = [s.tur && turAd(s.tur), Number.isInteger(s.kisi) && `${s.kisi} kişi`, s.ozel?.length && ozelAd(s.ozel)].filter(Boolean);
+    satir.push(`<b>Kişinin seçtiği:</b> ${esc(parca.join(' · ') || 'hiçbir şey seçmedi, yalnız yazdı')}`);
+  }
+  if (o) {
+    const yer = [o.il, o.ilce, o.mahalle, o.sokak, o.bina].filter(Boolean).join(' / ');
+    const parca = [`${turAd(o.tur)}`, o.aciliyet && `aciliyet ${o.aciliyet}`, Number.isInteger(o.kisi) && `${o.kisi} kişi`,
+      yer && `adres: ${yer}`, o.ozel?.length && ozelAd(o.ozel)].filter(Boolean);
+    satir.push(`<b>Telefonun yazıdan anladığı:</b> ${esc(parca.join(' · '))}`
+      + `<br><small>${o.model === 'kodlayici' ? 'Türkçe dil modeli' : 'harf modeli'}, telefonda internetsiz, ${esc(o.ms)} ms`
+      + `${r.kaynak === 'telefon-modeli' ? ' · durum seçilmediği için türü bu okuma belirledi' : ''}</small>`);
+  } else if (r.metin) satir.push('<small>Yazı modelle okunmadı (eski sürüm ya da model yüklenemedi)</small>');
+  return satir.join('<br>');
+}
+
 // The dispatcher's page: reports by urgency, with location and time. Plain HTML, no outside resources, so it works
 // on an isolated network.
-function dashboard(authority) {
-  const rows = authority.reports.map((e) => {
+const kisaId = (hex) => String(hex ?? '').slice(0, 8);
+function konumYazisi(k, sentAt, etiket) {
+  if (!Number.isFinite(k?.enlem) || !Number.isFinite(k?.boylam)) return '';
+  const fark = Number.isFinite(k.zaman) ? Math.round((sentAt - k.zaman) / 1000) : null;
+  const sure = (n) => (Math.abs(n) < 120 ? `${Math.abs(n)} sn` : Math.abs(n) < 7200 ? `${Math.round(Math.abs(n) / 60)} dk` : `${Math.round(Math.abs(n) / 3600)} sa`);
+  return `<br><small><b>${etiket}:</b> ${esc(k.enlem)}, ${esc(k.boylam)}${k.dogruluk_m ? ` (±${esc(Math.round(k.dogruluk_m))} m)` : ''}`
+    + ` · <a href="https://www.openstreetmap.org/?mlat=${k.enlem}&amp;mlon=${k.boylam}#map=18/${k.enlem}/${k.boylam}" target="_blank" rel="noopener">haritada aç</a>`
+    + `<br>${k.kaynak === 'son-bilinen' ? 'Telefonun son bilinen konumu' : "Çağrıyı yazan telefonun GPS'i"}`
+    + `${fark !== null ? (fark >= 0 ? `, gönderimden ${sure(fark)} önce alındı` : `, gönderimden ${sure(fark)} sonra alındı`) : ''}`
+    + ' (taşıyan telefonların değil; mühürlü, yolda değiştirilemez)</small>';
+}
+
+function cihazHucresi(e, tum, t) {
+  const c = e.report.cihaz ?? {};
+  const cagri = tum.filter((o) => o.sender === e.sender && !EK.includes(o.report.tur));
+  const saat = cagri.filter((o) => Math.abs(o.sentAt - e.sentAt) < SAAT).length;
+  const bilgi = [c.model, c.sistem, c.uygulama && `KairoMesh ${c.uygulama}`].filter(Boolean).join(' · ');
+  return `<a href="?t=${encodeURIComponent(t)}&amp;cihaz=${esc(kisaId(e.sender))}">Cihaz ${esc(kisaId(e.sender))}</a>`
+    + (bilgi ? `<br><small>${esc(bilgi)}</small>` : '')
+    + (Number.isFinite(c.pil) ? `<br><small>Pil %${esc(c.pil)}${c.sarj ? ' (şarjda)' : ''}</small>` : '')
+    + `<br><small>Bu cihazdan ${cagri.length} çağrı${saat > 1 ? `, ${saat}'i bu çağrının ±1 saati içinde` : ''}</small>`;
+}
+
+function dashboard(authority, { t = '', cihaz = '' } = {}) {
+  const butun = authority.reports;
+  // a location follow-up is shown inside its call, not as a row of its own
+  const tum = butun.filter((e) => e.report.tur !== 'konum' && (!cihaz || kisaId(e.sender) === cihaz));
+  const rows = tum.map((e) => {
     const r = e.report, k = r.konum ?? {};
     const yer = [r.il, r.ilce, r.mahalle, r.sokak, r.bina].filter(Boolean).join(' / ');
-    return `<tr class="a${esc(r.aciliyet)}"><td>${esc(r.aciliyet)}</td><td>${esc(r.tur)}</td><td>${esc(r.kisi)}</td>`
-      + `<td>${esc(yer)}${Number.isFinite(k.enlem) && Number.isFinite(k.boylam)
-        ? `<br><small>${esc(k.enlem)}, ${esc(k.boylam)}${k.dogruluk_m ? ` (±${esc(Math.round(k.dogruluk_m))} m)` : ''}`
-          + ` · <a href="https://www.openstreetmap.org/?mlat=${k.enlem}&amp;mlon=${k.boylam}#map=18/${k.enlem}/${k.boylam}" target="_blank" rel="noopener">haritada aç</a></small>`
-        : ''}</td>`
-      + `<td>${esc((r.ozel ?? []).join(', '))}</td><td>${esc(r.metin)}</td>`
+    const guncel = sonKonum(e, butun);
+    const konum = konumYazisi(k, e.sentAt, 'Gönderimdeki konum')
+      + (guncel ? konumYazisi(guncel.report.konum, e.sentAt, `Güncel konum (${saatTR(guncel.sentAt)})`) : '');
+    let mesaj = esc(r.metin);
+    if (r.tur === 'iptal') {
+      const onceki = butun.filter((o) => o.sender === e.sender && !EK.includes(o.report.tur) && o.sentAt < e.sentAt)
+        .reduce((m, o) => (!m || o.sentAt > m.sentAt ? o : m), null);
+      mesaj = onceki ? `Gönderenin ${esc(saatTR(onceki.sentAt))} tarihli çağrısını geri çekiyor` : 'Önceki çağrısını geri çekiyor';
+    }
+    return `<tr class="a${esc(r.aciliyet)}"><td>${esc(r.aciliyet)}</td><td>${esc(turAd(r.tur))}</td><td>${esc(r.kisi)}</td>`
+      + `<td>${esc(yer)}${konum}</td><td>${esc(ozelAd(r.ozel))}</td><td>${mesaj}</td><td>${okumaHucresi(r)}</td>`
+      + `<td>${cihazHucresi(e, butun, t)}</td>`
       + `<td>${(e.sinyaller ?? []).map((s) => `<span class="s ${esc(s.kod)}">${esc(s.metin)}</span>`).join('')}</td>`
-      + `<td>${new Date(e.sentAt).toLocaleString('tr-TR')}<br><small>alındı ${new Date(e.receivedAt).toLocaleString('tr-TR')}</small></td></tr>`;
+      + `<td>${esc(saatTR(e.sentAt))}<br><small>alındı ${esc(saatTR(e.receivedAt))}</small></td></tr>`;
   }).join('');
   return `<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta http-equiv="refresh" content="15">
+<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
 <title>KairoMesh — kurum panosu</title><style>
-body{font:15px system-ui,sans-serif;margin:20px;color:#14202b;background:#f6f5f1}table{border-collapse:collapse;width:100%;background:#fff}
-td,th{border-bottom:1px solid #ddd;padding:8px;text-align:left;vertical-align:top}th{background:#ecebe5}
+body{font:15px system-ui,sans-serif;margin:20px;color:#1c1c1e;background:#f2f2f7}.tablo{overflow-x:auto}
+table{border-collapse:collapse;width:100%;background:#fff;border-radius:12px}
+td,th{border-bottom:1px solid #e5e5ea;padding:10px;text-align:left;vertical-align:top}th{background:#f2f2f7;font-weight:600}
 tr.a1 td:first-child{background:#b3261e;color:#fff;font-weight:700}tr.a2 td:first-child{background:#e8a33d;font-weight:700}
-small{color:#5d6a76}.s{display:block;margin:2px 0;padding:2px 6px;border-radius:6px;background:#fbf1dc;color:#6b4500;font-size:13px}
-.s.kural-disi,.s.kopya-metin,.s.bilinmeyen-tur{background:#fbe4e1;color:#8c1d16}.s.iptal-edildi{background:#e4e8ec;color:#26343e}
-</style></head><body><h1>Gelen yardım çağrıları (${authority.reports.length})</h1>
-<p>Aciliyete, sonra gönderim zamanına göre sıralı. Sayfa 15 saniyede bir yenilenir. "Dikkat" sütunu sahte ya da kötüye kullanım
+small{color:#48484a}b{font-weight:600}.s{display:block;margin:2px 0;padding:2px 6px;border-radius:6px;background:#fbf1dc;color:#6b4500;font-size:13px}
+.s.kural-disi,.s.kopya-metin,.s.bilinmeyen-tur,.s.metin-ilgisiz{background:#fbe4e1;color:#8c1d16}.s.iptal-edildi{background:#e5e5ea;color:#26343e}
+</style></head><body>${cihaz ? `<p><a href="?t=${encodeURIComponent(t)}">← Tüm çağrılar</a></p><h1>Cihaz ${esc(cihaz)}: ${tum.length} kayıt</h1>`
+  : `<h1>Gelen yardım çağrıları (${tum.length})</h1>`}
+<p>Aciliyete, sonra gönderim zamanına göre sıralı. Sayfa 15 saniyede bir yenilenir. "Telefonun okuması" kişinin seçtiklerini ve
+çağrıyı yazan telefondaki modelin yazıdan anladıklarını ayrı gösterir. "Dikkat" sütunu sahte ya da kötüye kullanım
 belirtilerini gösterir; hiçbir çağrı gizlenmez, karar görevlinindir.</p>
-<table><thead><tr><th>Aciliyet</th><th>Tür</th><th>Kişi</th><th>Yer</th><th>Özel durum</th><th>Mesaj</th><th>Dikkat</th><th>Zaman</th></tr></thead>
-<tbody>${rows}</tbody></table></body></html>`;
+<div class="tablo"><table><thead><tr><th>Aciliyet</th><th>Durum</th><th>Kişi</th><th>Yer</th><th>Özel durum</th><th>Mesaj</th>
+<th>Telefonun okuması</th><th>Gönderen cihaz</th><th>Dikkat</th><th>Zaman</th></tr></thead>
+<tbody>${rows}</tbody></table></div></body></html>`;
 }
 
 function giris(yanlis) {
@@ -261,7 +363,10 @@ export function gatewayServer(authority, { token = null } = {}) {
       if (path === '/pano') return res.writeHead(401, html).end(giris(new URL(req.url, 'http://x').searchParams.has('t')));
       return res.writeHead(path.startsWith('/v1/') ? 401 : 404).end();
     }
-    if (path === '/pano') return res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(dashboard(authority));
+    if (path === '/pano') {
+      const q = new URL(req.url, 'http://x').searchParams;
+      return res.writeHead(200, html).end(dashboard(authority, { t: q.get('t') ?? '', cihaz: (q.get('cihaz') ?? '').replace(/[^0-9a-f]/g, '').slice(0, 8) }));
+    }
     if (path === '/v1/acil' && req.method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
       return res.end(JSON.stringify(authority.reports.map(({ receipt, key, ...r }) => r)));

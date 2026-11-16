@@ -82,22 +82,38 @@ object Cagri {
 
     /** `adres`: il, ilçe, mahalle, sokak, bina read from the message by the on-device model, when there was text. */
     /** "I sent that by mistake / I am safe now": points the authority at the earlier call [ref]. */
+    /** A fresher GPS fix for the caller's last call, found after it was sent (not a call itself). */
+    fun konumGuncel(enlem: Double, boylam: Double, dogruluk: Float?, zaman: Long) = JSONObject().apply {
+        put("v", 1); put("tur", "konum"); put("aciliyet", 4)
+        put("konum", JSONObject().apply {
+            put("enlem", enlem); put("boylam", boylam); dogruluk?.let { put("dogruluk_m", it.toDouble()) }; put("zaman", zaman); put("kaynak", "gps")
+        })
+    }.toString()
+
     fun duzeltme(ref: String, zaman: Long) = JSONObject().apply {
         put("v", 1); put("tur", "iptal"); put("aciliyet", 4); put("iptal_ref", ref); put("zaman", zaman)
         put("metin", "Önceki çağrı yanlışlıkla gönderildi ya da artık yardım gerekmiyor.")
     }.toString()
 
     fun rapor(tur: String, kisi: Int?, ozel: Set<String>, metin: String, enlem: Double?, boylam: Double?, dogruluk: Float?, zaman: Long,
-              adres: Map<String, String?> = emptyMap(), aciliyet: Int? = null, model: Boolean = false) =
+              adres: Map<String, String?> = emptyMap(), aciliyet: Int? = null, model: Boolean = false,
+              secim: JSONObject? = null, okuma: JSONObject? = null, cihaz: JSONObject? = null) =
+        // secim: what the caller tapped; okuma: what the on-device model read from the text. The authority's
+        // dashboard shows both, so a dispatcher can see what came from the person and what from the model.
         JSONObject().apply {
             put("v", 1); put("tur", tur); put("aciliyet", minOf(aciliyet ?: 4, aciliyet(tur, ozel)))
             if (kisi != null) put("kisi", kisi)
             for ((k, v) in adres) if (!v.isNullOrBlank()) put(k, v)
             if (model) put("kaynak", "telefon-modeli")
+            secim?.let { put("secim", it) }
+            cihaz?.let { put("cihaz", it) }
+            okuma?.let { put("okuma", it) }
             put("ozel", JSONArray(ozel.sorted()))
             if (metin.isNotBlank()) put("metin", metin.take(500))
             if (enlem != null && boylam != null) put("konum", JSONObject().apply {
                 put("enlem", enlem); put("boylam", boylam); dogruluk?.let { put("dogruluk_m", it.toDouble()) }; put("zaman", zaman)
+                // an old fix still helps rescuers, but the dispatcher must know it is old
+                if (System.currentTimeMillis() - zaman > 60_000) put("kaynak", "son-bilinen")
             })
         }.toString()
 }

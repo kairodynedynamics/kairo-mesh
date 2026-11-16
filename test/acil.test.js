@@ -189,6 +189,86 @@ test('acil: warning signs mark forged urgency, floods, copied text and withdrawn
   assert.equal(birler.at(-1), birler.find((e) => kodlar(e).includes('iptal-edildi')), 'a withdrawn call sinks within its level');
 });
 
+test('acil: a correction withdraws only the call just before it; the dispatcher sees what was tapped and what the phone read', async () => {
+  const id = createIdentity();
+  const a = createAuthority({ identity: id });
+  const s = createIdentity();
+  const gonder = (r, n) => a.receive(addWork(seal(s, id.pub, Buffer.concat([Buffer.alloc(16, n), sentNow(-n * 1000), Buffer.from(JSON.stringify(r))]))));
+  // the user's own test: a first call, a second call, then "sent by mistake" for the second
+  gonder({ v: 1, tur: 'enkaz', aciliyet: 1, ozel: ['hamile'] }, 300);
+  gonder({ v: 1, tur: 'enkaz', aciliyet: 1, kisi: 2, ozel: ['cocuk', 'yasli'], metin: 'üsküdar yavuztürk mahallesi',
+    secim: { tur: 'enkaz', kisi: 2, ozel: ['cocuk', 'yasli'], evil: '<script>' },
+    okuma: { model: 'kodlayici', ms: 140, tur: 'enkaz', aciliyet: 1, il: 'İstanbul', mahalle: 'Yavuztürk', ozel: [], fazla: 'x'.repeat(9) } }, 200);
+  gonder({ v: 1, tur: 'iptal', aciliyet: 4, iptal_ref: 'x' }, 100);
+  const cagri = a.reports.filter((e) => e.report.tur === 'enkaz');
+  const iptalli = cagri.filter((e) => e.sinyaller.some((x) => x.kod === 'iptal-edildi'));
+  assert.equal(iptalli.length, 1, 'only one call withdrawn');
+  assert.equal(iptalli[0].report.kisi, 2, 'the second call, the one just before the correction');
+  const r = iptalli[0].report;
+  assert.deepEqual(r.secim, { tur: 'enkaz', kisi: 2, ozel: ['cocuk', 'yasli'] }, 'unknown fields are dropped');
+  assert.equal(r.okuma.model, 'kodlayici');
+  assert.equal(r.okuma.mahalle, 'Yavuztürk');
+  assert.equal(r.okuma.fazla, undefined);
+  const html = await (async () => {
+    const server = gatewayServer(a, { token: 't' }).listen(0);
+    await new Promise((ok) => server.once('listening', ok));
+    try { return await (await fetch(`http://127.0.0.1:${server.address().port}/pano?t=t`)).text(); } finally { server.close(); }
+  })();
+  assert.match(html, /Telefonun yazıdan anladığı:<\/b> Enkaz altında · aciliyet 1 · adres: İstanbul \/ Yavuztürk/);
+  assert.match(html, /Kişinin seçtiği:<\/b> Enkaz altında · 2 kişi · çocuk, yaşlı/);
+  assert.doesNotMatch(html, /<script>/);
+});
+
+test('acil: the dashboard shows the sending device, its call count, a later location fix, and one device on its own', async () => {
+  const id = createIdentity();
+  const a = createAuthority({ identity: id });
+  const ben = createIdentity(), baska = createIdentity();
+  const gonder = (s, r, n) => a.receive(addWork(seal(s, id.pub, Buffer.concat([Buffer.alloc(16, n), sentNow(-n * 1000), Buffer.from(JSON.stringify(r))]))));
+  const cihaz = { model: 'Samsung SM-A546E', sistem: 'Android 14', uygulama: '0.5.0', pil: 12, sarj: false };
+  gonder(ben, { v: 1, tur: 'enkaz', aciliyet: 1, ozel: [], cihaz }, 300); // no GPS fix yet
+  gonder(ben, { v: 1, tur: 'konum', aciliyet: 4, konum: { enlem: 36.2, boylam: 36.16, dogruluk_m: 8, zaman: Date.now() } }, 200);
+  gonder(baska, { v: 1, tur: 'yangin', aciliyet: 1, ozel: [], konum: { enlem: 37, boylam: 35 } }, 100);
+  const enkaz = a.reports.find((e) => e.report.tur === 'enkaz');
+  assert.ok(!enkaz.sinyaller.some((s) => s.kod === 'konum-yok'), 'the later fix counts as a location');
+  const server = gatewayServer(a, { token: 't' }).listen(0);
+  await new Promise((ok) => server.once('listening', ok));
+  const pano = async (q = '') => (await fetch(`http://127.0.0.1:${server.address().port}/pano?t=t${q}`)).text();
+  try {
+    const hepsi = await pano();
+    assert.match(hepsi, /Gelen yardım çağrıları \(2\)/, 'the location follow-up is not a call of its own');
+    assert.match(hepsi, /Güncel konum/);
+    assert.match(hepsi, /Samsung SM-A546E · Android 14 · KairoMesh 0\.5\.0/);
+    assert.match(hepsi, /Pil %12/);
+    const tek = await pano(`&cihaz=${ben.pub.toString('hex').slice(0, 8)}`);
+    assert.match(tek, /Cihaz [0-9a-f]{8}: 1 kayıt/);
+    assert.doesNotMatch(tek, /Yangın/);
+  } finally {
+    server.close();
+  }
+});
+
+test('acil: text the phone read as no call for help is flagged and sinks within its level, but stays listed', () => {
+  const id = createIdentity();
+  const a = createAuthority({ identity: id });
+  const gonder = (r, n) => a.receive(addWork(seal(createIdentity(), id.pub, Buffer.concat([Buffer.alloc(16, n), sentNow(-n * 1000), Buffer.from(JSON.stringify(r))]))));
+  const konum = { enlem: 41, boylam: 29 };
+  const okuma = (tur, ek = {}) => ({ model: 'kodlayici', ms: 100, tur, aciliyet: 4, ozel: [], ...ek });
+  // the user's own fake: "another emergency" + "pregnant" tapped, and a joke typed
+  gonder({ v: 1, tur: 'yardim', aciliyet: 1, ozel: ['hamile'], metin: 'şaka', konum, secim: { tur: 'yardim', ozel: ['hamile'] }, okuma: okuma('alakasiz') }, 300);
+  gonder({ v: 1, tur: 'yardim', aciliyet: 1, ozel: ['hamile'], metin: 'fıkra', konum, secim: { tur: 'yardim', ozel: ['hamile'] }, okuma: okuma('bilgi') }, 250);
+  // a real call that only gives an address: not flagged
+  gonder({ v: 1, tur: 'enkaz', aciliyet: 1, ozel: [], metin: 'yavuztürk mah', konum, secim: { tur: 'enkaz' }, okuma: okuma('bilgi', { mahalle: 'Yavuztürk' }) }, 200);
+  // tapped "rubble", wrote about a fire: both are shown
+  gonder({ v: 1, tur: 'enkaz', aciliyet: 1, ozel: [], metin: 'yangın var', konum, secim: { tur: 'enkaz' }, okuma: okuma('yangin') }, 100);
+  const kod = (m) => a.reports.find((e) => e.report.metin === m).sinyaller.map((s) => s.kod);
+  assert.deepEqual(kod('şaka'), ['metin-ilgisiz']);
+  assert.deepEqual(kod('fıkra'), ['metin-istek-yok']);
+  assert.deepEqual(kod('yavuztürk mah'), []);
+  assert.deepEqual(kod('yangın var'), ['tur-farki']);
+  assert.equal(a.reports.length, 4, 'nothing is hidden');
+  assert.equal(a.reports.filter((e) => e.report.aciliyet === 1).at(-1).report.metin, 'şaka', 'the joke sinks to the bottom of level 1');
+});
+
 test('acil: an envelope the authority refuses for good (422) is dropped by the gateway, not re-uploaded all day', async () => {
   let yukleme = 0;
   const w = world(['ayse', 'gecit'], 0, 1, { authority: createIdentity().pub, uplink: async () => { yukleme++; return Buffer.alloc(0); } });

@@ -19,8 +19,6 @@ struct ContentView: View {
     @State private var ozel = Set<String>()
     @State private var metin = ""
     @State private var geriSayim: Int?
-    @State private var duzeltOnay = false
-    @State private var guvendeOnay = false
     @State private var sinyal = false
     private let sayac = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -35,9 +33,9 @@ struct ContentView: View {
                         Text(sinyal ? "■ Sesli sinyali durdur" : "♪ Sesli sinyal · kurtarıcılar sizi duysun").kalinDugme(Tema.kart, Tema.metin, kenar: Tema.cizgi)
                     }.accessibilityIdentifier("sinyal")
                     Button {
-                        if guvendeOnay { tur = "guvende"; gonderBas() } else { guvendeOnay = true }
+                        tur = "guvende"; gonderBas() // one tap: "I am safe" never sends anything urgent
                     } label: {
-                        Text(guvendeOnay ? "Bildirmek için yine dokunun" : "Güvendeyim · kuruma bildir")
+                        Text("Güvendeyim · kuruma bildir")
                             .kalinDugme(Tema.yesilZemin, Tema.yesil)
                     }
                     kart {
@@ -142,9 +140,9 @@ struct ContentView: View {
                     if mesh.sonCagriId != nil && !mesh.kurumAldi {
                         Button {
                             // a second tap confirms: correcting a real call by accident would be as bad as a false one
-                            if duzeltOnay { mesh.duzelt(); duzeltOnay = false } else { duzeltOnay = true }
+                            mesh.duzelt() // one tap: if it was itself a mistake, the call can be sent again at once
                         } label: {
-                            Text(duzeltOnay ? "Emin misiniz? Onaylamak için yine dokunun" : "Yanlışlıkla gönderdim · yardım gerekmiyor")
+                            Text("Yanlışlıkla gönderdim · yardım gerekmiyor")
                                 .kalinDugme(Tema.kart, Tema.metin, kenar: Tema.cizgi)
                         }.accessibilityIdentifier("duzelt")
                     }
@@ -209,7 +207,6 @@ struct ContentView: View {
     }
 
     private func gonderBas() {
-        guvendeOnay = false
         guard tur != nil || !metin.trimmingCharacters(in: .whitespaces).isEmpty else { return mesh.durumYaz("Önce durumunuzu seçin ya da kısaca yazın.") }
         guard mesh.kurumVar else { return mesh.kurumYok() }
         mesh.konumIste()

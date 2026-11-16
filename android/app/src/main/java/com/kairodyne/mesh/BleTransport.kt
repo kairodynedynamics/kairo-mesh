@@ -117,12 +117,12 @@ class BleTransport(private val context: Context, private val onFrame: (ByteArray
             reklam.stopAdvertising(advertiseCallback)
             reklam.startAdvertising(
                 AdvertiseSettings.Builder().setConnectable(true)
-                    .setAdvertiseMode(if (on) AdvertiseSettings.ADVERTISE_MODE_LOW_POWER else AdvertiseSettings.ADVERTISE_MODE_BALANCED).build(),
+                    .setAdvertiseMode(if (on) AdvertiseSettings.ADVERTISE_MODE_LOW_POWER else AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY).build(),
                 AdvertiseData.Builder().addServiceUuid(ParcelUuid(SERVICE)).setIncludeDeviceName(false).build(),
                 advertiseCallback)
             tarayici.startScan(
                 listOf(ScanFilter.Builder().setServiceUuid(ParcelUuid(SERVICE)).build()),
-                ScanSettings.Builder().setScanMode(if (on) ScanSettings.SCAN_MODE_LOW_POWER else ScanSettings.SCAN_MODE_BALANCED).build(),
+                ScanSettings.Builder().setScanMode(if (on) ScanSettings.SCAN_MODE_LOW_POWER else ScanSettings.SCAN_MODE_LOW_LATENCY).build(),
                 scanCallback)
         }.onFailure { Log.i(TAG, "ERROR radyo: ${it.message}"); kapat() }
     }

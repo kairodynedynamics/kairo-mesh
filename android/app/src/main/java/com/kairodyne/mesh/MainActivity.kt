@@ -112,11 +112,19 @@ class MainActivity : Activity() {
                 duyur("Kurum çağrınızı aldı")
             }
             line.startsWith("DUZELTME_GONDERILDI") -> {
-                durumGoster(GRI_ZEMIN, "Düzeltme gönderildi · ${saat(line)}\nKuruma önceki çağrının yanlışlıkla gönderildiği bildiriliyor.")
+                durumGoster(GRI_ZEMIN, "Düzeltme gönderildi · ${saat(line)}\nKuruma önceki çağrının yanlışlıkla gönderildiği bildiriliyor. " +
+                    "Yine de yardım gerekiyorsa çağrıyı yeniden gönderin.")
                 duzeltDugme.visibility = View.GONE
             }
             line.startsWith("KONUM_ALINIYOR") && durum.text.startsWith("Çağrı hazırlanıyor") ->
                 durum.text = "Çağrı hazırlanıyor… konumunuz alınıyor (en çok 6 sn)."
+            line.startsWith("KONUM_IZNI_YOK") -> {
+                durumGoster(KIRMIZI_ZEMIN, durum.text.toString() + "\n\nKonum izni kapalı: kurtarıcılar yerinizi bilemez. " +
+                    "Ayarlar > Uygulamalar > KairoMesh > İzinler > Konum'u açın.")
+                requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), 2)
+            }
+            line.startsWith("KONUM_YOK") -> durum.append("\n\nKonum henüz alınamadı; telefon aramayı sürdürüyor ve bulunca kuruma ayrıca gönderecek. Mümkünse açık alana yakın durun.")
+            line.startsWith("KONUM_GUNCELLENDI") -> durum.append("\n\n✓ Konumunuz bulundu ve kuruma gönderildi (${saat(line)}).")
             line.startsWith("ACIL_ZATEN") -> durumGoster(KIRMIZI_ZEMIN, "Çağrınız zaten gönderiliyor; tekrar basmanız gerekmez.")
             line.startsWith("DUYURU ") -> duyurular.text = line.removePrefix("DUYURU ") + "\n\n" + duyurular.text.toString().removePrefix("Henüz duyuru yok.")
             line.startsWith("KURUM ") -> kurumSatiri.text = "Çağrılar şu kuruma gider: ${line.substringAfter(" ad=")}"
@@ -424,9 +432,8 @@ class MainActivity : Activity() {
             visibility = View.GONE
             setOnClickListener {
                 val id = sonCagriId ?: return@setOnClickListener
-                // a second tap confirms: correcting a real call by accident would be as bad as a false one
-                if (text.startsWith("Emin misiniz")) toService(Intent().putExtra("iptal", id))
-                else text = "Emin misiniz? Onaylamak için yine dokunun"
+                // one tap, no delay: if it was itself a mistake, the call can be sent again at once from the form above
+                toService(Intent().putExtra("iptal", id))
             }
         }
         durumKart.addView(duzeltDugme, yer(10))
@@ -437,8 +444,7 @@ class MainActivity : Activity() {
         root.addView(dugme("♪ Sesli sinyal · kurtarıcılar sizi duysun", KART, METIN, CIZGI).apply { setOnClickListener { sinyal(this) } }, yer(16))
         root.addView(dugme("Güvendeyim · kuruma bildir", YESIL_ZEMIN, YESIL, YESIL_ZEMIN).apply {
             setOnClickListener {
-                if (text.startsWith("Emin misiniz")) { secilenTur = "guvende"; yenile(); gonderBas() }
-                else text = "Bildirmek için yine dokunun"
+                secilenTur = "guvende"; yenile(); gonderBas() // one tap: "I am safe" never sends anything urgent
             }
         }, yer(8))
 

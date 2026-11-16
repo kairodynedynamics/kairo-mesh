@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import KairoCore
 
@@ -76,6 +77,14 @@ enum Cagri {
     }
 
     /// "I sent that by mistake / I am safe now": points the authority at the earlier call `ref`.
+    /// A fresher GPS fix for the caller's last call, found after it was sent (not a call itself).
+    static func konumGuncel(_ l: CLLocation) -> String {
+        let k: [String: Any] = ["enlem": l.coordinate.latitude, "boylam": l.coordinate.longitude, "dogruluk_m": l.horizontalAccuracy,
+                                "zaman": Int64(l.timestamp.timeIntervalSince1970 * 1000), "kaynak": "gps"]
+        let r: [String: Any] = ["v": 1, "tur": "konum", "aciliyet": 4, "konum": k]
+        return String(decoding: (try? JSONSerialization.data(withJSONObject: r, options: [.sortedKeys])) ?? Data("{}".utf8), as: UTF8.self)
+    }
+
     static func duzeltme(ref: String) -> String {
         let r: [String: Any] = ["v": 1, "tur": "iptal", "aciliyet": 4, "iptal_ref": ref, "zaman": Int64(Date().timeIntervalSince1970 * 1000),
                                 "metin": "Önceki çağrı yanlışlıkla gönderildi ya da artık yardım gerekmiyor."]
@@ -85,15 +94,21 @@ enum Cagri {
     /// `adres`: il, ilçe, mahalle, sokak, bina read from the message by the on-device model, when there was text.
     static func rapor(tur: String, kisi: Int?, ozel secili: Set<String>, metin: String,
                       enlem: Double?, boylam: Double?, dogruluk: Double?, zaman: Date,
-                      adres: [String: String?] = [:], aciliyet modelAciliyet: Int? = nil, model: Bool = false) -> String {
+                      adres: [String: String?] = [:], aciliyet modelAciliyet: Int? = nil, model: Bool = false,
+                      secim: [String: Any]? = nil, okuma: [String: Any]? = nil, cihaz: [String: Any]? = nil) -> String {
+        // secim: what the caller tapped; okuma: what the on-device model read from the text (see Kurum.kt)
         var r: [String: Any] = ["v": 1, "tur": tur, "aciliyet": min(modelAciliyet ?? 4, aciliyet(tur, secili)), "ozel": secili.sorted()]
         if let kisi { r["kisi"] = kisi }
         for (k, v) in adres { if let v, !v.isEmpty { r[k] = v } }
         if model { r["kaynak"] = "telefon-modeli" }
+        if let secim { r["secim"] = secim }
+        if let okuma { r["okuma"] = okuma }
+        if let cihaz { r["cihaz"] = cihaz }
         if !metin.trimmingCharacters(in: .whitespaces).isEmpty { r["metin"] = String(metin.prefix(500)) }
         if let enlem, let boylam {
             var k: [String: Any] = ["enlem": enlem, "boylam": boylam, "zaman": Int64(zaman.timeIntervalSince1970 * 1000)]
             if let dogruluk { k["dogruluk_m"] = dogruluk }
+            if Date().timeIntervalSince(zaman) > 60 { k["kaynak"] = "son-bilinen" } // old, but the dispatcher must know
             r["konum"] = k
         }
         let data = (try? JSONSerialization.data(withJSONObject: r, options: [.sortedKeys])) ?? Data("{}".utf8)

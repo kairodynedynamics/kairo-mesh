@@ -18,6 +18,8 @@ import kotlin.math.tanh
  * contains emoji.
  */
 class Triyaj(meta: String, weights: ByteArray, private val kodlayici: Kodlayici? = null) {
+    /** Which model made the message-level decisions: the Turkish encoder, or the character model alone. */
+    val modelAdi get() = if (kodlayici != null) "kodlayici" else "harf"
     class Kayit(
         val tur: String, val aciliyet: Int, val kisi: Int?, val il: String?, val ilce: String?,
         val mahalle: String?, val sokak: String?, val bina: String?, val ad: String?, val tel: String?, val ozel: List<String>,

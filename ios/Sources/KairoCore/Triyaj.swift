@@ -17,6 +17,8 @@ public final class Triyaj {
     private let w: [String: [Float]]
     private let harfBoy: Int, tipBoy: Int, gizli2: Int
     private let kodlayici: Kodlayici?
+    /// Which model made the message-level decisions: the Turkish encoder, or the character model alone.
+    public var modelAdi: String { kodlayici != nil ? "kodlayici" : "harf" }
 
     public init(meta: Data, weights: Data, kodlayici: Kodlayici? = nil) throws {
         self.kodlayici = kodlayici

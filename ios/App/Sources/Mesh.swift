@@ -140,7 +140,7 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         node.relay = charging || (!ProcessInfo.processInfo.isLowPowerModeEnabled && level > 20)
         node.tick()
         status = "STATUS peers=\(transport.peerCount) carrying=\(node.carrying) relay=\(node.relay) online=\(online)"
-        yakin = node.yakin()
+        yakin = max(node.yakin(), transport.peerCount) // heard from, or connected to
         internet = online
         if kurumVar, defaults.string(forKey: "bekleyenAcil") != nil,
            Date().timeIntervalSince1970 - defaults.double(forKey: "bekleyenZaman") > 6 * 3600 { yenidenGonder() }
@@ -189,7 +189,9 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         let model = triyaj
         // reading the text and the proof of work take a moment: the text off the main thread, then the node on it
         DispatchQueue.global(qos: .userInitiated).async {
+            let t0 = Date()
             let k = metin.trimmingCharacters(in: .whitespaces).isEmpty ? nil : model?.coz(metin)
+            let ms = Int(Date().timeIntervalSince(t0) * 1000)
             DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             let gecerli = Set(Cagri.turler.map(\.0)), ozelGecerli = Set(Cagri.ozel.map(\.0))
@@ -202,7 +204,18 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
                                    // typed on the emergency screen: the model may not rank it below 2 (the encoder
                                    // still ranks ~3% of life-threatening calls too low; triyaj/model/kodlayici-olcum.json)
                                    aciliyet: k.map { secilen == nil ? min($0.aciliyet, 2) : $0.aciliyet },
-                                   model: k != nil && secilen == nil)
+                                   model: k != nil && secilen == nil,
+                                   secim: (secilen.map { ["tur": $0] } ?? [:]).merging(kisi.map { ["kisi": $0] } ?? [:]) { a, _ in a }
+                                       .merging(["ozel": ozel.sorted()]) { a, _ in a },
+                                   cihaz: Mesh.cihaz(),
+                                   okuma: k.map { o in
+                                       var d: [String: Any] = ["model": model?.modelAdi ?? "", "ms": ms, "tur": o.tur, "aciliyet": o.aciliyet, "ozel": o.ozel]
+                                       if let v = o.kisi { d["kisi"] = v }
+                                       for (a, v) in [("il", o.il), ("ilce", o.ilce), ("mahalle", o.mahalle), ("sokak", o.sokak), ("bina", o.bina)] {
+                                           if let v, !v.isEmpty { d[a] = v }
+                                       }
+                                       return d
+                                   })
             do {
                 let id = try self.node.sendEmergency(json)
                 self.defaults.set(json, forKey: "bekleyenAcil") // kept until the authority's receipt arrives
@@ -211,6 +224,7 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
                 self.sonCagriId = id
                 self.acilDurum = "Çağrınız gönderildi (\(Mesh.saat())).\nYakındaki telefonlar taşıyor; internete ulaşan ilk telefon kuruma iletecek. Uygulamayı kapatmayın."
                 self.show("ACIL_GONDERILDI id=\(id) konum=\(loc == nil ? "yok" : "var")")
+                self.konumTakip(loc)
             } catch { self.acilDurum = "Çağrı gönderilemedi: \(error)"; self.show("ERROR \(error)") }
             }
         }
@@ -236,7 +250,8 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         do {
             let id = try node.sendEmergency(Cagri.duzeltme(ref: ref))
             defaults.removeObject(forKey: "bekleyenAcil") // the earlier call is no longer resent
-            acilDurum = "Düzeltme gönderildi (\(Mesh.saat())): kuruma önceki çağrının yanlışlıkla gönderildiği bildiriliyor."
+            acilDurum = "Düzeltme gönderildi (\(Mesh.saat())): kuruma önceki çağrının yanlışlıkla gönderildiği bildiriliyor. "
+                + "Yine de yardım gerekiyorsa çağrıyı yeniden gönderin."
             sonCagriId = nil
             show("DUZELTME_GONDERILDI id=\(id) ref=\(ref)")
         } catch { show("ERROR \(error)") }
@@ -251,7 +266,48 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         if manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways { manager.requestLocation() }
     }
 
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {}
+    /// The sending phone, for the dispatcher: model, system, app version, battery.
+    static func cihaz() -> [String: Any] {
+        var u = utsname(); uname(&u)
+        let makine = withUnsafeBytes(of: &u.machine) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) } // e.g. iPhone15,2
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        var c: [String: Any] = ["model": "Apple \(makine)", "sistem": "iOS \(UIDevice.current.systemVersion)",
+                                "uygulama": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""]
+        let pil = UIDevice.current.batteryLevel
+        if pil >= 0 { c["pil"] = Int(pil * 100); c["sarj"] = [.charging, .full].contains(UIDevice.current.batteryState) }
+        return c
+    }
+
+    private var konumTakipBitis: Date?
+    private var ilkKonum: CLLocation?
+
+    /// A call must never stay without a location: with none, an old or a coarse one, the phone listens to GPS for a
+    /// few minutes and sends the first good fix as a follow-up the dashboard shows with the call.
+    private func konumTakip(_ ilk: CLLocation?) {
+        guard location.authorizationStatus == .authorizedWhenInUse || location.authorizationStatus == .authorizedAlways else {
+            acilDurum += "\n\nKonum izni kapalı: kurtarıcılar yerinizi bilemez. Ayarlar > KairoMesh > Konum'u açın."
+            return show("KONUM_IZNI_YOK")
+        }
+        if let ilk, Date().timeIntervalSince(ilk.timestamp) < 60, ilk.horizontalAccuracy >= 0, ilk.horizontalAccuracy <= 50 { return }
+        if ilk == nil { acilDurum += "\n\nKonum henüz alınamadı; telefon aramayı sürdürüyor ve bulunca kuruma ayrıca gönderecek." }
+        ilkKonum = ilk
+        konumTakipBitis = Date().addingTimeInterval(300)
+        location.startUpdatingLocation()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 300) { [weak self] in self?.konumTakipBitir() }
+    }
+
+    private func konumTakipBitir() { konumTakipBitis = nil; location.stopUpdatingLocation() }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let bitis = konumTakipBitis, Date() < bitis, let l = locations.last, l.horizontalAccuracy >= 0 else { return }
+        if let ilk = ilkKonum, Date().timeIntervalSince(ilk.timestamp) < 60, l.horizontalAccuracy >= ilk.horizontalAccuracy { return }
+        konumTakipBitir()
+        do {
+            _ = try node.sendEmergency(Cagri.konumGuncel(l))
+            acilDurum += "\n\n✓ Konumunuz bulundu ve kuruma gönderildi (\(Mesh.saat()))."
+            show("KONUM_GUNCELLENDI")
+        } catch { show("ERROR konum güncellemesi gönderilemedi: \(error)") }
+    }
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
 
     static func saat() -> String {

@@ -14,12 +14,15 @@ import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.BatteryManager
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.util.Base64
 import android.util.Log
 import com.kairodyne.mesh.core.Kodlayici
+import org.json.JSONArray
+import org.json.JSONObject
 import com.kairodyne.mesh.core.Node
 import com.kairodyne.mesh.core.Triyaj
 import java.text.SimpleDateFormat
@@ -193,7 +196,22 @@ class MeshService : Service() {
                 val loc = konum()
                 val t0 = System.nanoTime()
                 val k = if (p[3].isNotBlank()) triyaj?.coz(p[3]) else null
-                if (k != null) show("TRIYAJ tur=${k.tur} aciliyet=${k.aciliyet} kisi=${k.kisi} il=${k.il} ms=${(System.nanoTime() - t0) / 1_000_000}")
+                val ms = (System.nanoTime() - t0) / 1_000_000
+                if (k != null) show("TRIYAJ tur=${k.tur} aciliyet=${k.aciliyet} kisi=${k.kisi} il=${k.il} ms=$ms")
+                val secim = JSONObject().apply {
+                    p[0].takeIf { it in Cagri.TURLER }?.let { put("tur", it) }
+                    p[1].toIntOrNull()?.let { put("kisi", it) }
+                    put("ozel", JSONArray(p[2].split(",").filter { it in Cagri.OZEL }))
+                }
+                val okuma = k?.let {
+                    JSONObject().apply {
+                        put("model", triyaj?.modelAdi); put("ms", ms); put("tur", it.tur); put("aciliyet", it.aciliyet)
+                        it.kisi?.let { v -> put("kisi", v) }
+                        for ((a, v) in listOf("il" to it.il, "ilce" to it.ilce, "mahalle" to it.mahalle, "sokak" to it.sokak, "bina" to it.bina))
+                            if (!v.isNullOrBlank()) put(a, v)
+                        put("ozel", JSONArray(it.ozel))
+                    }
+                }
                 // an unrecognised or off-topic message still goes out as a call for rescue: missing a call costs more
                 val tur = p[0].takeIf { it in Cagri.TURLER } ?: k?.tur?.takeIf { it in Cagri.TURLER } ?: "enkaz"
                 val ozel = p[2].split(",").filter { it in Cagri.OZEL }.toSet() + (k?.ozel?.filter { it in Cagri.OZEL } ?: emptyList())
@@ -204,11 +222,12 @@ class MeshService : Service() {
                     // may not rank it below 2. The encoder still ranks about 3% of life-threatening calls too low
                     // (triyaj/model/kodlayici-olcum.json); a needless "urgent" costs the dispatcher less than a missed one.
                     aciliyet = k?.aciliyet?.let { if (p[0] !in Cagri.TURLER) minOf(it, 2) else it },
-                    model = k != null && p[0] !in Cagri.TURLER)
+                    model = k != null && p[0] !in Cagri.TURLER, secim = secim, okuma = okuma, cihaz = cihaz())
                 val id = synchronized(this) { node.sendEmergency(json) }
                 profile.bekleyenAcil = json // on disk before the screen says it was sent
                 profile.bekleyenZaman = System.currentTimeMillis()
                 profile.bekleyenIdEkle(id)
+                konumTakip(loc)
                 show("ACIL_GONDERILDI id=$id konum=${if (loc != null) "var" else "yok"} saat=${saat()}" +
                     if (!transport.acik) " bluetooth=kapali" else "")
             } catch (e: RuntimeException) { show("ERROR çağrı gönderilemedi: ${e.message}") }
@@ -233,12 +252,54 @@ class MeshService : Service() {
      * A fresh fix when one comes within [KONUM_MS] (GPS works without a network; under rubble it may not come at all),
      * otherwise the freshest last known fix from any provider. Blocks: call off the main thread.
      */
+    private fun konumIzni() = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+        checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    /** The sending phone, for the dispatcher: model, system, app version, battery. */
+    private fun cihaz() = JSONObject().apply {
+        put("model", "${Build.MANUFACTURER} ${Build.MODEL}".trim()); put("sistem", "Android ${Build.VERSION.RELEASE}")
+        put("uygulama", BuildConfig.VERSION_NAME)
+        registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))?.let {
+            put("pil", 100 * it.getIntExtra(BatteryManager.EXTRA_LEVEL, 100) / it.getIntExtra(BatteryManager.EXTRA_SCALE, 100))
+            put("sarj", it.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0)
+        }
+    }
+
+    /**
+     * A call must never stay without a location. If it went with none, an old one or a coarse one, the phone keeps
+     * listening to GPS for a few minutes and sends the first good fix as a follow-up the dashboard shows with the call.
+     */
+    private fun konumTakip(ilk: Location?) {
+        if (!konumIzni()) return show("KONUM_IZNI_YOK")
+        if (ilk == null) show("KONUM_YOK")
+        val iyi = ilk != null && System.currentTimeMillis() - ilk.time < 60_000 && ilk.hasAccuracy() && ilk.accuracy <= 50f
+        if (iyi) return
+        val lm = getSystemService(LocationManager::class.java)
+        val dinleyici = object : android.location.LocationListener {
+            override fun onLocationChanged(l: Location) {
+                if (ilk != null && System.currentTimeMillis() - ilk.time < 60_000 && l.accuracy >= ilk.accuracy) return
+                lm.removeUpdates(this)
+                Thread {
+                    try {
+                        synchronized(this@MeshService) { node.sendEmergency(Cagri.konumGuncel(l.latitude, l.longitude, l.accuracy, l.time)) }
+                        show("KONUM_GUNCELLENDI saat=${saat()}")
+                    } catch (e: RuntimeException) { show("ERROR konum güncellemesi gönderilemedi: ${e.message}") }
+                }.start()
+            }
+        }
+        try {
+            for (s in listOf(LocationManager.GPS_PROVIDER, LocationManager.FUSED_PROVIDER, LocationManager.NETWORK_PROVIDER))
+                if (runCatching { lm.isProviderEnabled(s) }.getOrDefault(false)) lm.requestLocationUpdates(s, 2000L, 0f, dinleyici, main.looper)
+            main.postDelayed({ lm.removeUpdates(dinleyici) }, KONUM_TAKIP_MS)
+        } catch (e: SecurityException) { show("KONUM_IZNI_YOK") }
+    }
+
     private fun konum(): Location? {
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
             checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) return null
         val lm = getSystemService(LocationManager::class.java)
         val son = try {
-            listOf(LocationManager.GPS_PROVIDER, LocationManager.FUSED_PROVIDER, LocationManager.NETWORK_PROVIDER)
+            listOf(LocationManager.GPS_PROVIDER, LocationManager.FUSED_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
                 .mapNotNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }.maxByOrNull { it.time }
         } catch (e: SecurityException) { null }
         if (son != null && System.currentTimeMillis() - son.time < 60_000) return son
@@ -267,10 +328,13 @@ class MeshService : Service() {
             // Carrying for others is a favour: it stops when the owner needs the battery, and resumes on the charger.
             val relay = charging || (!power.isPowerSaveMode && level > LOW_BATTERY)
             transport.setLowPower(!charging && (!power.isInteractive || !relay))
-            val (carrying, yakin) = synchronized(this@MeshService) { node.relay = relay; node.tick(); node.carrying to node.yakin() }
+            val (carrying, duyulan) = synchronized(this@MeshService) { node.relay = relay; node.tick(); node.carrying to node.yakin() }
             transport.temizle()
             if (kurum != null && profile.bekleyenAcil != null && System.currentTimeMillis() - profile.bekleyenZaman > YENIDEN_MS) yenidenGonder()
             val peers = transport.peerCount
+            // phones heard (their HELLO) or connected to, whichever is more: a phone we write to that has not yet
+            // connected back to us is still a carrier in reach
+            val yakin = maxOf(duyulan, peers)
             // HELLOs only matter to phones in range, and only often while there is mail to offer them
             val next = if (peers > 0 && carrying > 0) BUSY_MS else IDLE_MS
             val net = online()
@@ -296,6 +360,7 @@ class MeshService : Service() {
         private const val BUSY_MS = 2000L
         private const val IDLE_MS = 10_000L
         private const val LOW_BATTERY = 20 // percent
+        private const val KONUM_TAKIP_MS = 5 * 60_000L
         /** Log lines for the screen; touched only on the main thread. */
         val lines = mutableListOf<String>()
         var listener: ((String) -> Unit)? = null
