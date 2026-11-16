@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from uret import ILCELER, KISA, OZEL, SAYI_YAZI, TUR  # noqa: E402
 
 KOK = Path(__file__).parent
-VERI, MODEL = KOK / "veri", KOK / "model"
+VERI, MODEL, TELEFON = KOK / "veri", KOK / "model", KOK / "telefon"
 UZUN = 192
 ALANLAR = ["il", "ilce", "mahalle", "sokak", "bina", "ad", "kisi", "tel"]
 ETIKET = ["O"] + [f"{o}-{a}" for a in ALANLAR for o in ("B", "I")]
@@ -285,5 +285,44 @@ def aktar():
         print(f, round((MODEL / f).stat().st_size / 1e6, 2), "MB")
 
 
+ALTIN = ["hatay antakya ürgenpaşa mh enkaz altındayız 3 kişi bebek var",
+         "KAHRAMANMARAS ONIKISUBAT yangın çıktı içeride 5 kişi var acill",
+         "ben iyiyim toplanma alanındayız",
+         "dyrbakr bağlar ekinci mh su yok iki gündür 8 ks yaşlı annem var 0532 111 22 33"]
+
+
+def agirlik():
+    """Telefon çıkarımı için: model/triyaj.bin (float32, küçük-endian, sırayla) + model/triyaj.json (sözlük, tensör
+    dizini, etiket tabloları) + model/altin.json (PyTorch'un ALTIN mesajlardaki ham çıktıları: platform testleri
+    bunlarla birebir karşılaştırılır)."""
+    sz = sozluk_kur()
+    m = Triyaj(len(sz.harfler) + 2)
+    m.load_state_dict(torch.load(MODEL / "triyaj.pt"))
+    m.eval()
+    tensorler, ofs, parcalar = [], 0, []
+    for ad, t in m.state_dict().items():
+        a = t.detach().float().contiguous().numpy().astype("<f4")
+        tensorler.append({"ad": ad, "sekil": list(a.shape), "ofs": ofs})
+        ofs += a.size
+        parcalar.append(a.tobytes())
+    TELEFON.mkdir(exist_ok=True)
+    (TELEFON / "triyaj.bin").write_bytes(b"".join(parcalar))
+    meta = {"surum": 1, "harfler": sz.harfler, "uzun": UZUN, "alanlar": ALANLAR, "turler": TURLER, "ozeller": OZELLER,
+            "iller": ILLER, "ciftler": CIFTLER, "temel_aciliyet": TEMEL, "sayi_yazi": {v: k for k, v in SAYI_YAZI.items()},
+            "tensorler": tensorler}
+    (TELEFON / "triyaj.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+    altin = []
+    with torch.no_grad():
+        for metin in ALTIN:
+            h, tp = sz.kodla(metin)
+            cik = [x[0].numpy() for x in m(torch.tensor([h]), torch.tensor([tp]))]
+            altin.append({"metin": metin, "harf": h, "tip": tp,
+                          "etiket": cik[0].round(5).tolist(), "tur": cik[1].round(5).tolist(), "aciliyet": cik[2].round(5).tolist(),
+                          "ozel": cik[3].round(5).tolist(), "il": cik[4].round(5).tolist(), "ilce": cik[5].round(5).tolist(),
+                          "kayit": coz(metin, cik)})
+    (TELEFON / "altin.json").write_text(json.dumps(altin, ensure_ascii=False), encoding="utf-8")
+    print("triyaj.bin", round((TELEFON / "triyaj.bin").stat().st_size / 1e6, 2), "MB;", len(tensorler), "tensör")
+
+
 if __name__ == "__main__":
-    {"egit": egit, "olc": lambda: olc(sys.argv[2]), "aktar": aktar}[sys.argv[1]]()
+    {"egit": egit, "olc": lambda: olc(sys.argv[2]), "aktar": aktar, "agirlik": agirlik}[sys.argv[1]]()

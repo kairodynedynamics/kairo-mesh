@@ -57,10 +57,14 @@ enum Cagri {
         return a > 1 && tur != "guvende" && !secili.isDisjoint(with: ["bebek", "yarali", "hamile"]) ? a - 1 : a
     }
 
+    /// `adres`: il, ilçe, mahalle, sokak, bina read from the message by the on-device model, when there was text.
     static func rapor(tur: String, kisi: Int?, ozel secili: Set<String>, metin: String,
-                      enlem: Double?, boylam: Double?, dogruluk: Double?, zaman: Date) -> String {
-        var r: [String: Any] = ["v": 1, "tur": tur, "aciliyet": aciliyet(tur, secili), "ozel": secili.sorted()]
+                      enlem: Double?, boylam: Double?, dogruluk: Double?, zaman: Date,
+                      adres: [String: String?] = [:], aciliyet modelAciliyet: Int? = nil, model: Bool = false) -> String {
+        var r: [String: Any] = ["v": 1, "tur": tur, "aciliyet": min(modelAciliyet ?? 4, aciliyet(tur, secili)), "ozel": secili.sorted()]
         if let kisi { r["kisi"] = kisi }
+        for (k, v) in adres { if let v, !v.isEmpty { r[k] = v } }
+        if model { r["kaynak"] = "telefon-modeli" }
         if !metin.trimmingCharacters(in: .whitespaces).isEmpty { r["metin"] = String(metin.prefix(500)) }
         if let enlem, let boylam {
             var k: [String: Any] = ["enlem": enlem, "boylam": boylam, "zaman": Int64(zaman.timeIntervalSince1970 * 1000)]

@@ -20,7 +20,13 @@ targets:
   KairoMesh:
     type: application
     platform: iOS
-    sources: [Sources]
+    sources:
+      - Sources
+      # on-device triage model (triyaj/model.py agirlik): weights and labels
+      - path: ../../triyaj/telefon/triyaj.json
+        buildPhase: resources
+      - path: ../../triyaj/telefon/triyaj.bin
+        buildPhase: resources
     dependencies:
       - package: KairoCore
     info:

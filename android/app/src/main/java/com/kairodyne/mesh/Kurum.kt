@@ -72,10 +72,14 @@ object Cagri {
         return if (a > 1 && tur != "guvende" && ozel.any { it in setOf("bebek", "yarali", "hamile") }) a - 1 else a
     }
 
-    fun rapor(tur: String, kisi: Int?, ozel: Set<String>, metin: String, enlem: Double?, boylam: Double?, dogruluk: Float?, zaman: Long) =
+    /** `adres`: il, ilçe, mahalle, sokak, bina read from the message by the on-device model, when there was text. */
+    fun rapor(tur: String, kisi: Int?, ozel: Set<String>, metin: String, enlem: Double?, boylam: Double?, dogruluk: Float?, zaman: Long,
+              adres: Map<String, String?> = emptyMap(), aciliyet: Int? = null, model: Boolean = false) =
         JSONObject().apply {
-            put("v", 1); put("tur", tur); put("aciliyet", aciliyet(tur, ozel))
+            put("v", 1); put("tur", tur); put("aciliyet", minOf(aciliyet ?: 4, aciliyet(tur, ozel)))
             if (kisi != null) put("kisi", kisi)
+            for ((k, v) in adres) if (!v.isNullOrBlank()) put(k, v)
+            if (model) put("kaynak", "telefon-modeli")
             put("ozel", JSONArray(ozel.sorted()))
             if (metin.isNotBlank()) put("metin", metin.take(500))
             if (enlem != null && boylam != null) put("konum", JSONObject().apply {

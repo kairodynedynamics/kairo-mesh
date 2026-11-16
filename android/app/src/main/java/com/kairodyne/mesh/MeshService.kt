@@ -20,6 +20,7 @@ import android.os.PowerManager
 import android.util.Base64
 import android.util.Log
 import com.kairodyne.mesh.core.Node
+import com.kairodyne.mesh.core.Triyaj
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -120,17 +121,32 @@ class MeshService : Service() {
         show("KURUM ${k.url}")
     }
 
-    /** `form`: "tur|kisi|ozel1,ozel2|metin" from the emergency screen. Location is added here, if permitted. */
+    private val triyaj by lazy {
+        runCatching { Triyaj(assets.open("triyaj.json").use { it.readBytes().toString(Charsets.UTF_8) }, assets.open("triyaj.bin").use { it.readBytes() }) }
+            .onFailure { show("ERROR triyaj modeli yüklenemedi: ${it.message}") }.getOrNull()
+    }
+
+    /**
+     * `form`: "tur|kisi|ozel1,ozel2|metin" from the emergency screen; `tur` may be empty when only text was written.
+     * What the caller tapped always wins; the on-device model fills in what is missing from the text (type, number
+     * of people, address, who is present). Location is added here, if permitted.
+     */
     private fun emergency(form: String) {
         val p = form.split("|", limit = 4)
-        if (p.size < 4 || p[0] !in Cagri.TURLER) return show("ERROR acil formu eksik")
+        if (p.size < 4 || (p[0] !in Cagri.TURLER && p[3].isBlank())) return show("ERROR acil formu eksik")
         if (kurum == null) return show("ERROR kurum kodu yok: çağrının gideceği kurum tanımlı değil")
         val loc = lastLocation()
-        val json = Cagri.rapor(p[0], p[1].toIntOrNull(), p[2].split(",").filter { it in Cagri.OZEL }.toSet(), p[3],
-            loc?.latitude, loc?.longitude, loc?.accuracy, loc?.time ?: System.currentTimeMillis())
-        // the proof of work takes under a second: off the main thread, then queued under the node lock
+        // reading the text and the proof of work take a moment: off the main thread, then queued under the node lock
         Thread {
             try {
+                val k = if (p[3].isNotBlank()) triyaj?.coz(p[3]) else null
+                // an unrecognised or off-topic message still goes out as a call for rescue: missing a call costs more
+                val tur = p[0].takeIf { it in Cagri.TURLER } ?: k?.tur?.takeIf { it in Cagri.TURLER } ?: "enkaz"
+                val ozel = p[2].split(",").filter { it in Cagri.OZEL }.toSet() + (k?.ozel?.filter { it in Cagri.OZEL } ?: emptyList())
+                val json = Cagri.rapor(tur, p[1].toIntOrNull() ?: k?.kisi, ozel, p[3],
+                    loc?.latitude, loc?.longitude, loc?.accuracy, loc?.time ?: System.currentTimeMillis(),
+                    adres = k?.let { mapOf("il" to it.il, "ilce" to it.ilce, "mahalle" to it.mahalle, "sokak" to it.sokak, "bina" to it.bina) } ?: emptyMap(),
+                    aciliyet = k?.aciliyet, model = k != null && p[0] !in Cagri.TURLER)
                 val id = synchronized(this) { node.sendEmergency(json) }
                 show("ACIL_GONDERILDI id=$id konum=${if (loc != null) "var" else "yok"} saat=${saat()}")
             } catch (e: RuntimeException) { show("ERROR ${e.message}") }

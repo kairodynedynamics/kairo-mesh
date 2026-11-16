@@ -82,13 +82,16 @@ struct ContentView: View {
                         .toggleStyle(.button)
                 }
             }
-            TextField("Adres ya da açıklama (isteğe bağlı)", text: $metin, axis: .vertical).accessibilityIdentifier("metin")
+            TextField("Ya da yazın: adres, durum (ör. antakya ürgenpaşa mh enkazdayız 3 kişi)", text: $metin, axis: .vertical)
+                .accessibilityIdentifier("metin")
             Button {
-                if let tur { mesh.emergency(tur: tur, kisi: Int(kisi.trimmingCharacters(in: .whitespaces)), ozel: ozel, metin: metin) }
+                // a situation or some text is enough: the phone reads the text when nothing was tapped
+                mesh.emergency(tur: tur, kisi: Int(kisi.trimmingCharacters(in: .whitespaces)), ozel: ozel, metin: metin)
             } label: {
                 Text("ÇAĞRIYI GÖNDER").font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 50)
             }
-            .buttonStyle(.borderedProminent).tint(kirmizi).disabled(tur == nil)
+            .buttonStyle(.borderedProminent).tint(kirmizi)
+            .disabled(tur == nil && metin.trimmingCharacters(in: .whitespaces).isEmpty)
             .accessibilityIdentifier("acilGonder")
             Text(mesh.acilDurum).font(.headline).accessibilityIdentifier("acilDurum")
         }

@@ -26,6 +26,11 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let path = NWPathMonitor()
     private var online = false
     private let location = CLLocationManager()
+    private lazy var triyaj: Triyaj? = {
+        guard let m = Bundle.main.url(forResource: "triyaj", withExtension: "json"),
+              let w = Bundle.main.url(forResource: "triyaj", withExtension: "bin") else { return nil }
+        return try? Triyaj(meta: Data(contentsOf: m), weights: Data(contentsOf: w))
+    }()
 
     override init() {
         // no identity means no mesh; refusing to start beats inventing a key that is not kept safely
@@ -115,23 +120,34 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         show("KURUM \(k.url)")
     }
 
-    func emergency(tur: String, kisi: Int?, ozel: Set<String>, metin: String) {
+    /// What the caller tapped always wins; the on-device model fills in what is missing from the text.
+    func emergency(tur secilen: String?, kisi: Int?, ozel: Set<String>, metin: String) {
         guard kurumVar else {
             acilDurum = "Kurum kodu tanımlı değil: çağrının gideceği kurumun kodunu Ayarlar'a girin."
             return show("ERROR kurum kodu yok")
         }
         let loc = location.location // GPS works without a network
-        let json = Cagri.rapor(tur: tur, kisi: kisi, ozel: ozel, metin: metin, enlem: loc?.coordinate.latitude,
-                               boylam: loc?.coordinate.longitude, dogruluk: loc?.horizontalAccuracy, zaman: loc?.timestamp ?? Date())
         acilDurum = "Çağrı hazırlanıyor…"
-        // the proof of work takes under a second; let the screen update first
-        DispatchQueue.main.async { [weak self] in
+        let model = triyaj
+        // reading the text and the proof of work take a moment: the text off the main thread, then the node on it
+        DispatchQueue.global(qos: .userInitiated).async {
+            let k = metin.trimmingCharacters(in: .whitespaces).isEmpty ? nil : model?.coz(metin)
+            DispatchQueue.main.async { [weak self] in
             guard let self else { return }
+            let gecerli = Set(Cagri.turler.map(\.0)), ozelGecerli = Set(Cagri.ozel.map(\.0))
+            // an unrecognised or off-topic message still goes out as a call for rescue: missing a call costs more
+            let tur = secilen ?? k.flatMap { gecerli.contains($0.tur) ? $0.tur : nil } ?? "enkaz"
+            let json = Cagri.rapor(tur: tur, kisi: kisi ?? k?.kisi, ozel: ozel.union((k?.ozel ?? []).filter(ozelGecerli.contains)), metin: metin,
+                                   enlem: loc?.coordinate.latitude, boylam: loc?.coordinate.longitude,
+                                   dogruluk: loc?.horizontalAccuracy, zaman: loc?.timestamp ?? Date(),
+                                   adres: ["il": k?.il, "ilce": k?.ilce, "mahalle": k?.mahalle, "sokak": k?.sokak, "bina": k?.bina],
+                                   aciliyet: k?.aciliyet, model: k != nil && secilen == nil)
             do {
                 let id = try self.node.sendEmergency(json)
                 self.acilDurum = "Çağrınız gönderildi (\(Mesh.saat())). Yakındaki telefonlar taşıyor; internete ulaşan ilk telefon kuruma iletecek."
                 self.show("ACIL_GONDERILDI id=\(id) konum=\(loc == nil ? "yok" : "var")")
             } catch { self.show("ERROR \(error)") }
+            }
         }
     }
 

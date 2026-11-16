@@ -145,13 +145,14 @@ class MainActivity : Activity() {
         val ozelSatir = GridLayout(this).apply { columnCount = 3 }
         ozelKutular.forEach { ozelSatir.addView(it.second) }
         acil.addView(ozelSatir)
-        val metin = EditText(this).apply { hint = "Adres ya da açıklama (isteğe bağlı)"; minLines = 2 }
+        val metin = EditText(this).apply { hint = "Ya da yazın: adres, durum (ör. antakya ürgenpaşa mh enkazdayız 3 kişi)"; minLines = 2 }
         acil.addView(metin)
         acil.addView(Button(this).apply {
             text = "ÇAĞRIYI GÖNDER"; textSize = 20f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD)
             background = kutu(Color.rgb(179, 38, 30), Color.rgb(179, 38, 30)); setPadding(0, dp(14), 0, dp(14))
             setOnClickListener {
-                val tur = secilenTur ?: return@setOnClickListener run { durum.text = "Önce durumunuzu seçin (ör. Enkaz altındayım)." }
+                // a situation or some text is enough: the phone reads the text when nothing was tapped
+                val tur = secilenTur ?: if (metin.text.isNotBlank()) "" else return@setOnClickListener run { durum.text = "Durumunuzu seçin ya da kısaca yazın." }
                 val ozel = ozelKutular.filter { it.second.isChecked }.joinToString(",") { it.first }
                 extra("acil", "$tur|${kisi.text.toString().trim()}|$ozel|${metin.text.toString().replace("|", " ")}")
                 durum.text = "Çağrı hazırlanıyor…"

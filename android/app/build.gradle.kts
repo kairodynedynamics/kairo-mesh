@@ -18,6 +18,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+    // on-device triage model (triyaj/model.py agirlik): weights and labels, about 3.4 MB
+    sourceSets["main"].assets.srcDirs("../../triyaj/telefon")
+    androidResources { noCompress += "bin" }
 }
 
 dependencies {

@@ -10,12 +10,14 @@ final class KairoMeshUITests: XCTestCase {
         f.typeText(text)
     }
 
-    // The Bluetooth permission prompt belongs to SpringBoard and would swallow the first taps.
+    // The Bluetooth and location permission prompts belong to SpringBoard and would swallow the first taps. On a fresh
+    // install both appear, one after the other; the location one says "Allow While Using App".
     private func launch(_ app: XCUIApplication) {
         app.launch()
-        let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons.matching(
-            NSPredicate(format: "label IN {'Allow', 'OK', 'İzin Ver', 'Tamam'}")).firstMatch
-        if allow.waitForExistence(timeout: 5) { allow.tap() }
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let allow = springboard.buttons.matching(NSPredicate(format:
+            "label IN {'Allow', 'OK', 'İzin Ver', 'Tamam', 'Allow While Using App', 'Uygulamayı Kullanırken İzin Ver'}")).firstMatch
+        for _ in 0..<3 where allow.waitForExistence(timeout: 5) { allow.tap() }
         XCTAssertTrue(app.staticTexts["code"].waitForExistence(timeout: 10), "pairing code shown")
     }
 
