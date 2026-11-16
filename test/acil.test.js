@@ -113,6 +113,26 @@ test('acil: end to end over HTTP, as a phone with internet would upload it', asy
   }
 });
 
+test('acil: the operator door asks for the dashboard key; a wrong or missing key never shows calls', async () => {
+  const server = gatewayServer(createAuthority({ identity: createIdentity() }), { token: 'gizli-anahtar' }).listen(0);
+  await new Promise((res) => server.once('listening', res));
+  const kok = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const giris = await fetch(kok + '/');
+    assert.equal(giris.status, 200);
+    assert.match(await giris.text(), /action="pano"/);
+    const yanlis = await fetch(kok + '/pano?t=yanlis');
+    assert.equal(yanlis.status, 401);
+    const y = await yanlis.text();
+    assert.match(y, /Anahtar yanlış/);
+    assert.doesNotMatch(y, /kurum panosu<\/title>/);
+    assert.doesNotMatch(await (await fetch(kok + '/pano')).text(), /Anahtar yanlış/, 'no key yet is not a wrong key');
+    assert.match(await (await fetch(kok + '/pano?t=gizli-anahtar')).text(), /kurum panosu<\/title>/);
+  } finally {
+    server.close();
+  }
+});
+
 test('acil: a malformed report cannot crash the dashboard, nor after a restart, nor jump the queue', async () => {
   const { mkdtempSync } = await import('node:fs');
   const { join } = await import('node:path');

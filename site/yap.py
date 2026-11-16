@@ -232,7 +232,9 @@ def operator_yonlendirme():
         return ""
     adres = adres_dosyasi.read_text(encoding="utf-8").strip().rstrip("/")
     assert re.fullmatch(r"https://[a-z0-9-]+\.trycloudflare\.com", adres), adres
-    return f'[[redirects]]\n  from = "/operator/*"\n  to = "{adres}/:splat"\n  status = 200\n  force = true\n\n'
+    # "/operator" itself opens the operator's sign-in page; its relative "pano" link needs the trailing slash
+    return ('[[redirects]]\n  from = "/operator"\n  to = "/operator/"\n  status = 301\n  force = true\n\n'
+            f'[[redirects]]\n  from = "/operator/*"\n  to = "{adres}/:splat"\n  status = 200\n  force = true\n\n')
 
 
 # IndexNow (Bing, Yandex, Seznam; Bing'in dizinini kullanan arama ve yapay zekâ araçları): anahtar dosyası sitede durur.

@@ -196,6 +196,20 @@ belirtilerini gösterir; hiçbir çağrı gizlenmez, karar görevlinindir.</p>
 <tbody>${rows}</tbody></table></body></html>`;
 }
 
+function giris(yanlis) {
+  return `<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex"><title>KairoMesh — operatör girişi</title><style>
+body{font:17px system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#f2f2f7;color:#1c1c1e}
+form{background:#fff;padding:28px;border-radius:18px;width:min(380px,90vw);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+h1{font-size:22px;margin:0 0 6px}p{color:#48484a;margin:0 0 18px;font-size:15px}
+input{width:100%;box-sizing:border-box;font:inherit;padding:12px;border:1px solid #d1d1d6;border-radius:12px}
+button{margin-top:12px;width:100%;font:inherit;font-weight:600;padding:13px;border:0;border-radius:12px;background:#b3261e;color:#fff}
+.h{color:#b3261e;font-weight:600}</style></head><body><form method="get" action="pano">
+<h1>Operatör panosu</h1><p>Gelen yardım çağrılarını görmek için pano anahtarını girin.</p>
+${yanlis ? '<p class="h">Anahtar yanlış.</p>' : ''}<input name="t" type="password" autocomplete="current-password" aria-label="Pano anahtarı" required autofocus>
+<button>Panoyu aç</button></form></body></html>`;
+}
+
 // HTTP front. Gateways (any phone with internet): POST /v1/acil (raw envelope -> raw 16-byte receipt) and
 // GET /v1/duyuru (current signed announcements, hex, JSON). Dispatchers, with `token`: GET /pano,
 // GET /v1/acil (JSON) and POST /v1/duyuru (text -> signed announcement). TLS belongs to the deployment's
@@ -239,7 +253,13 @@ export function gatewayServer(authority, { token = null } = {}) {
       res.writeHead(200, { 'content-type': 'application/json' });
       return res.end(JSON.stringify(authority.notices.map((n) => n.frame.toString('hex'))));
     }
-    if (!authorised(req)) return res.writeHead(path === '/pano' || path.startsWith('/v1/') ? 401 : 404).end();
+    const html = { 'content-type': 'text/html; charset=utf-8' };
+    // the operator's door: a form for the dashboard key (a key in the URL also works, for bookmarks)
+    if (path === '/' && req.method === 'GET') return res.writeHead(200, html).end(giris(false));
+    if (!authorised(req)) {
+      if (path === '/pano') return res.writeHead(401, html).end(giris(new URL(req.url, 'http://x').searchParams.has('t')));
+      return res.writeHead(path.startsWith('/v1/') ? 401 : 404).end();
+    }
     if (path === '/pano') return res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(dashboard(authority));
     if (path === '/v1/acil' && req.method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
