@@ -33,8 +33,10 @@ jobs:
       - run: swift test
 
   ios:
-    # Intel pool: the arm64 macOS pool had no capacity (jobs cancelled unassigned, 2026-11-16)
-    runs-on: macos-15-intel
+    # arm64 pool; the Intel pool cancelled jobs mid-step (being retired). The app is built and uploaded
+    # before the slow simulator tests, so a cut-off run still leaves a downloadable build.
+    runs-on: macos-15
+    timeout-minutes: 75
     defaults: { run: { working-directory: ios } }
     steps:
       - uses: actions/checkout@v4
@@ -50,6 +52,15 @@ jobs:
           pick() { xcrun simctl list devices available -j | python3 -c "import json,sys; print(next(d['udid'] for r,ds in json.load(sys.stdin)['devices'].items() if 'iOS' in r for d in ds if d['name'].startswith('$1')))"; }
           echo "iphone=$(pick iPhone)" >> "$GITHUB_OUTPUT"
           echo "ipad=$(pick iPad)" >> "$GITHUB_OUTPUT"
+      - name: Build the app for the simulator (downloadable)
+        working-directory: ios/App
+        run: |
+          set -o pipefail
+          xcodebuild build -project KairoMesh.xcodeproj -scheme KairoMesh -configuration Debug -sdk iphonesimulator \
+            -derivedDataPath ../.build/dd | tail -3
+          cd ../.build/dd/Build/Products/Debug-iphonesimulator && ditto -c -k --keepParent KairoMesh.app ../../../../KairoMesh-simulator.zip
+      - uses: actions/upload-artifact@v4
+        with: { name: KairoMesh-ios-simulator, path: ios/.build/KairoMesh-simulator.zip }
       - name: Build and test on both simulators
         working-directory: ios/App
         run: |
@@ -75,13 +86,3 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: ios-test-results, path: ios/.build/results.xcresult, if-no-files-found: ignore }
-      - name: Build the app for the simulator (downloadable)
-        if: success()
-        working-directory: ios/App
-        run: |
-          xcodebuild build -project KairoMesh.xcodeproj -scheme KairoMesh -configuration Debug -sdk iphonesimulator \
-            -derivedDataPath ../.build/dd | tail -3
-          cd ../.build/dd/Build/Products/Debug-iphonesimulator && ditto -c -k --keepParent KairoMesh.app ../../../../KairoMesh-simulator.zip
-      - uses: actions/upload-artifact@v4
-        if: success()
-        with: { name: KairoMesh-ios-simulator, path: ios/.build/KairoMesh-simulator.zip }
