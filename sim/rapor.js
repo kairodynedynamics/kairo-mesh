@@ -21,7 +21,17 @@ if (satirlar.length) {
 }
 const baslik = ['Koşul', ...SURE, 'Ulaşanlarda medyan süre', 'Çağrı'];
 
-if (process.argv[2] === 'html') {
+if (process.argv[2] === 'grafik') {
+  // ana sayfadaki kaydırmayla dolan çubuklar: 3. saat ve 12. saat
+  const satir = (ad, d, sinif) => `<div class="cizelge-satir ${sinif}"><span class="cizelge-ad">${ad}</span>`
+    + [2, 4].map((i) => `<span class="cizelge-cubuk" style="--deger:${Math.round(d[i] * 100)}"><i></i><b>%${Math.round(d[i] * 100)}</b></span>`).join('') + '</div>';
+  const b = satirlar[0];
+  let out = '<div class="cizelge" aria-label="Enkaz altından gelen çağrıların kuruma ulaşma oranı">'
+    + '<div class="cizelge-satir baslik"><span></span><span>3 saatte</span><span>12 saatte</span></div>';
+  if (b) out += satir('Bugün', b.bugun, 'bugun');
+  for (const r of satirlar) out += satir(`Kairo Mesh, nüfusun %${Math.round(r.yayginlik * 100)}${ek(Math.round(r.yayginlik * 100))}${r.ekipAgGecidi ? ' + ekipte uydu telefonu' : ''}`, r.kairo, r.ekipAgGecidi ? 'ekip' : 'kairo');
+  console.log(out + '</div>');
+} else if (process.argv[2] === 'html') {
   console.log('<div class="tablo"><table><thead><tr>' + baslik.map((h) => `<th>${h}</th>`).join('') + '</tr></thead><tbody>'
     + kayit.map((r, i) => `<tr${i < kayit.length - 1 ? ' class="vurgu"' : ''}>` + r.map((c) => `<td>${c}</td>`).join('') + '</tr>').join('')
     + '</tbody></table></div>');

@@ -15,6 +15,7 @@ Yayın hedefleri:
 import argparse
 import html
 import json
+import re
 import shutil
 import subprocess
 from datetime import date
@@ -108,6 +109,13 @@ def sar(dosya, baslik, aciklama, govde):
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="stil.css">
+<script>
+// İlk boyamadan önce: hareket katmanı açılacak (görününce açılan öğeler gizli başlar). hareket.js yüklenmezse
+// 3 saniye sonra geri alınır; içerik asla gizli kalmaz.
+(function(k){{k.classList.add('js');if(matchMedia('(prefers-reduced-motion: reduce)').matches)k.classList.add('az-hareket');
+setTimeout(function(){{if(!window.kairoHareket)k.classList.remove('js');}},3000);}})(document.documentElement);
+</script>
+<script src="hareket.js" defer></script>
 <script type="application/ld+json">{ld}</script>
 </head>
 <body>
@@ -175,6 +183,13 @@ def derle():
             govde = govde.replace("<!--AFET_TABLO-->", subprocess.run(["node", str(URUN / "sim" / "rapor.js"), "html"],
                                   capture_output=True, text=True, encoding="utf-8", check=True).stdout)
         govde = govde.replace("<!--TRIYAJ_TABLO-->", triyaj_tablosu()) if "<!--TRIYAJ_TABLO-->" in govde else govde
+        if "<!--AFET_GRAFIK-->" in govde:
+            govde = govde.replace("<!--AFET_GRAFIK-->", subprocess.run(["node", str(URUN / "sim" / "rapor.js"), "grafik"],
+                                  capture_output=True, text=True, encoding="utf-8", check=True).stdout)
+        if "<!--TRIYAJ_SAYI:" in govde:  # <!--TRIYAJ_SAYI:test.tur--> -> %64,8 (olcum.json'dan)
+            o = json.loads((URUN / "triyaj" / "model" / "olcum.json").read_text(encoding="utf-8"))
+            govde = re.sub(r"<!--TRIYAJ_SAYI:(\w+)\.(\w+)-->",
+                           lambda m: "%" + f"{100 * o[m[1]][m[2]]:.1f}".replace(".", ","), govde)
         (CIKTI / f"{dosya}.html").write_text(sar(dosya, baslik, aciklama, govde), encoding="utf-8")
     for eski in ESKI:
         (CIKTI / f"{eski}.html").write_text(yonlendirme(), encoding="utf-8")

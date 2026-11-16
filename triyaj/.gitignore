@@ -2,3 +2,8 @@ veri/
 model/*.npz
 model/*.log
 __pycache__/
+onegitim/
+model/v2/
+model/v3-genis-dagarcik/
+model/*.txt
+model/triyaj-v1.pt

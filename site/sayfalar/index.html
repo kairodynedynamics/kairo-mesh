@@ -1,71 +1,101 @@
-<section class="bolum ilk">
-  <div class="sar kahraman">
-    <div>
-      <span class="etiket acil">Afet haberleşmesi · Yerli geliştirme</span>
-      <h1>Şebeke çöktüğünde de yardım çağrısı kuruma ulaşır.</h1>
-      <p class="lede">Kairo Mesh, cep telefonlarının internet ve baz istasyonu olmadan, Bluetooth ile birbirinin şifreli mesajını taşıdığı bir haberleşme sistemidir. Enkaz altındaki bir telefondan yazılan yardım çağrısı, çevredeki telefonlar üzerinden taşınır ve internete ulaşan ilk telefon onu arka planda kuruma iletir.</p>
-      <div class="dugmeler">
-        <a class="dugme birincil" href="acil-aktarim.html">Acil aktarım nasıl çalışır</a>
-        <a class="dugme" href="simulasyon.html">Simülasyonu tarayıcıda çalıştırın</a>
-      </div>
+<section class="acilis" data-tema="koyu" data-sahne="gorunum">
+  <canvas data-ag aria-hidden="true"></canvas>
+  <div class="sar acilis-ic">
+    <span class="etiket acil">Afet haberleşmesi · Yerli geliştirme</span>
+    <h1>Şebeke çöktüğünde de yardım çağrısı kuruma ulaşır.</h1>
+    <p class="lede">Kairo Mesh'te cep telefonları internet ve baz istasyonu olmadan, Bluetooth ile birbirinin şifreli mesajını taşır. Enkaz altından yazılan çağrı çevredeki telefonlardan geçer; internete ulaşan ilk telefon onu arka planda 112'ye ya da afet birimine iletir.</p>
+    <div class="dugmeler">
+      <a class="dugme birincil" href="#yolculuk">Bir çağrının yolculuğu</a>
+      <a class="dugme hayalet" href="kurumlar.html">Kurumlar için</a>
     </div>
-    <figure class="sekil" aria-labelledby="sekil-akis">
-      <svg viewBox="0 0 420 300" role="img" aria-labelledby="sekil-akis-baslik">
-        <title id="sekil-akis-baslik">Yardım çağrısı telefondan telefona taşınır, internete ulaşan telefon kuruma iletir</title>
-        <g fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--cizgi2)">
-          <path d="M70 230 C 130 230, 130 160, 190 160" stroke-dasharray="5 5"/>
-          <path d="M230 160 C 280 160, 280 90, 320 90" stroke-dasharray="5 5"/>
-          <path d="M350 70 L 350 40" />
-        </g>
-        <g style="color: var(--acil)"><rect x="40" y="200" width="44" height="72" rx="8" fill="none" stroke="currentColor" stroke-width="2.5"/>
-          <path d="M62 222 v14 M62 242 v3" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></g>
-        <text x="62" y="292" text-anchor="middle" font-size="13" fill="currentColor" style="color: var(--metin2)">Şebekesiz</text>
-        <g style="color: var(--vurgu)"><rect x="188" y="128" width="44" height="72" rx="8" fill="none" stroke="currentColor" stroke-width="2.5"/>
-          <path d="M200 164 h20 M210 154 v20" stroke="currentColor" stroke-width="2" opacity=".7"/></g>
-        <text x="210" y="220" text-anchor="middle" font-size="13" fill="currentColor" style="color: var(--metin2)">Taşıyıcı telefon</text>
-        <g style="color: var(--vurgu)"><rect x="318" y="62" width="44" height="72" rx="8" fill="none" stroke="currentColor" stroke-width="2.5"/>
-          <path d="M328 92 q12 -12 24 0 M332 98 q8 -7 16 0" fill="none" stroke="currentColor" stroke-width="2"/></g>
-        <text x="340" y="152" text-anchor="middle" font-size="13" fill="currentColor" style="color: var(--metin2)">İnternetli telefon</text>
-        <g style="color: var(--metin)"><rect x="300" y="6" width="100" height="32" rx="8" fill="none" stroke="currentColor" stroke-width="2"/>
-          <text x="350" y="27" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor">112 / Kurum</text></g>
-      </svg>
-      <figcaption id="sekil-akis">Mesaj kuruma mühürlenir; taşıyan telefonlar içeriği ve konumu göremez.</figcaption>
-    </figure>
+    <ul class="lejant" aria-label="Arka plandaki ağ">
+      <li><i class="n-acil"></i>Enkaz altındaki telefon</li>
+      <li><i class="n-tel"></i>Taşıyan telefonlar</li>
+      <li><i class="n-internet"></i>İnternete ulaşan telefon</li>
+      <li><i class="n-kurum"></i>Kurum</li>
+    </ul>
   </div>
+  <a class="asagi" href="#sorun" aria-label="Aşağı kaydırın"><span></span></a>
 </section>
 
-<section class="bolum">
+<section class="bolum" id="sorun">
   <div class="sar">
     <span class="etiket">Sorun</span>
     <h2>Yardım en çok gerektiğinde şebeke ilk gidenlerden biri oluyor.</h2>
-    <p>6 Şubat 2023 depremlerinde bölgedeki baz istasyonlarının önemli bir kısmı hasar, elektrik kesintisi ve jeneratör yakıtının bitmesi nedeniyle servis dışı kaldı. Bir teknik analize göre üç operatörün bölgedeki 8.900 baz istasyonundan 2.451'i ağır hasar gördü; mobil şebekenin yeniden %90'ın üzerine çıkması beşinci günü buldu. Enkaz altında şarjı olan telefonlar vardı ama mesajlar çıkamıyordu.</p>
-    <p>Bugünkü afet uygulamalarının çoğu internet ister. Bluetooth ile çalışan mesajlaşma uygulamaları ise mesajı yalnız yakındaki kişiye ulaştırır: o kişi mesajı görmeyebilir, ciddiye almayabilir ya da kendisi de yardım bekliyor olabilir.</p>
+    <div class="sayilar buyuk">
+      <div class="sayi"><b data-sayi="2451">2.451</b><span>baz istasyonu 6 Şubat 2023'te ağır hasar gördü (bölgedeki 8.900 istasyondan)</span></div>
+      <div class="sayi"><b data-sayi="5" data-son=". gün">5. gün</b><span>mobil şebekenin yeniden %90'ın üzerine çıktığı gün</span></div>
+      <div class="sayi acil"><b data-sayi="34" data-on="%">%34</b><span>simülasyonda bugünkü durumda enkaz altından gelen çağrıların 12 saatte kuruma ulaşan payı</span></div>
+    </div>
+    <p>Enkaz altında şarjı olan telefonlar vardı ama mesajlar çıkamıyordu. Afet uygulamalarının çoğu internet ister. Bluetooth mesajlaşma uygulamaları ise mesajı yalnızca yakındaki kişiye ulaştırır: o kişi mesajı görmeyebilir ya da kendisi de yardım bekliyor olabilir.</p>
   </div>
 </section>
 
-<section class="bolum">
-  <div class="sar">
-    <span class="etiket">Çözüm</span>
-    <h2>Yardım çağrısı bir kişiye değil, kuruma gider.</h2>
-    <ol class="adimlar">
-      <li><div><h3>Yazılır ve telefonda anlamlandırılır</h3><p>Kullanıcı aceleyle, bozuk da olsa yazar. Telefondaki model mesajdan olay türünü, aciliyeti, kişi sayısını ve adresi çıkarır; GPS konumu eklenir. GPS şebeke gerektirmez.</p></div></li>
-      <li><div><h3>Kuruma mühürlenir</h3><p>Mesaj, uygulamaya gömülü kurum anahtarıyla uluslararası Noise standardına göre şifrelenir. Yolda taşıyan hiç kimse içeriği, konumu ya da göndereni göremez.</p></div></li>
-      <li><div><h3>Çevredeki telefonlar taşır</h3><p>Uygulamanın yüklü olduğu her telefon, sahibi hiçbir şey yapmadan mesajı taşır. Acil mesajlar her zaman önce iletilir ve internete daha sık erişen telefonlara yönelir.</p></div></li>
-      <li><div><h3>İnternete ulaşan ilk telefon iletir</h3><p>İnterneti olan herhangi bir telefon mesajı arka planda kurumun sunucusuna yükler. Kurum, yalnız kendisinin üretebileceği bir makbuz döner; makbuz ağda geri yayılır ve gönderen "kurum aldı" bilgisini görür.</p></div></li>
-    </ol>
+<section class="yolculuk" id="yolculuk" data-sahne="yapiskan" aria-labelledby="yolculuk-baslik">
+  <div class="yolculuk-sahne">
+    <div class="sar yolculuk-ic">
+      <div class="yolculuk-metin">
+        <span class="etiket">Çözüm</span>
+        <h2 id="yolculuk-baslik">Yardım çağrısı bir kişiye değil, kuruma gider.</h2>
+        <ol class="y-adimlar">
+          <li data-adim data-no="1"><b>Yazılır</b><span>Dokunarak ya da bozuk yazıyla. Telefondaki model mesajdan olay türünü, kişi sayısını ve adresi çıkarır; GPS eklenir. GPS şebeke istemez.</span></li>
+          <li data-adim data-no="2"><b>Mühürlenir</b><span>Kurumun anahtarına, uluslararası Noise standardıyla. Yolda taşıyan hiç kimse içeriği, konumu ya da göndereni göremez.</span></li>
+          <li data-adim data-no="3"><b>Taşınır</b><span>Uygulaması olan her telefon, sahibi hiçbir şey yapmadan taşır. Acil çağrı her zaman önce gider.</span></li>
+          <li data-adim data-no="4"><b>İletilir</b><span>İnternete ulaşan ilk telefon arka planda kuruma yükler. Kurumun makbuzu ağda geri döner: "Kurum çağrınızı aldı."</span></li>
+        </ol>
+      </div>
+      <figure class="yolculuk-cizim">
+        <svg viewBox="0 0 640 380" role="img" aria-label="Enkaz altındaki telefondan çıkan mühürlü çağrı üç taşıyıcı telefondan geçip internete ulaşan telefona, oradan kuruma gider; makbuz aynı yoldan geri döner.">
+          <g class="y-enkaz"><path d="M18 360 L40 318 L64 336 L92 312 L128 338 L150 360 Z"/><path d="M96 360 L118 330 L150 344 L176 360 Z" opacity=".7"/></g>
+          <path class="y-hat" d="M70 300 L200 200 L320 240 L430 170 L520 140" fill="none"/>
+          <g class="y-menzil"><circle cx="200" cy="200" r="46"/><circle cx="320" cy="240" r="46"/><circle cx="430" cy="170" r="46"/></g>
+          <g class="y-tel acil"><rect x="57" y="278" width="26" height="44" rx="5"/><path d="M70 290 v10 M70 305 v2"/></g>
+          <g class="y-tel"><rect x="188" y="180" width="24" height="40" rx="5"/></g>
+          <g class="y-tel"><rect x="308" y="220" width="24" height="40" rx="5"/></g>
+          <g class="y-tel"><rect x="418" y="150" width="24" height="40" rx="5"/></g>
+          <g class="y-tel internet"><rect x="507" y="118" width="26" height="44" rx="5"/><path d="M510 108 q10 -9 20 0 M514 113 q6 -5 12 0" fill="none"/></g>
+          <path class="y-kurum-hat" d="M528 108 L578 66" fill="none"/>
+          <g class="y-kurum"><rect x="560" y="24" width="64" height="42" rx="6"/><text x="592" y="51" text-anchor="middle">112</text></g>
+          <g class="y-balon"><rect x="16" y="150" width="210" height="34" rx="10"/><path d="M60 184 l10 12 l6 -12"/><text x="28" y="172">enkazdayız 3 kş bebek var acill</text></g>
+          <g class="y-kayit"><rect x="16" y="200" width="104" height="22" rx="11"/><text x="28" y="215">tür: enkaz · 1</text></g>
+          <g class="y-kayit"><rect x="16" y="228" width="76" height="22" rx="11"/><text x="28" y="243">kişi: 3</text></g>
+          <g class="y-kayit"><rect x="98" y="228" width="92" height="22" rx="11"/><text x="110" y="243">özel: bebek</text></g>
+          <g class="y-kayit"><rect x="16" y="256" width="112" height="22" rx="11"/><text x="28" y="271">GPS ±12 m</text></g>
+          <g class="y-zarf"><rect x="54" y="290" width="32" height="22" rx="3"/><path d="M54 292 L70 304 L86 292" fill="none"/>
+            <g class="y-kilit"><rect x="63" y="272" width="14" height="11" rx="2"/><path d="M66 272 v-4 a4 4 0 0 1 8 0 v4" fill="none"/></g></g>
+          <g class="y-makbuz"><circle r="10"/><path d="M-4 0 l3 3 l5 -6" fill="none"/></g>
+          <g class="y-tamam"><rect x="92" y="290" width="150" height="26" rx="13"/><text x="104" y="308">✓ Kurum aldı</text></g>
+        </svg>
+      </figure>
+    </div>
   </div>
 </section>
 
-<section class="bolum">
+<section class="bolum" data-tema="koyu" id="olcum">
   <div class="sar">
-    <span class="etiket">Ölçüm</span>
-    <h2>İddia değil, herkesin tekrar edebileceği ölçüm.</h2>
-    <p>Aşağıdaki rakamlar simülasyondandır ve yöntemleriyle birlikte <a href="dogrulama.html">doğrulama sayfasında</a> yayımlanmıştır. Kod açıktır; aynı ölçümü <a href="simulasyon.html">tarayıcınızda</a> çalıştırabilirsiniz.</p>
-    <div class="sayilar">
-      <div class="sayi"><b>%99,5</b><span>teslim oranı, 80 kişi, 2×2 km, mesaj başına 4 kopya (yaygın kuralda %89,8)</span></div>
-      <div class="sayi"><b>Yarı</b><span>depolama ile aynı teslim oranı: telefon başına daha az yük</span></div>
-      <div class="sayi"><b>2–4,6×</b><span>daha az paketle, kayıplı bağlantıda büyük içeriğin tamamlanması</span></div>
-      <div class="sayi"><b>66</b><span>otomatik test: Android, iOS ve referans uygulama bayt bayt uyumlu</span></div>
+    <span class="etiket">Deprem simülasyonu</span>
+    <h2>Enkaz altından gelen çağrı kuruma ne zaman ulaşır?</h2>
+    <p class="lede">4.000 kişilik bir yerleşim. Merkezde şebeke yok, çevrede sıkışık. Mobil baz istasyonu 8. saatte geliyor. Telefonlarda ürünün kendi kodu, karşıda gerçek kurum sunucusu çalışıyor.</p>
+    <!--AFET_GRAFIK-->
+    <p class="kucuk soluk">Her satır 5 rastgele dünyanın toplamıdır (150 çağrı). Bluetooth menzili ve insan hareketi tahmindir; rakamlar sahada doğrulanmadı. <a href="simulasyon.html">Tam tablo ve yöntem</a></p>
+  </div>
+</section>
+
+<section class="bolum" id="triyaj">
+  <div class="sar iki ortala">
+    <div>
+      <span class="etiket">Telefonda Türkçe anlamlandırma</span>
+      <h2>Panikte bozuk yazılmış mesaj, kurumun okuyabileceği kayda dönüşür.</h2>
+      <p>Telefondaki 3,4 MB'lık model internet istemez. Eğitimde hiç geçmeyen ifadelerde olay türünü <b><!--TRIYAJ_SAYI:test.tur--></b>, ili <b><!--TRIYAJ_SAYI:test.il--></b>, kişi sayısını <b><!--TRIYAJ_SAYI:test.kisi--></b> doğrulukla buluyor. Model hayati bir çağrıyı bazen düşük sınıfladığı için yazıyla gelen her çağrı en az "acil" gönderilir; bu kuralla hayati çağrı kaçırma <b>%0</b>.</p>
+      <p><a href="dogrulama.html#triyaj">Ölçüm ve sınırlamalar</a></p>
+    </div>
+    <div class="donusum" data-goster>
+      <p class="ham">"HATAY ANTKYA ürgenpaşa mh ataturk cd enkaz altındayız 3 kş bebek var acilll"</p>
+      <dl>
+        <div><dt>Olay</dt><dd>enkaz</dd></div><div><dt>Aciliyet</dt><dd class="acil">1 · hayati</dd></div>
+        <div><dt>Kişi</dt><dd>3</dd></div><div><dt>Yanında</dt><dd>bebek</dd></div>
+        <div class="genis"><dt>Yer</dt><dd>Hatay / Antakya / Ürgenpaşa Mh / Atatürk Cd</dd></div>
+      </dl>
     </div>
   </div>
 </section>
@@ -73,12 +103,14 @@
 <section class="bolum">
   <div class="sar">
     <span class="etiket">Güvenlik</span>
-    <h2>Afet anında da gizlilik.</h2>
-    <div class="izgara">
-      <div class="kart"><h3>Standart şifreleme</h3><p>Zarf, Noise protokolünün X kalıbıdır ve yayımlanmış bir test vektörüyle üç platformda bayt bayt doğrulanır. Kendi icadımız şifreleme yoktur.</p></div>
-      <div class="kart"><h3>Taklit edilemez makbuz</h3><p>"Ulaştı" bilgisini yalnız alıcı ya da kurum üretebilir. Kendini alıcı gibi gösteren biri taşıyıcılara mesaj sildiremez.</p></div>
-      <div class="kart"><h3>İzlenemeyen cihaz</h3><p>Telefonun havadaki kimliği 15 dakikada bir değişir; yalnız rehberindeki kişiler onu tanıyabilir.</p></div>
-      <div class="kart"><h3>Pil dostu</h3><p>Pil %20'nin altına inince ya da güç tasarrufunda telefon başkasının mesajını taşımayı bırakır; kendi mesajlarını göndermeye devam eder.</p></div>
+    <h2>Afet anında da gizlilik ve dayanıklılık.</h2>
+    <div class="bento">
+      <div class="kart genis"><h3>Standart şifreleme</h3><p>Zarf, Noise protokolünün X kalıbıdır. Android, iOS ve referans uygulama yayımlanmış test vektörünü bayt bayt üretir. Kendi icadımız şifreleme yoktur.</p></div>
+      <div class="kart"><h3>Taklit edilemez makbuz</h3><p>"Ulaştı" bilgisini yalnızca kurum üretebilir; sahte bir alıcı taşıyıcılara mesaj sildiremez.</p></div>
+      <div class="kart"><h3>Sahte çağrıya kota</h3><p>Her acil çağrı küçük bir iş kanıtı taşır; binlerce sahte çağrı üretmek pahalıdır.</p></div>
+      <div class="kart"><h3>İmzalı kurum duyurusu</h3><p>Toplanma alanı, su noktası: Ed25519 imzalı; sahte duyuru telefonda reddedilir.</p></div>
+      <div class="kart"><h3>İzlenemeyen cihaz</h3><p>Telefonun havadaki kimliği 15 dakikada bir değişir.</p></div>
+      <div class="kart genis"><h3>Kaybolmayan çağrı, pil dostu taşıma</h3><p>Kurum onaylayana kadar çağrı telefonda saklanır ve uygulama yeniden açılınca tekrar gönderilir. Pil %20'nin altındaysa telefon başkasının mesajını taşımaz, kendi çağrısını yine gönderir.</p></div>
     </div>
   </div>
 </section>
@@ -91,14 +123,12 @@
     <div class="tablo"><table>
       <thead><tr><th>Bileşen</th><th>Durum</th></tr></thead>
       <tbody>
-        <tr><td>Yönlendirme algoritması, simülatör, tekrar edilebilir ölçümler</td><td class="ok">Tamam</td></tr>
-        <tr><td>Standart şifreleme (Noise X), makbuz, dönen kimlik, parçalı aktarım</td><td class="ok">Tamam</td></tr>
-        <tr><td>Android uygulaması (Bluetooth LE), üç sanal telefonda uçtan uca</td><td class="ok">Tamam</td></tr>
-        <tr><td>iOS çekirdeği ve uygulaması, iPhone ve iPad simülatörlerinde</td><td class="ok">Tamam</td></tr>
-        <tr><td>Acil aktarım (kuruma mühür, arka planda iletim, makbuz) — referans uygulama</td><td class="ok">Tamam</td></tr>
-        <tr><td>Türkçe yardım mesajı anlamlandırma: 1 milyon örneklik veri seti ve ölçüm</td><td class="ok">Tamam</td></tr>
-        <tr><td>Acil aktarımın Android ve iOS uygulamalarına taşınması</td><td class="yok">Sürüyor</td></tr>
-        <tr><td>Telefonda çalışan anlamlandırma modelinin eğitimi</td><td class="yok">Sürüyor</td></tr>
+        <tr><td>Yönlendirme, standart şifreleme (Noise X), makbuz, dönen kimlik, parçalı aktarım</td><td class="ok">Tamam</td></tr>
+        <tr><td>Android ve iOS uygulamaları: mesajlaşma ve acil çağrı ekranı, arka planda kuruma iletim</td><td class="ok">Tamam</td></tr>
+        <tr><td>Kurum sunucusu: çağrı kaydı, aciliyete göre sıralı pano, imzalı duyuru</td><td class="ok">Tamam</td></tr>
+        <tr><td>Deprem senaryosu simülasyonu, ürünün kendi koduyla</td><td class="ok">Tamam</td></tr>
+        <tr><td>Telefonda Türkçe yardım mesajı anlamlandırma (görülmemiş ifadelerde iyileştirme sürüyor)</td><td class="yok">Sürüyor</td></tr>
+        <tr><td>Üç sanal telefonda acil çağrının uçtan uca testi</td><td class="yok">Sürüyor</td></tr>
         <tr><td>Gerçek telefonlarla saha tatbikatı</td><td class="yok">Planlandı</td></tr>
         <tr><td>Bağımsız güvenlik denetimi</td><td class="yok">Planlandı</td></tr>
       </tbody>
@@ -106,18 +136,17 @@
   </div>
 </section>
 
-<section class="bolum">
-  <div class="sar iki">
+<section class="bolum kapanis" data-tema="koyu">
+  <div class="sar iki ortala">
     <div>
       <span class="etiket">Kurumlar için</span>
       <h2>Pilot ortağı arıyoruz.</h2>
-      <p>Afet ve acil durum birimleri, belediyeler, arama-kurtarma dernekleri ve mobil operatörlerle saha tatbikatı yapmak istiyoruz. Sistem kurumun kendi anahtarı ve sunucusuyla çalışır; veri kurumda kalır.</p>
-      <div class="dugmeler"><a class="dugme birincil" href="kurumlar.html">Lisans ve pilot</a></div>
+      <p>Afet ve acil durum birimleri, belediyeler, arama-kurtarma kuruluşları ve operatörlerle saha tatbikatı yapmak istiyoruz. Sistem kurumun kendi anahtarı ve sunucusuyla çalışır; veri kurumda kalır.</p>
+      <div class="dugmeler"><a class="dugme birincil" href="kurumlar.html">Lisans ve pilot</a><a class="dugme hayalet" href="https://github.com/kairodynedynamics/kairo-mesh">Kaynak kod</a></div>
     </div>
     <div class="kart">
-      <h3>Açık kaynak çekirdek</h3>
-      <p>Protokol çekirdeği AGPL-3.0 lisansıyla açıktır; isteyen herkes inceleyebilir ve ölçümleri tekrarlayabilir. Kapalı kaynak uygulamalara ve kurumsal kurulumlara ticari lisans verilir.</p>
-      <p style="margin-top:12px"><a href="https://github.com/kairodynedynamics/kairo-mesh">Kaynak kodu GitHub'da</a></p>
+      <h3>Açık ve denetlenebilir</h3>
+      <p>Protokol çekirdeği AGPL-3.0 ile açıktır; herkes inceleyebilir ve ölçümleri tekrarlayabilir. Kapalı kaynak uygulamalara ve kurumsal kurulumlara ticari lisans verilir.</p>
     </div>
   </div>
 </section>

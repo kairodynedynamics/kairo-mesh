@@ -400,6 +400,57 @@ OLAY = {
                  "çok korktuk", "haberleri izliyorum", "yardım kampanyası başlattık", "sorumlular hesap versin", "dua edelim",
                  "milletçe yanınızdayız|T", "sabırlar diliyorum|T", "büyüklüğü ne kadarmış|T"],
 }
+# Eğitim dağarcığı genişletmesi (v3): aynı olayı başka kelimelerle anlatan ifadeler. Görülmemiş ifadelerdeki
+# zayıflığın kaynağı dar dağarcıktı. Hiçbiri test (|T) ifadeleriyle anlamlı bir kelime kökü paylaşmaz: aşağıdaki
+# denetim bunu zorunlu kılar, yoksa test görülmemiş ifadeyi ölçmez olur.
+OLAY_EK = {
+    "enkaz": ["göçükte sıkıştık", "moloz yığınının altındayız", "duvarlar üstüme yıkıldı", "kapı sıkıştı bina hasarlı çıkamıyoruz",
+              "kat kat çöktü içerdeyiz", "altında kaldım ses veriyorum", "sesimizi duyan var mı enkazdayız", "toz içindeyiz nefes zor",
+              "dördüncü katta mahsuruz merdiven yok", "asansör boşluğundayız", "kurtarın bizi bina yıkık", "yıkık binanın bodrumundayız",
+              "döşeme üstümüzde", "beton parçaları altında", "molozdan çıkamıyoruz", "bina oturdu içerdeyiz", "zemin kat çöktü",
+              "üst kat üstümüze indi", "gömüldük", "enkazda canlı var", "duvara vurarak ses veriyoruz", "taş toprak altındayız",
+              "{R} molozun altında", "{R} göçüğün içinde sesi geliyor"],
+    "saglik": ["nefesi daralıyor", "göğsü ağrıyor", "baygın yatıyor", "kendinden geçti", "kafası yarıldı", "kan revan içinde",
+               "sedye lazım", "yaralı taşımamız lazım", "hastaneye yetiştirmemiz lazım", "kalp hastası ilacı lazım",
+               "kemoterapi hastası var", "doğum yapıyor", "suyu geldi doğuruyor", "çocuk havale geçirdi", "bebek morardı",
+               "derin kesik dikiş lazım", "omzu çıktı", "beli tutuldu kımıldayamıyor", "acı içinde kıvranıyor",
+               "solunum cihazı lazım", "{R} fenalaştı", "{R} kriz geçirdi ambulans"],
+    "yangin": ["alev aldı her taraf", "yangın var itfaiye gelsin", "kara duman çıkıyor", "elektrik kontağı yangın", "soba devrildi yangın",
+               "tüp patladı", "kömürlük yanıyor", "çadır yandı", "ev kül oluyor", "alevlerin içindeyiz", "boğuluyoruz duman",
+               "yanmaya başladı", "benzin sızdı alev aldı", "bacadan alev çıkıyor"],
+    "barinma": ["evsiz kaldık", "soğukta titriyoruz", "çadır bulamadık", "ayazda bekliyoruz", "kar yağıyor açıktayız",
+                "uyuyacak yer yok", "otobüste barınıyoruz", "kamyonette yatıyoruz", "ev oturulamaz durumda", "ısınamıyoruz",
+                "çocuklar donuyor", "bir çatı lazım", "barınak lazım", "yorgan lazım", "sobamız yok"],
+    "gida_su": ["aç kaldık", "ekmek bulamıyoruz", "su bulamıyoruz", "şişe su lazım", "erzak yardımı", "sıcak yemek lazım",
+                "mama yok bebek ağlıyor", "kuru gıda lazım", "içecek su yok", "günlerdir bir şey yemedik", "musluktan su akmıyor",
+                "gıda kolisi lazım", "açlıktan bayılacağız"],
+    "kayip": ["{A} kayboldu", "{A} yu gören oldu mu", "{A} telefonu kapalı", "{R} kayıp aranıyor", "{A} bulunamadı",
+              "{A} nın akıbeti belli değil", "{A} hangi çadırda", "{A} hastaneye kaldırıldı mı", "{R} ulaşamıyoruz"],
+    "lojistik": ["vinç gönderin", "kepçe yok", "beton delici lazım", "hidrolik makas lazım", "kriko lazım", "aydınlatma lazım",
+                 "mazot lazım", "kamyon lazım", "kesici alet lazım", "ekipman eksik", "dozer lazım"],
+    "guvende": ["ailecek iyiyiz", "çadırdayız iyiyiz", "sağız", "hayattayız", "endişelenmeyin", "güvenli yerdeyiz",
+                "akrabalarımızdayız", "bize bir şey olmadı"],
+    "bilgi": ["ekmek dağıtılıyor", "çadır kenti açıldı", "otoyol kapandı", "yol açıldı", "baz istasyonu çalışıyor",
+              "hastane hizmet veriyor", "seyyar tuvalet var", "jeneratör var şarj edilebilir", "su tankeri geldi"],
+    "alakasiz": ["Allah rahmet eylesin", "çok üzücü", "devlet nerede", "dualarımız sizinle", "kaç kişi öldü",
+                 "artçılar devam ediyor mu", "rabbim korusun", "başsağlığı dileriz"],
+}
+
+
+def _kok(s):
+    return {w[:5] for w in re.findall(r"\w+", s.lower()) if len(w) >= 4}
+
+
+# yalnız testte geçen kökler (eğitimde zaten görülenler, ör. "altında", yasak değil)
+_TEST_KOK = set().union(*[_kok(x) for h in OLAY.values() for x in h if x.endswith("|T")]) - \
+    set().union(*[_kok(x) for h in OLAY.values() for x in h if not x.endswith("|T")])
+_ihlal = [(x, _kok(x) & _TEST_KOK) for h in OLAY_EK.values() for x in h if _kok(x) & _TEST_KOK]
+assert not _ihlal, f"eğitim ifadesi test kelimesi taşıyor: {_ihlal}"
+# Varsayılan kapalı. Denendi (2026-11-16, model/v3-genis-dagarcik/): hayati kaçırma %13,2 -> %11,9 ama olay türü
+# %64,8 -> %57,5. Yalnız kelime eklemek, küçük harf modelinin görmediği kelimenin anlamını bilmemesini çözmüyor.
+if __import__("os").environ.get("TRIYAJ_GENIS") == "1":
+    for _tur, _h in OLAY_EK.items():
+        OLAY[_tur] = OLAY[_tur] + _h
 KISI_IFADE = ["{N} kişiyiz", "{N} kişi var", "içeride {N} kişi var", "{N} kişi mahsur", "toplam {N} kişi", "{N} kişilik aileyiz",
               "{N} can var|T", "biz {N} kişiyiz|T"]
 EK_IFADE = ["acil yardım", "lütfen yardım edin", "ekip gönderin", "kimse gelmedi", "duyan yayılsın", "saatlerdir bekliyoruz",
