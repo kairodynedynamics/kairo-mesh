@@ -56,16 +56,22 @@ class Kurum(val pub: ByteArray, val signPub: ByteArray, val url: String, val ad:
 object Cagri {
     // Same table and rule as triyaj/uret.py and the on-device model: base urgency per type,
     // one level more urgent when a baby, an injured person or a pregnant woman is present.
+    // Life-threatening situations first: these are the four large buttons (docs/08-acil-ekran.md). The rest are
+    // needs, not emergencies: smaller buttons below. "yardim" is "another emergency", told in the text.
     val TURLER = linkedMapOf(
-        "enkaz" to "Enkaz altındayım", "saglik" to "Yaralı / hasta var", "yangin" to "Yangın",
+        "enkaz" to "Enkaz altındayım", "saglik" to "Yaralı / hasta var", "yangin" to "Yangın / gaz",
+        "yardim" to "Başka acil durum",
         "barinma" to "Açıkta kaldık", "gida_su" to "Su / yiyecek yok", "kayip" to "Yakınımı arıyorum",
         "guvende" to "Güvendeyim",
     )
+    val HAYATI = listOf("enkaz", "saglik", "yangin", "yardim")
+    val ALT_YAZI = mapOf("enkaz" to "Bina çöktü, çıkamıyorum", "saglik" to "Acil sağlık yardımı gerekiyor",
+        "yangin" to "Ateş, duman ya da gaz kokusu", "yardim" to "Ne olduğunu yazarak anlatın")
     val OZEL = linkedMapOf(
         "bebek" to "Bebek", "cocuk" to "Çocuk", "yasli" to "Yaşlı", "yarali" to "Yaralı",
         "hamile" to "Hamile", "engelli" to "Engelli",
     )
-    private val TEMEL = mapOf("enkaz" to 1, "yangin" to 1, "saglik" to 2, "kayip" to 2, "barinma" to 3, "gida_su" to 3, "guvende" to 4)
+    private val TEMEL = mapOf("enkaz" to 1, "yangin" to 1, "saglik" to 2, "yardim" to 2, "kayip" to 2, "barinma" to 3, "gida_su" to 3, "guvende" to 4)
 
     fun aciliyet(tur: String, ozel: Set<String>): Int {
         val a = TEMEL[tur] ?: 4
@@ -73,6 +79,12 @@ object Cagri {
     }
 
     /** `adres`: il, ilçe, mahalle, sokak, bina read from the message by the on-device model, when there was text. */
+    /** "I sent that by mistake / I am safe now": points the authority at the earlier call [ref]. */
+    fun duzeltme(ref: String, zaman: Long) = JSONObject().apply {
+        put("v", 1); put("tur", "iptal"); put("aciliyet", 4); put("iptal_ref", ref); put("zaman", zaman)
+        put("metin", "Önceki çağrı yanlışlıkla gönderildi ya da artık yardım gerekmiyor.")
+    }.toString()
+
     fun rapor(tur: String, kisi: Int?, ozel: Set<String>, metin: String, enlem: Double?, boylam: Double?, dogruluk: Float?, zaman: Long,
               adres: Map<String, String?> = emptyMap(), aciliyet: Int? = null, model: Boolean = false) =
         JSONObject().apply {

@@ -50,6 +50,9 @@ class MeshService : Service() {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
 
         profile = Profile(this)
+        // debug (demo) builds come with a code approved by the public test root, so the app can be tried at once;
+        // release builds have none and trust only the production root
+        if (profile.kurum == null && BuildConfig.DEMO_KURUM.isNotEmpty()) profile.kurum = BuildConfig.DEMO_KURUM
         getSystemService(NotificationManager::class.java)
             .createNotificationChannel(NotificationChannel(UYARI, "Kurum ve çağrı", NotificationManager.IMPORTANCE_HIGH))
         transport = BleTransport(this) { frame -> synchronized(this) { node.receive(frame) } }
@@ -124,6 +127,7 @@ class MeshService : Service() {
         intent?.getStringExtra("send")?.split("=", limit = 2)?.takeIf { it.size == 2 }?.let { send(it[0], it[1]) }
         intent?.getStringExtra("kurum")?.let(::setKurum)
         intent?.getStringExtra("acil")?.let(::emergency)
+        intent?.getStringExtra("iptal")?.let(::duzelt)
         return START_STICKY
     }
 
@@ -178,6 +182,7 @@ class MeshService : Service() {
         // under the node lock
         Thread {
             try {
+                show("KONUM_ALINIYOR")
                 val loc = konum()
                 val t0 = System.nanoTime()
                 val k = if (p[3].isNotBlank()) triyaj?.coz(p[3]) else null
@@ -205,6 +210,18 @@ class MeshService : Service() {
 
     @Volatile private var sonCagri = 0L
 
+    /** The caller sent a call by mistake, or no longer needs help: a correction for the earlier call [ref]. */
+    private fun duzelt(ref: String) {
+        if (kurum == null) return show("ERROR kurum kodu yok: çağrının gideceği kurum tanımlı değil")
+        Thread {
+            try {
+                val id = synchronized(this) { node.sendEmergency(Cagri.duzeltme(ref, System.currentTimeMillis())) }
+                profile.bekleyenAcil = null // the earlier call is no longer resent
+                show("DUZELTME_GONDERILDI id=$id ref=$ref saat=${saat()}")
+            } catch (e: RuntimeException) { show("ERROR düzeltme gönderilemedi: ${e.message}") }
+        }.start()
+    }
+
     /**
      * A fresh fix when one comes within [KONUM_MS] (GPS works without a network; under rubble it may not come at all),
      * otherwise the freshest last known fix from any provider. Blocks: call off the main thread.
@@ -231,6 +248,7 @@ class MeshService : Service() {
     }
 
     private var lastTick = 0L
+    private var sonAg = ""
 
     private val ticker = object : Runnable {
         override fun run() {
@@ -247,7 +265,10 @@ class MeshService : Service() {
             val peers = transport.peerCount
             // HELLOs only matter to phones in range, and only often while there is mail to offer them
             val next = if (peers > 0 && carrying > 0) BUSY_MS else IDLE_MS
-            Log.i(BleTransport.TAG, "STATUS peers=$peers carrying=$carrying relay=$relay battery=$level online=${online()} next=${next / 1000}s")
+            val net = online()
+            Log.i(BleTransport.TAG, "STATUS peers=$peers carrying=$carrying relay=$relay battery=$level online=$net next=${next / 1000}s")
+            val ag = "AG yakin=$peers internet=$net bluetooth=${transport.acik}"
+            if (ag != sonAg) { sonAg = ag; show(ag) } // the screen's network line, only when it changes
             main.postDelayed(this, next)
         }
     }
@@ -263,7 +284,7 @@ class MeshService : Service() {
         private const val CHANNEL = "mesh"
         private const val UYARI = "uyari"
         private const val YENIDEN_MS = 6 * 3600_000L // well inside the mesh's one-day envelope lifetime
-        private const val KONUM_MS = 15_000L
+        private const val KONUM_MS = 6_000L // under rubble GPS rarely answers: never hold a call long for it
         private const val BUSY_MS = 2000L
         private const val IDLE_MS = 10_000L
         private const val LOW_BATTERY = 20 // percent

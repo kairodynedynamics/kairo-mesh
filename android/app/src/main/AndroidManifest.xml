@@ -22,7 +22,7 @@
     <application
         android:allowBackup="false"
         android:usesCleartextTraffic="${cleartext}"
-        android:label="Kairo Mesh"
+        android:label="KairoMesh"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
             android:name=".MainActivity"

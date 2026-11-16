@@ -18,11 +18,14 @@ android {
         buildConfigField("String", "KOKLER", "\"KMrne+ak0Iqr3rLzZ9uI7Qic8fWv6o/Na2H15FF25So=\"")
         // release: authority servers only over https; debug: also http, for the emulator test against 10.0.2.2
         manifestPlaceholders["cleartext"] = "false"
+        buildConfigField("String", "DEMO_KURUM", "\"\"")
     }
     buildTypes {
         getByName("debug") {
             buildConfigField("String", "KOKLER", "\"KMrne+ak0Iqr3rLzZ9uI7Qic8fWv6o/Na2H15FF25So=,mCZWxnPAXq0pTVoc5wwzaPbHgJvMARPQX626+hmR+zs=\"")
             manifestPlaceholders["cleartext"] = "true"
+            // demo authority (test root, no real server): calls are queued and carried, never delivered
+            buildConfigField("String", "DEMO_KURUM", "\"l4vew+gipwYt/slp5jbANEAJUMUlh8kIaJrqtm4qoTI=;2Yf1lkYhSXUsE63q0Y2QludMtFtN5/5kvEeHDnPYXho=;https://demo.kairodynedynamics.com;Deneme Kurumu - test;0J+695S+ON5pK6u3HEdWqCqYQ6yssnwJDuW3VY6HW2iQlG4zMOFJEC39+ntGOw4rf51trwv0mVq4DWDg6BSICw==\"")
         }
     }
     buildFeatures { buildConfig = true }
@@ -43,3 +46,6 @@ dependencies {
 
 // TriyajTest reads the exported model at run time: a new export must re-run the tests
 tasks.withType<Test>().configureEach { inputs.dir("../../triyaj/telefon") }
+
+// generated Java sources (BuildConfig) are UTF-8; the system code page here is not
+tasks.withType<JavaCompile>().configureEach { options.encoding = "UTF-8" }

@@ -112,10 +112,11 @@ fun hasWork(env: ByteArray, bits: Int = POW_BITS) =
 private val ED_SPKI = "302a300506032b6570032100".unhex()
 fun verifySignature(pub: ByteArray, msg: ByteArray, sig: ByteArray): Boolean {
     if (pub.size != 32 || sig.size != 64) return false
+    // the platform's Ed25519 when the provider has it, otherwise the built-in verifier: same answer either way
     return runCatching {
         val key = KeyFactory.getInstance("Ed25519").generatePublic(X509EncodedKeySpec(cat(ED_SPKI, pub)))
         java.security.Signature.getInstance("Ed25519").run { initVerify(key); update(msg); verify(sig) }
-    }.getOrDefault(false)
+    }.getOrElse { Ed25519.dogrula(pub, msg, sig) }
 }
 
 class Opened(val senderPub: ByteArray, val body: ByteArray)
