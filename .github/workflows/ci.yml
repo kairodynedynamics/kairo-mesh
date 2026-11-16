@@ -33,9 +33,9 @@ jobs:
       - run: swift test
 
   ios:
-    # arm64 pool; the Intel pool cancelled jobs mid-step (being retired). The app is built and uploaded
+    # macos-26 pool: on 2026-11-16 macos-15 had no capacity and the Intel pool cut jobs mid-step. The app is built and uploaded
     # before the slow simulator tests, so a cut-off run still leaves a downloadable build.
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 75
     defaults: { run: { working-directory: ios } }
     steps:
