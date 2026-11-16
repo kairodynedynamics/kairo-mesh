@@ -61,6 +61,15 @@ jobs:
           cd ../.build/dd/Build/Products/Debug-iphonesimulator && ditto -c -k --keepParent KairoMesh.app ../../../../KairoMesh-simulator.zip
       - uses: actions/upload-artifact@v4
         with: { name: KairoMesh-ios-simulator, path: ios/.build/KairoMesh-simulator.zip }
+      - name: Build an unsigned iPhone IPA (sideload with AltStore/Sideloadly, which sign it with the user's Apple ID)
+        working-directory: ios/App
+        run: |
+          set -o pipefail
+          xcodebuild build -project KairoMesh.xcodeproj -scheme KairoMesh -configuration Debug -sdk iphoneos             -destination 'generic/platform=iOS' -derivedDataPath ../.build/dd-cihaz             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | tail -3
+          cd ../.build && rm -rf Payload && mkdir Payload && cp -R dd-cihaz/Build/Products/Debug-iphoneos/KairoMesh.app Payload/
+          ditto -c -k --sequesterRsrc --keepParent Payload KairoMesh-imzasiz.ipa && ls -l KairoMesh-imzasiz.ipa
+      - uses: actions/upload-artifact@v4
+        with: { name: KairoMesh-ios-ipa-imzasiz, path: ios/.build/KairoMesh-imzasiz.ipa }
       - name: Build and test on both simulators
         working-directory: ios/App
         run: |
