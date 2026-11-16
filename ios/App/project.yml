@@ -31,17 +31,18 @@ targets:
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # GENERATE_INFOPLIST_FILE takes the bundle version from these, overriding Info.plist; iOS will not
+        # install a bundle without CFBundleVersion (same numbers as the Android build)
+        MARKETING_VERSION: "0.2.0"
+        CURRENT_PROJECT_VERSION: "2"
     dependencies:
       - package: KairoCore
     info:
       path: Info.plist
       properties:
         CFBundleDisplayName: KairoMesh
-        # iOS refuses to install a bundle without these (same numbers as the Android build)
-        CFBundleShortVersionString: "0.2.0"
-        CFBundleVersion: "2"
-        CFBundleExecutable: $(EXECUTABLE_NAME)
-        CFBundlePackageType: APPL
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         NSBluetoothAlwaysUsageDescription: KairoMesh, yakındaki telefonlar arasında şifreli mesajları Bluetooth ile taşır.
         NSLocationWhenInUseUsageDescription: Acil yardım çağrınıza konumunuz eklenir; GPS internet olmadan da çalışır.
