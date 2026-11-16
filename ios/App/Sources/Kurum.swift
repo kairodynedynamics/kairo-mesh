@@ -2,18 +2,26 @@ import Foundation
 import KairoCore
 
 /// The authority this phone sends emergency calls to, given as one code by the authority (112, AFAD, a municipality,
-/// a pilot partner): `<sealing key, base64>;<signing key, base64>;<https server URL>`. Same format as Android.
+/// a pilot partner) and accepted only when a root built into the app approved it (KairoCore.KurumKodu).
 struct Kurum {
-    let pub: Bytes, signPub: Bytes, url: String
+    let pub: Bytes, signPub: Bytes, url: String, ad: String, code: String
 
+    // Root keys that may approve authority codes (src/kurum-cli.js kok/onayla). Release builds trust only the
+    // production root, whose private half is kept offline; debug builds also trust the public test root (test/kok-test).
+    static let kokler: [Bytes] = {
+        var k = ["KMrne+ak0Iqr3rLzZ9uI7Qic8fWv6o/Na2H15FF25So="]
+        #if DEBUG
+        k.append("mCZWxnPAXq0pTVoc5wwzaPbHgJvMARPQX626+hmR+zs=")
+        #endif
+        return k.map { Bytes(Data(base64Encoded: $0)!) }
+    }()
+
+    /// Nil for a malformed code or one no trusted root approved (a fake code is never stored).
     init?(code: String) {
-        let p = code.trimmingCharacters(in: .whitespaces).split(separator: ";").map(String.init)
-        guard p.count == 3, p[2].hasPrefix("http"),
-              let a = Data(base64Encoded: p[0]), a.count == 32, let s = Data(base64Encoded: p[1]), s.count == 32 else { return nil }
-        pub = Bytes(a); signPub = Bytes(s); url = p[2].hasSuffix("/") ? String(p[2].dropLast()) : p[2]
+        guard let k = KurumKodu(code, kokler: Kurum.kokler) else { return nil }
+        pub = k.pub; signPub = k.signPub; url = k.url; ad = k.ad
+        self.code = code.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-
-    var code: String { [Data(pub).base64EncodedString(), Data(signPub).base64EncodedString(), url].joined(separator: ";") }
 
     /// POST the envelope; calls back on the main queue with the 16-byte receipt, or nil to retry later.
     func upload(_ env: Bytes, _ done: @escaping (Bytes?) -> Void) {

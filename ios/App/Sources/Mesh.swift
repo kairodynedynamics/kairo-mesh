@@ -121,10 +121,14 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     func setKurum(_ code: String) {
-        guard let k = Kurum(code: code) else { return show("ERROR kurum kodu geçersiz") }
+        guard let k = Kurum(code: code) else {
+            acilDurum = "Bu kurum kodu yetkili makamca onaylanmamış ya da bozuk; kaydedilmedi. Kodu yalnızca kurumun resmî kanalından alın."
+            return show("ERROR kurum kodu geçersiz ya da yetkili makamca onaylanmamış")
+        }
         defaults.set(k.code, forKey: "kurum")
         buildNode()
-        show("KURUM \(k.url)")
+        acilDurum = "Çağrılarınız şu kuruma gider: \(k.ad)"
+        show("KURUM \(k.url) ad=\(k.ad)")
     }
 
     /// What the caller tapped always wins; the on-device model fills in what is missing from the text.

@@ -186,3 +186,33 @@ test('kurum aracı: anahtar üretir, kurum kodunu basar, mevcut anahtarın üzer
   assert.throws(() => execFileSync(process.execPath, [cli, 'anahtar', k, 'https://x.example'], { stdio: 'pipe' }), 'refuses to overwrite');
   assert.deepEqual(JSON.parse(readFileSync(join(k, 'kurum-anahtar.json'), 'utf8')), kayit, 'key file unchanged');
 });
+
+test('kurum kodu: yalnız kökün onayladığı kod kabul edilir (sahte kod çağrıları saldırgana yönlendiremez)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { kurumKoduAc } = await import('../src/kurum.js');
+  const o = JSON.parse(readFileSync(new URL('./kurum-kodu-ornek.json', import.meta.url), 'utf8'));
+  const kok = Buffer.from(o.kok, 'base64');
+  const k = kurumKoduAc(o.gecerli, [kok]);
+  assert.ok(k);
+  assert.equal(k.adres, 'https://kurum.example');
+  assert.equal(k.ad, 'Test Kurumu (yalnız test)');
+  for (const [ad, kod] of Object.entries(o.gecersiz)) assert.equal(kurumKoduAc(kod, [kok]), null, ad);
+  assert.equal(kurumKoduAc(o.gecerli, [Buffer.alloc(32, 9)]), null, 'unknown root');
+});
+
+test('kurum aracı: kök üretir ve kurumun kodunu onaylar', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const { mkdtempSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  const { kurumKoduAc } = await import('../src/kurum.js');
+  const d = mkdtempSync(join(tmpdir(), 'kurum-kok-'));
+  const cli = new URL('../src/kurum-cli.js', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1');
+  const son = (args) => execFileSync(process.execPath, [cli, ...args], { encoding: 'utf8' }).trim().split('\n').pop();
+  const kok = Buffer.from(son(['kok', join(d, 'kok')]), 'base64');
+  son(['anahtar', join(d, 'kurum'), 'https://afad.example.gov.tr']);
+  const kod = son(['onayla', join(d, 'kok'), join(d, 'kurum'), 'AFAD Hatay']);
+  const k = kurumKoduAc(kod, [kok]);
+  assert.equal(k?.ad, 'AFAD Hatay');
+  assert.throws(() => execFileSync(process.execPath, [cli, 'kok', join(d, 'kok')], { stdio: 'pipe' }), 'refuses to overwrite the root');
+});

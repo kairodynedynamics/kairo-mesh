@@ -34,9 +34,15 @@ final class KairoMeshUITests: XCTestCase {
         app.buttons["acilGonder"].tap()
         XCTAssertTrue(app.staticTexts["acilDurum"].waitForExistence(timeout: 5))
         XCTAssertTrue(log(app, contains: "ERROR kurum kodu yok"))
-        // a well-formed code: two 32-byte keys and a server address (the server need not be reachable here)
+        // a well-formed code no root approved (e.g. a fake "AFAD's new code") is refused and not stored
         let key = Data(repeating: 7, count: 32).base64EncodedString()
-        type(app, "kurum", "\(key);\(key);https://kurum.example")
+        type(app, "kurum", "\(key);\(key);https://saldirgan.example;AFAD;\(Data(repeating: 1, count: 64).base64EncodedString())")
+        app.buttons["kurumKaydet"].tap()
+        XCTAssertTrue(log(app, contains: "ERROR kurum kodu geçersiz"))
+        // a code approved by the test root (test/kurum-kodu-ornek.json; debug builds trust it), server need not exist
+        app.textFields["kurum"].clearAndType("rgExj/KgKZhYcPxK/NqXSk3/nmndBd5JIsybQuPvEXg=;9sbrD4AbOZNuhvB+CDzzHS+lxvMaqOmg5eulfRvSH7k=;"
+            + "https://kurum.example;Test Kurumu (yalnız test);"
+            + "epNYkhZFP0A8TRWKthNdQg0KDvNv8fwfdUA2DI5r/v6Uz+3wXYe2jrn/WFPJ8+9MpXv1/zJNzndXsG1N5tPXBA==")
         app.buttons["kurumKaydet"].tap()
         XCTAssertTrue(log(app, contains: "KURUM https://kurum.example"))
         // the situation buttons sit in a lazy grid at the top: off screen on a phone, they are not in the hierarchy

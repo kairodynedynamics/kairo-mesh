@@ -67,6 +67,9 @@ class MainActivity : Activity() {
             line.startsWith("ACIL_GONDERILDI") -> durum.text = "Çağrınız gönderildi (${saat(line)}). Yakındaki telefonlar taşıyor; internete ulaşan ilk telefon kuruma iletecek."
             line.startsWith("ACIL_ULASTI") -> durum.text = "✓ KURUM ÇAĞRINIZI ALDI (${saat(line)})."
             line.startsWith("DUYURU ") -> duyurular.text = line.removePrefix("DUYURU ") + "\n\n" + duyurular.text.toString().removePrefix("Henüz duyuru yok.")
+            line.startsWith("KURUM ") -> durum.text = "Çağrılarınız şu kuruma gider: ${line.substringAfter(" ad=")}"
+            line.startsWith("ERROR kurum kodu geçersiz") -> durum.text =
+                "Bu kurum kodu yetkili makamca onaylanmamış ya da bozuk; kaydedilmedi. Kodu yalnızca kurumun resmî kanalından alın."
             line.startsWith("ERROR kurum") -> durum.text = "Kurum kodu tanımlı değil: çağrının gideceği kurumun kodunu Ayarlar'a girin."
         }
     }

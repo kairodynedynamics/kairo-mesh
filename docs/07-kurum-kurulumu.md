@@ -13,7 +13,22 @@ Bu belge, Kairo Mesh'i kendi anahtarı ve sunucusuyla işletecek kurum (il afet 
 node src/kurum-cli.js anahtar /guvenli/klasor https://acil.kurum.gov.tr
 ```
 
-Komut `kurum-anahtar.json` dosyasını yazar (yalnız sahibi okuyabilir) ve telefonlara verilecek **kurum kodunu** basar. Dosya şifreli bir ortamda yedeklenmelidir: kaybolursa yeni anahtar ve yeni kod gerekir; eski koddaki telefonların çağrıları açılamaz. Mevcut bir anahtarın üzerine yazılmaz.
+Komut `kurum-anahtar.json` dosyasını yazar (yalnız sahibi okuyabilir) ve onaysız kodu basar. Dosya şifreli bir ortamda yedeklenmelidir: kaybolursa yeni anahtar ve yeni kod gerekir; eski koddaki telefonların çağrıları açılamaz. Mevcut bir anahtarın üzerine yazılmaz.
+
+## 1b. Kök onayı (yetkili makam)
+
+Telefon, uygulamaya gömülü bir **kök anahtarın** onaylamadığı kurum kodunu kabul etmez. Bu olmasaydı "AFAD'ın yeni kodu" diye sahte kod yayan biri, o kodu giren telefonların çağrılarını ve konumlarını kendine yönlendirebilir ve o telefonlara sahte imzalı duyuru (ör. yanlış toplanma alanı) gönderebilirdi.
+
+```bash
+node src/kurum-cli.js kok /cevrimdisi/kok                                  # bir kez; yalnız yetkili makam
+node src/kurum-cli.js onayla /cevrimdisi/kok /guvenli/klasor "AFAD Hatay"   # her kurum için
+```
+
+- `kok` komutu kök anahtarı üretir ve uygulamaya gömülecek açık anahtarı basar. Özel anahtar **çevrimdışı** bir makinede (tercihen donanım güvenlik modülünde) tutulur; elinde olan, telefonların güveneceği kurum kodu üretebilir.
+- `onayla` kurumun açık anahtarlarını, sunucu adresini ve adını kökle imzalar. Onaylı kod `kurum-anahtar.json` içine de yazılır ve sunucu açılırken basılır.
+- Telefon kodu kaydedince ekranda kurumun adını gösterir ("Çağrılarınız şu kuruma gider: AFAD Hatay").
+- Uygulamanın mağaza sürümü yalnız üretim kökünü kabul eder. Hata ayıklama sürümü ayrıca `test/kok-test` kökünü kabul eder; o kökün özel anahtarı depoda açıktır ve yalnız test içindir.
+- Uygulama birden çok kökü kabul edebilir: AFAD ve 112 kendi köklerini ayrı tutabilir.
 
 ## 2. Sunucuyu çalıştırma
 
@@ -39,7 +54,8 @@ User=kairo
 ## 3. Telefonlara dağıtım
 
 - Kurum adına derlenen uygulamada kurum kodu gömülü gelir. Pilotta kod, uygulamanın **Ayarlar → Kurum kodu** alanına yapıştırılır.
-- Kod üç parçadır: mühür anahtarı, imza anahtarı, sunucu adresi. Kodun kendisi gizli değildir; gizli olan, sunucudaki `kurum-anahtar.json` dosyasıdır.
+- Kod beş parçadır: mühür anahtarı, imza anahtarı, sunucu adresi, kurum adı ve kök imzası. Kodun kendisi gizli değildir; gizli olan, sunucudaki `kurum-anahtar.json` dosyası ve kök anahtardır.
+- Kod yalnızca kurumun resmî kanallarından (resmî site, e-Devlet, SMS kısa numarası) duyurulmalıdır. Kök onayı sahte kodu reddeder, ama kullanıcıları da sahte uygulamalara karşı uyarmak gerekir.
 
 ## 4. Doğrulama
 

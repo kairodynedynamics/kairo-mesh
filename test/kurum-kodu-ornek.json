@@ -1,0 +1,11 @@
+{
+ "not": "Kurum kodu doğrulama örnekleri. Kök: test/kok-test (YALNIZ TEST; üretim uygulaması bu kökü kabul etmez).",
+ "kok": "mCZWxnPAXq0pTVoc5wwzaPbHgJvMARPQX626+hmR+zs=",
+ "gecerli": "rgExj/KgKZhYcPxK/NqXSk3/nmndBd5JIsybQuPvEXg=;9sbrD4AbOZNuhvB+CDzzHS+lxvMaqOmg5eulfRvSH7k=;https://kurum.example;Test Kurumu (yalnız test);epNYkhZFP0A8TRWKthNdQg0KDvNv8fwfdUA2DI5r/v6Uz+3wXYe2jrn/WFPJ8+9MpXv1/zJNzndXsG1N5tPXBA==",
+ "gecersiz": {
+  "sahteAdres": "rgExj/KgKZhYcPxK/NqXSk3/nmndBd5JIsybQuPvEXg=;9sbrD4AbOZNuhvB+CDzzHS+lxvMaqOmg5eulfRvSH7k=;https://saldirgan.example;Test Kurumu (yalnız test);epNYkhZFP0A8TRWKthNdQg0KDvNv8fwfdUA2DI5r/v6Uz+3wXYe2jrn/WFPJ8+9MpXv1/zJNzndXsG1N5tPXBA==",
+  "baskaKok": "rgExj/KgKZhYcPxK/NqXSk3/nmndBd5JIsybQuPvEXg=;9sbrD4AbOZNuhvB+CDzzHS+lxvMaqOmg5eulfRvSH7k=;https://kurum.example;Test Kurumu (yalnız test);0lYWHfmyH3dvB325tCGSGaAVzysje0FpJKbS3PiwDvdOXwcEK4AqQDE49k3vVJAXR+hZn/d1wwOxbg2DzAIEBg==",
+  "eskiBicim": "rgExj/KgKZhYcPxK/NqXSk3/nmndBd5JIsybQuPvEXg=;9sbrD4AbOZNuhvB+CDzzHS+lxvMaqOmg5eulfRvSH7k=;https://kurum.example",
+  "bozukImza": "rgExj/KgKZhYcPxK/NqXSk3/nmndBd5JIsybQuPvEXg=;9sbrD4AbOZNuhvB+CDzzHS+lxvMaqOmg5eulfRvSH7k=;https://kurum.example;Test Kurumu (yalnız test);AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+ }
+}

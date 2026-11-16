@@ -37,7 +37,8 @@ kurum_wait() { # wait until the authority server has logged a line matching $1
 
 # --- authority server on this machine ------------------------------------------------------------
 node ../src/kurum-cli.js anahtar "$TMP/k" "http://10.0.2.2:$PORT" > "$TMP/anahtar.txt"
-KOD=$(tail -1 "$TMP/anahtar.txt")
+# debug builds trust the public test root; a release build would refuse this code
+KOD=$(node ../src/kurum-cli.js onayla ../test/kok-test "$TMP/k" "Emülatör Test Kurumu" | tail -1)
 KURUM_PANO_ANAHTARI=$TOKEN node ../src/kurum-cli.js sunucu "$TMP/k" $PORT > "$TMP/sunucu.log" 2>&1 &
 SUNUCU=$!
 trap 'kill $SUNUCU 2>/dev/null || true; for p in ayse kurye gecit; do net $p enable >/dev/null 2>&1 || true; bt $p enable || true; done' EXIT

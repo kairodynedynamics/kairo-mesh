@@ -7,9 +7,37 @@
 import { createServer } from 'node:http';
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { open, sha256, hasWork, DAY_MS } from './crypto.js';
+import { open, sha256, hasWork, DAY_MS, verifySignature } from './crypto.js';
 
 const SKEW_MS = 3600000, MAX_REPORT = 64 * 1024, NOTICE_TEXT = 600;
+
+// --- Kurum kodu ve kök onayı ----------------------------------------------------------------------------------
+// Bir telefon çağrılarını hangi kuruma gönderdiğini "kurum kodu"ndan öğrenir. Kod yalnız kurumun kendi anahtarları
+// olsaydı, sahte bir kod yayan biri ("AFAD'ın yeni kodu") o telefonların çağrılarını ve konumlarını kendine
+// yönlendirebilir, sahte imzalı duyuru gönderebilirdi. Bu yüzden kod, uygulamaya gömülü bir kök anahtarla
+// (yetkili makamın, ör. AFAD) imzalanır; telefon onaysız kodu kabul etmez.
+//   <mühür, base64> ; <duyuru imzası, base64> ; <https sunucu> ; <kurum adı> ; <kök imzası, base64>
+// Kök, ilk dört alanı "kairo-kurum-1\n" önekiyle imzalar.
+export const KURUM_ONEK = 'kairo-kurum-1\n';
+const b64 = (b) => Buffer.from(b).toString('base64');
+
+export function kurumKoduOnayla({ muhur, imza, adres, ad }, kok) {
+  if (!/^https?:\/\//.test(adres)) throw new Error('sunucu adresi http(s):// ile başlamalı');
+  if (!ad || /[;\n]/.test(ad) || ad.length > 80) throw new Error('kurum adı 1-80 karakter, ";" içermeden');
+  const govde = [b64(muhur), b64(imza), adres.replace(/\/$/, ''), ad].join(';');
+  return `${govde};${b64(kok.sign(Buffer.from(KURUM_ONEK + govde)))}`;
+}
+
+// Geçerliyse { muhur, imza, adres, ad, kok } döner; kökü `kokler` içinde olmayan ya da bozuk kod için null.
+export function kurumKoduAc(kod, kokler) {
+  const p = String(kod).trim().split(';');
+  if (p.length !== 5 || !/^https?:\/\//.test(p[2]) || !p[3]) return null;
+  const muhur = Buffer.from(p[0], 'base64'), imza = Buffer.from(p[1], 'base64'), sig = Buffer.from(p[4], 'base64');
+  if (muhur.length !== 32 || imza.length !== 32) return null;
+  const msg = Buffer.from(KURUM_ONEK + p.slice(0, 4).join(';'));
+  const kok = kokler.find((k) => verifySignature(k, msg, sig));
+  return kok ? { muhur, imza, adres: p[2], ad: p[3], kok } : null;
+}
 
 // `identity`: the sealing key (X25519). `signer`: the announcement key (Ed25519). `log`: a JSON-lines file the
 // reports are appended to and reloaded from on restart (a real deployment backs it with its own database).

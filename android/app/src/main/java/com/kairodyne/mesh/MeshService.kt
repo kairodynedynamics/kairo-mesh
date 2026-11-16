@@ -53,7 +53,7 @@ class MeshService : Service() {
         transport = BleTransport(this) { frame -> synchronized(this) { node.receive(frame) } }
         buildNode()
         show("READY code=${profile.code}")
-        kurum?.let { show("KURUM ${it.url}") }
+        kurum?.let { show("KURUM ${it.url} ad=${it.ad}") }
         // a newly met phone is greeted at once, but never more often than the node's 2-second budget allows
         transport.onPeer = { main.post { if (System.currentTimeMillis() - lastTick >= BUSY_MS) { main.removeCallbacks(ticker); ticker.run() } } }
         transport.start()
@@ -125,10 +125,10 @@ class MeshService : Service() {
     }
 
     private fun setKurum(code: String) {
-        val k = Kurum.parse(code) ?: return show("ERROR kurum kodu geçersiz")
+        val k = Kurum.parse(code) ?: return show("ERROR kurum kodu geçersiz ya da yetkili makamca onaylanmamış")
         profile.kurum = k.code
         buildNode()
-        show("KURUM ${k.url}")
+        show("KURUM ${k.url} ad=${k.ad}")
     }
 
     private val triyaj by lazy {

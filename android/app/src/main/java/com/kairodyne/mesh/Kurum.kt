@@ -5,15 +5,14 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import com.kairodyne.mesh.core.KurumKodu
 import kotlin.concurrent.thread
 
 /**
- * The authority this phone sends emergency calls to: its sealing key, its announcement-signing key and its server.
- * Given as one "authority code" by the authority (112, AFAD, a municipality, a pilot partner):
- *   <sealing key, base64> ; <signing key, base64> ; <https server URL>
+ * The authority this phone sends emergency calls to: its sealing key, its announcement-signing key, its server and
+ * its name. Given as one "authority code", accepted only when approved by a root built into the app (KurumKodu).
  */
-class Kurum(val pub: ByteArray, val signPub: ByteArray, val url: String) {
-    val code get() = listOf(b64(pub), b64(signPub), url).joinToString(";")
+class Kurum(val pub: ByteArray, val signPub: ByteArray, val url: String, val ad: String, val code: String) {
 
     /** POST the envelope; calls back (on a worker thread) with the 16-byte receipt, or null to retry later. */
     fun upload(env: ByteArray, done: (ByteArray?) -> Unit) = thread(name = "kairo-uplink") {
@@ -40,14 +39,12 @@ class Kurum(val pub: ByteArray, val signPub: ByteArray, val url: String) {
     }
 
     companion object {
-        fun parse(code: String): Kurum? = runCatching {
-            val p = code.trim().split(";")
-            require(p.size == 3 && p[2].startsWith("http"))
-            Kurum(b64(p[0]).also { require(it.size == 32) }, b64(p[1]).also { require(it.size == 32) }, p[2].trimEnd('/'))
-        }.getOrNull()
+        private val KOKLER = BuildConfig.KOKLER.split(",").map { Base64.decode(it, Base64.NO_WRAP) }
 
-        private fun b64(s: String): ByteArray = Base64.decode(s, Base64.NO_WRAP)
-        private fun b64(b: ByteArray): String = Base64.encodeToString(b, Base64.NO_WRAP)
+        /** Null for a malformed code or one no trusted root approved (a fake code is never stored). */
+        fun parse(code: String): Kurum? =
+            KurumKodu.ac(code, KOKLER)?.let { Kurum(it.pub, it.signPub, it.url, it.ad, code.trim()) }
+
         private fun hex(s: String) = ByteArray(s.length / 2) { s.substring(2 * it, 2 * it + 2).toInt(16).toByte() }
     }
 }
