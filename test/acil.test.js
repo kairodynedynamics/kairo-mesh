@@ -167,3 +167,22 @@ test('kurum: reports survive a restart of the server', async () => {
   assert.equal(b.reports.length, 1);
   assert.deepEqual(b.receive(env), Buffer.alloc(16, 3), 'the same receipt after restart');
 });
+
+test('kurum aracı: anahtar üretir, kurum kodunu basar, mevcut anahtarın üzerine yazmaz', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const { mkdtempSync, readFileSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  const k = join(mkdtempSync(join(tmpdir(), 'kurum-cli-')), 'anahtar');
+  const cli = new URL('../src/kurum-cli.js', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1');
+  const out = execFileSync(process.execPath, [cli, 'anahtar', k, 'https://kurum.example.gov.tr/'], { encoding: 'utf8' });
+  const kod = out.trim().split('\n').pop().split(';');
+  assert.equal(kod.length, 3);
+  assert.equal(Buffer.from(kod[0], 'base64').length, 32);
+  assert.equal(Buffer.from(kod[1], 'base64').length, 32);
+  assert.equal(kod[2], 'https://kurum.example.gov.tr');
+  const kayit = JSON.parse(readFileSync(join(k, 'kurum-anahtar.json'), 'utf8'));
+  assert.equal(kayit.muhurAcik, kod[0]);
+  assert.throws(() => execFileSync(process.execPath, [cli, 'anahtar', k, 'https://x.example'], { stdio: 'pipe' }), 'refuses to overwrite');
+  assert.deepEqual(JSON.parse(readFileSync(join(k, 'kurum-anahtar.json'), 'utf8')), kayit, 'key file unchanged');
+});
