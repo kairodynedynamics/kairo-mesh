@@ -10,8 +10,8 @@ android {
         applicationId = "com.kairodyne.mesh"
         minSdk = 33 // X25519 (XDH) in the platform crypto provider
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
         // Root keys that may approve authority codes (src/kurum-cli.js kok/onayla). Release builds trust only the
         // production root, whose private half is kept offline; debug builds also trust the public test root
         // (test/kok-test) so tests and emulators can mint codes.
@@ -34,7 +34,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    // on-device triage model (triyaj/model.py agirlik): weights and labels, about 3.4 MB
+    // on-device triage: the character model (triyaj/model.py agirlik, 3.4 MB) and the Turkish encoder
+    // (triyaj/kodlayici.py telefon, 27.5 MB float16); stored uncompressed so they load without inflating
     sourceSets["main"].assets.srcDirs("../../triyaj/telefon")
     androidResources { noCompress += "bin" }
 }

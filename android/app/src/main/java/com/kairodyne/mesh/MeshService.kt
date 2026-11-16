@@ -19,6 +19,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.util.Base64
 import android.util.Log
+import com.kairodyne.mesh.core.Kodlayici
 import com.kairodyne.mesh.core.Node
 import com.kairodyne.mesh.core.Triyaj
 import java.text.SimpleDateFormat
@@ -162,7 +163,12 @@ class MeshService : Service() {
     }
 
     private val triyaj by lazy {
-        runCatching { Triyaj(assets.open("triyaj.json").use { it.readBytes().toString(Charsets.UTF_8) }, assets.open("triyaj.bin").use { it.readBytes() }) }
+        fun metin(ad: String) = assets.open(ad).use { it.readBytes().toString(Charsets.UTF_8) }
+        // the encoder (~38 MB in memory) makes the message-level decisions; if it cannot load, the character model
+        // still reads the message on its own
+        val kod = try { Kodlayici(metin("kodlayici.json"), assets.open("kodlayici.bin").use { it.readBytes() }) }
+            catch (e: Throwable) { show("ERROR kodlayıcı yüklenemedi, harf modeli kullanılıyor: ${e.message}"); null }
+        runCatching { Triyaj(metin("triyaj.json"), assets.open("triyaj.bin").use { it.readBytes() }, kod) }
             .onFailure { show("ERROR triyaj modeli yüklenemedi: ${it.message}") }.getOrNull()
     }
 
@@ -194,8 +200,8 @@ class MeshService : Service() {
                     loc?.latitude, loc?.longitude, loc?.accuracy, loc?.time ?: System.currentTimeMillis(),
                     adres = k?.let { mapOf("il" to it.il, "ilce" to it.ilce, "mahalle" to it.mahalle, "sokak" to it.sokak, "bina" to it.bina) } ?: emptyMap(),
                     // A call typed on the emergency screen is a call for help: the model fills in the details but
-                    // may not rank it below 2. On unseen phrasings it misses about 13% of life-threatening calls
-                    // (triyaj/model/olcum.json); a needless "urgent" costs the dispatcher less than a missed one.
+                    // may not rank it below 2. The encoder still ranks about 3% of life-threatening calls too low
+                    // (triyaj/model/kodlayici-olcum.json); a needless "urgent" costs the dispatcher less than a missed one.
                     aciliyet = k?.aciliyet?.let { if (p[0] !in Cagri.TURLER) minOf(it, 2) else it },
                     model = k != null && p[0] !in Cagri.TURLER)
                 val id = synchronized(this) { node.sendEmergency(json) }

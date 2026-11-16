@@ -16,8 +16,10 @@ public final class Triyaj {
     private let temel: [String: Int], sayiYazi: [String: Int]
     private let w: [String: [Float]]
     private let harfBoy: Int, tipBoy: Int, gizli2: Int
+    private let kodlayici: Kodlayici?
 
-    public init(meta: Data, weights: Data) throws {
+    public init(meta: Data, weights: Data, kodlayici: Kodlayici? = nil) throws {
+        self.kodlayici = kodlayici
         guard let m = try JSONSerialization.jsonObject(with: meta) as? [String: Any],
               let h = m["harfler"] as? [String], let t = m["tensorler"] as? [[String: Any]] else { throw KairoError.malformed }
         var idx: [UInt32: Int] = [:]
@@ -160,19 +162,25 @@ public final class Triyaj {
             let d = metin[rr].filter(\.isNumber)
             tel = "0" + String(d.drop(while: { $0 == "0" }))
         }
-        let ilI = argmax(r.il), ilceI = argmax(r.ilce)
+        // message-level decisions: the encoder when present (triyaj/model/kodlayici-olcum.json), else the character model
+        var bas = kodlayici?.ham(metin) ?? [r.tur, r.aciliyet, r.ozel, r.il, r.ilce]
+        let ilI = argmax(bas[3])
+        if kodlayici != nil && ilI > 0 { // the district only among the predicted province's districts, as measured
+            for x in 1...ciftler.count where !ciftler[x - 1].hasPrefix(iller[ilI - 1] + "/") { bas[4][x] = -1e9 }
+        }
+        let ilceI = argmax(bas[4])
         var il: String? = ilI > 0 ? iller[ilI - 1] : nil
         var ilce: String? = nil
         if ilceI > 0 {
             let parca = ciftler[ilceI - 1].split(separator: "/", maxSplits: 1).map(String.init)
             if il == nil || il == parca[0] { il = parca[0]; ilce = parca[1] }
         }
-        let tur = turler[argmax(r.tur)]
-        let ozel = r.ozel.indices.filter { r.ozel[$0] > 0 }.map { ozeller[$0] }.sorted()
+        let tur = turler[argmax(bas[0])]
+        let ozel = bas[2].indices.filter { bas[2][$0] > 0 }.map { ozeller[$0] }.sorted()
         var kural = temel[tur] ?? 4
         if kural > 1 && !["guvende", "bilgi", "alakasiz"].contains(tur) && !Set(ozel).isDisjoint(with: ["bebek", "yarali", "hamile"]) { kural -= 1 }
         // safety rule: the model may never rank a call as less urgent than the rule does
-        let aciliyet = min(argmax(r.aciliyet) + 1, kural)
+        let aciliyet = min(argmax(bas[1]) + 1, kural)
         return Kayit(tur: tur, aciliyet: aciliyet, kisi: kisi, il: il, ilce: ilce, mahalle: al("mahalle"), sokak: al("sokak"),
                      bina: al("bina"), ad: al("ad"), tel: tel, ozel: ozel)
     }

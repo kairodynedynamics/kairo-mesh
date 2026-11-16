@@ -17,7 +17,7 @@ import kotlin.math.tanh
  * Text is handled as Unicode code points, as Python does, so spans line up with the original message even when it
  * contains emoji.
  */
-class Triyaj(meta: String, weights: ByteArray) {
+class Triyaj(meta: String, weights: ByteArray, private val kodlayici: Kodlayici? = null) {
     class Kayit(
         val tur: String, val aciliyet: Int, val kisi: Int?, val il: String?, val ilce: String?,
         val mahalle: String?, val sokak: String?, val bina: String?, val ad: String?, val tel: String?, val ozel: List<String>,
@@ -159,20 +159,27 @@ class Triyaj(meta: String, weights: ByteArray) {
             }
         }
         val tel = Regex("0?5\\d{2}\\s?\\d{3}\\s?\\d{2}\\s?\\d{2}").find(metin)?.let { "0" + it.value.filter(Char::isDigit).trimStart('0') }
-        val ilI = argmax(ham[4] as FloatArray); val ilceI = argmax(ham[5] as FloatArray)
+        // message-level decisions: the encoder when present (triyaj/model/kodlayici-olcum.json), else the character model
+        val bas = kodlayici?.ham(metin) ?: listOf(ham[1], ham[2], ham[3], ham[4], ham[5]).map { it as FloatArray }
+        val ilI = argmax(bas[3])
+        if (kodlayici != null && ilI > 0) { // the district only among the predicted province's districts, as measured
+            val ilAd = iller[ilI - 1]
+            for (x in 1..ciftler.size) if (!ciftler[x - 1].startsWith("$ilAd/")) bas[4][x] = -1e9f
+        }
+        val ilceI = argmax(bas[4])
         var il = if (ilI > 0) iller[ilI - 1] else null
         var ilce: String? = null
         if (ilceI > 0) {
             val (il2, ic) = ciftler[ilceI - 1].split("/", limit = 2)
             if (il == null || il == il2) { il = il2; ilce = ic }
         }
-        val tur = turler[argmax(ham[1] as FloatArray)]
-        val ozel = (ham[3] as FloatArray).withIndex().filter { it.value > 0 }.map { ozeller[it.index] }.sorted()
+        val tur = turler[argmax(bas[0])]
+        val ozel = bas[2].withIndex().filter { it.value > 0 }.map { ozeller[it.index] }.sorted()
         val kural = (temel[tur] ?: 4).let { a ->
             if (a > 1 && tur !in setOf("guvende", "bilgi", "alakasiz") && ozel.any { it in setOf("bebek", "yarali", "hamile") }) a - 1 else a
         }
         // safety rule: the model may never rank a call as less urgent than the rule does
-        val aciliyet = min(argmax(ham[2] as FloatArray) + 1, kural)
+        val aciliyet = min(argmax(bas[1]) + 1, kural)
         return Kayit(tur, aciliyet, kisi, il, ilce, al("mahalle"), al("sokak"), al("bina"), al("ad"), tel, ozel)
     }
 

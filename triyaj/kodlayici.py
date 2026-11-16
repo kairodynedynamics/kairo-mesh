@@ -150,5 +150,56 @@ def olc():
     (MODEL / "kodlayici-olcum.json").write_text(json.dumps(sonuc, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
+def yukle(yarim=True):
+    m = Kodlayici()
+    m.load_state_dict(torch.load(MODEL / "kodlayici.pt"))
+    if yarim:  # the phone stores weights as float16 and computes in float32: test exactly that model
+        with torch.no_grad():
+            for p in m.parameters():
+                p.copy_(p.half().float())
+    return m.eval()
+
+
+# punctuation and emoji, Turkish dotted/dotless i, an unknown word and a word split into pieces
+ALTIN_EK = ["Enkazdayız!!! Yardım edin, İSKENDERUN'da 2 kişi 😭", "harabenin altındayız ses veriyoruz"]
+
+
+def telefon():
+    """Telefon için: telefon/kodlayici.bin (float16, küçük-endian, sırayla) + kodlayici.json (sözlük, yapı, tensör
+    dizini) + kodlayici-altin.json (ALTIN mesajlarda belirteçler ve PyTorch'un beş baş çıktısı; Kotlin/Swift testleri
+    bunlarla karşılaştırır). Ayrıca float16'ya yuvarlamanın kararları değiştirmediğini test kümesinde ölçer."""
+    from model import ALTIN, TELEFON
+    tok = ElectraTokenizerFast.from_pretrained(ONEGITIM)
+    m = yukle()
+    tensorler, ofs, parcalar = [], 0, []
+    for ad, t in m.state_dict().items():
+        if not t.is_floating_point():
+            continue  # position_ids buffer
+        a = t.detach().numpy().astype("<f2")
+        tensorler.append({"ad": ad, "sekil": list(a.shape), "ofs": ofs})
+        ofs += a.size
+        parcalar.append(a.tobytes())
+    (TELEFON / "kodlayici.bin").write_bytes(b"".join(parcalar))
+    c = m.govde.config
+    sozluk = [s.rstrip("\n") for s in open(os.path.join(ONEGITIM, "vocab.txt"), encoding="utf-8")]
+    meta = {"surum": 1, "uzun": UZUN, "katman": c.num_hidden_layers, "bas": c.num_attention_heads, "eps": c.layer_norm_eps,
+            "sozluk": sozluk, "tensorler": tensorler}
+    (TELEFON / "kodlayici.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+    altin = []
+    with torch.no_grad():
+        for metin in ALTIN + ALTIN_EK:
+            k = tok([metin], truncation=True, max_length=UZUN, return_tensors="pt")
+            cik = [x[0].numpy().round(5).tolist() for x in m(k["input_ids"], k["attention_mask"])]
+            altin.append({"metin": metin, "ids": k["input_ids"][0].tolist(),
+                          **dict(zip(("tur", "aciliyet", "ozel", "il", "ilce"), cik))})
+    (TELEFON / "kodlayici-altin.json").write_text(json.dumps(altin, ensure_ascii=False), encoding="utf-8")
+    # float16 vs float32 on the test set: share of messages whose type / urgency decision changes
+    veri = [g for g, _, _ in kume(VERI / "test.jsonl", 2000)]
+    a, b = tahmin(m, tok, veri), tahmin(yukle(False), tok, veri)
+    fark = {ad: float((a[i].argmax(-1) != b[i].argmax(-1)).mean()) for i, ad in ((0, "tur"), (1, "aciliyet"))}
+    print("kodlayici.bin", round((TELEFON / "kodlayici.bin").stat().st_size / 1e6, 2), "MB;", len(tensorler), "tensör;",
+          "float16 karar farkı", fark, flush=True)
+
+
 if __name__ == "__main__":
-    {"egit": egit, "olc": olc}[sys.argv[1]]()
+    {"egit": egit, "olc": olc, "telefon": telefon}[sys.argv[1]]()

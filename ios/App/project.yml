@@ -28,13 +28,18 @@ targets:
         buildPhase: resources
       - path: ../../triyaj/telefon/triyaj.bin
         buildPhase: resources
+      # the Turkish encoder (triyaj/kodlayici.py telefon): message-level decisions, 27.5 MB float16
+      - path: ../../triyaj/telefon/kodlayici.json
+        buildPhase: resources
+      - path: ../../triyaj/telefon/kodlayici.bin
+        buildPhase: resources
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # GENERATE_INFOPLIST_FILE takes the bundle version from these, overriding Info.plist; iOS will not
         # install a bundle without CFBundleVersion (same numbers as the Android build)
-        MARKETING_VERSION: "0.2.0"
-        CURRENT_PROJECT_VERSION: "2"
+        MARKETING_VERSION: "0.3.0"
+        CURRENT_PROJECT_VERSION: "3"
     dependencies:
       - package: KairoCore
     info:

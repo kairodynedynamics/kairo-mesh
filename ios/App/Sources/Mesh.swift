@@ -35,7 +35,13 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
     private lazy var triyaj: Triyaj? = {
         guard let m = Bundle.main.url(forResource: "triyaj", withExtension: "json"),
               let w = Bundle.main.url(forResource: "triyaj", withExtension: "bin") else { return nil }
-        return try? Triyaj(meta: Data(contentsOf: m), weights: Data(contentsOf: w))
+        // the encoder makes the message-level decisions; without it the character model reads the message alone
+        let kod = Bundle.main.url(forResource: "kodlayici", withExtension: "json").flatMap { km in
+            Bundle.main.url(forResource: "kodlayici", withExtension: "bin").flatMap { kw in
+                try? Kodlayici(meta: Data(contentsOf: km), weights: Data(contentsOf: kw, options: .mappedIfSafe))
+            }
+        }
+        return try? Triyaj(meta: Data(contentsOf: m), weights: Data(contentsOf: w), kodlayici: kod)
     }()
 
     override init() {
@@ -187,8 +193,8 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
                                    enlem: loc?.coordinate.latitude, boylam: loc?.coordinate.longitude,
                                    dogruluk: loc?.horizontalAccuracy, zaman: loc?.timestamp ?? Date(),
                                    adres: ["il": k?.il, "ilce": k?.ilce, "mahalle": k?.mahalle, "sokak": k?.sokak, "bina": k?.bina],
-                                   // typed on the emergency screen: the model may not rank it below 2 (it misses
-                                   // ~13% of life-threatening calls on unseen phrasings; triyaj/model/olcum.json)
+                                   // typed on the emergency screen: the model may not rank it below 2 (the encoder
+                                   // still ranks ~3% of life-threatening calls too low; triyaj/model/kodlayici-olcum.json)
                                    aciliyet: k.map { secilen == nil ? min($0.aciliyet, 2) : $0.aciliyet },
                                    model: k != nil && secilen == nil)
             do {
