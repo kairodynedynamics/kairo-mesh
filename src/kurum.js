@@ -132,7 +132,7 @@ export function createAuthority({ identity, signer = null, now = Date.now, onRep
 
   // Most urgent first, then oldest first: the order a dispatcher works through. Each entry carries its warning
   // signs (sinyaller); a call its own sender withdrew sinks below the rest of its urgency level.
-  const asagi = (e) => e.sinyaller.some((s) => s.kod === 'iptal-edildi' || s.kod === 'metin-ilgisiz');
+  const asagi = (e) => e.sinyaller.some((s) => ['iptal-edildi', 'metin-ilgisiz', 'test-cihazi'].includes(s.kod));
   const sorted = () => {
     const tum = [...reports.values()];
     return tum.map((e) => ({ ...e, sinyaller: sinyaller(e, tum) })).sort((a, b) =>
@@ -183,6 +183,8 @@ export function sinyaller(e, tum) {
     ekle('iptal-edildi', 'Gönderen sonradan "yanlışlıkla gönderdim / yardım gerekmiyor" dedi');
   // the phone's model read the text (r.okuma): text that is no call for help at all is a sign of a joke or a forgery.
   // Only a sign: a real caller may write badly, so the call stays listed with its urgency.
+  if (/^(Apple )?(arm64|x86_64|i386)$|sdk_gphone|google_sdk|Emulator|Android SDK built for/i.test(r.cihaz?.model ?? ''))
+    ekle('test-cihazi', `Simülatör ya da emülatörden gönderilmiş (${r.cihaz.model}): gerçek bir telefon değil`);
   const o = r.okuma;
   if (o && r.metin && !EK.includes(r.tur) && r.tur !== 'guvende') {
     const adresVar = [o.il, o.ilce, o.mahalle, o.sokak, o.bina].some(Boolean);
@@ -287,7 +289,7 @@ table{border-collapse:collapse;width:100%;background:#fff;border-radius:12px}
 td,th{border-bottom:1px solid #e5e5ea;padding:10px;text-align:left;vertical-align:top}th{background:#f2f2f7;font-weight:600}
 tr.a1 td:first-child{background:#b3261e;color:#fff;font-weight:700}tr.a2 td:first-child{background:#e8a33d;font-weight:700}
 small{color:#48484a}b{font-weight:600}.s{display:block;margin:2px 0;padding:2px 6px;border-radius:6px;background:#fbf1dc;color:#6b4500;font-size:13px}
-.s.kural-disi,.s.kopya-metin,.s.bilinmeyen-tur,.s.metin-ilgisiz{background:#fbe4e1;color:#8c1d16}.s.iptal-edildi{background:#e5e5ea;color:#26343e}
+.s.kural-disi,.s.kopya-metin,.s.bilinmeyen-tur,.s.metin-ilgisiz,.s.test-cihazi{background:#fbe4e1;color:#8c1d16}.s.iptal-edildi{background:#e5e5ea;color:#26343e}
 </style></head><body>${cihaz ? `<p><a href="?t=${encodeURIComponent(t)}">← Tüm çağrılar</a></p><h1>Cihaz ${esc(cihaz)}: ${tum.length} kayıt</h1>`
   : `<h1>Gelen yardım çağrıları (${tum.length})</h1>`}
 <p>Aciliyete, sonra gönderim zamanına göre sıralı. Sayfa 15 saniyede bir yenilenir. "Telefonun okuması" kişinin seçtiklerini ve

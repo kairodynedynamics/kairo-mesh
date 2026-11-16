@@ -59,7 +59,11 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         #if DEBUG
         // the authority's code is built into the app: nobody has to find and paste one (release builds get the real
         // authority's root-approved code when there is a contract). "-demoKurumYok": the UI test of a build without one.
-        if ProcessInfo.processInfo.arguments.contains("-demoKurumYok") { defaults.removeObject(forKey: "kurum") }
+        let argumanlar = ProcessInfo.processInfo.arguments
+        if argumanlar.contains("-demoKurumYok") { defaults.removeObject(forKey: "kurum") }
+        // UI tests: an authority approved by the test root at an address that does not exist, so a simulator with
+        // internet never puts test calls on the live operator demo's dashboard
+        else if argumanlar.contains("-testKurumu") { defaults.set(Mesh.testKurumu, forKey: "kurum") }
         else if defaults.string(forKey: "kurum")?.contains("demo.kairodynedynamics.com") ?? true {
             defaults.set(Mesh.demoKurum, forKey: "kurum") // the old demo authority had no server: move to the operator demo
         }
@@ -258,6 +262,7 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     #if DEBUG
+    static let testKurumu = "rgExj/KgKZhYcPxK/NqXSk3/nmndBd5JIsybQuPvEXg=;9sbrD4AbOZNuhvB+CDzzHS+lxvMaqOmg5eulfRvSH7k=;https://kurum.example;Test Kurumu (yalnız test);epNYkhZFP0A8TRWKthNdQg0KDvNv8fwfdUA2DI5r/v6Uz+3wXYe2jrn/WFPJ8+9MpXv1/zJNzndXsG1N5tPXBA==" // test/kurum-kodu-ornek.json
     static let demoKurum = "mdUshEx3g4fN93giVHNo85Sj514ZAnJmwzN2mBU/bTU=;tIp0lLyJX6b7Co+dC7Ipt5BjJBNZXUzbnk9UVuDqQy4=;https://kairodynedynamics.com/operator;KairoMesh Operatör Demo - test;W5eevjIWZV2sLHFwyYrsWO9EjfyGC6fZYSf/Zm94HxcKPMr/1DnYSCW4QQpiTL/hm/fHl6EhtlcIXO6VMlWCBA=="
     #endif
 

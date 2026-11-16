@@ -12,9 +12,10 @@ final class KairoMeshUITests: XCTestCase {
 
     // The Bluetooth and location permission prompts belong to SpringBoard and would swallow the first taps. On a fresh
     // install both appear, one after the other; the location one says "Allow While Using App".
-    // kurumYok: start as a build with no authority built in (debug builds otherwise come with the demo authority)
+    // kurumYok: start as a build with no authority built in; otherwise a test authority whose address does not exist
     private func launch(_ app: XCUIApplication, kurumYok: Bool = false) {
-        app.launchArguments = kurumYok ? ["-demoKurumYok"] : []
+        // never the live demo authority: CI simulators have internet, and their calls reached its dashboard
+        app.launchArguments = kurumYok ? ["-demoKurumYok"] : ["-testKurumu"]
         app.launch()
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         let allow = springboard.buttons.matching(NSPredicate(format:
