@@ -39,6 +39,8 @@ final class KairoMeshUITests: XCTestCase {
         type(app, "kurum", "\(key);\(key);https://kurum.example")
         app.buttons["kurumKaydet"].tap()
         XCTAssertTrue(log(app, contains: "KURUM https://kurum.example"))
+        // the situation buttons sit in a lazy grid at the top: off screen on a phone, they are not in the hierarchy
+        for _ in 0..<6 where !app.buttons["tur_enkaz"].isHittable { app.swipeDown() }
         app.buttons["tur_enkaz"].tap()
         app.buttons["acilGonder"].tap()
         XCTAssertTrue(log(app, contains: "ACIL_GONDERILDI"))
