@@ -204,7 +204,7 @@ form{background:#fff;padding:28px;border-radius:18px;width:min(380px,90vw);box-s
 h1{font-size:22px;margin:0 0 6px}p{color:#48484a;margin:0 0 18px;font-size:15px}
 input{width:100%;box-sizing:border-box;font:inherit;padding:12px;border:1px solid #d1d1d6;border-radius:12px}
 button{margin-top:12px;width:100%;font:inherit;font-weight:600;padding:13px;border:0;border-radius:12px;background:#b3261e;color:#fff}
-.h{color:#b3261e;font-weight:600}</style></head><body><form method="get" action="pano">
+.h{color:#b3261e;font-weight:600}</style></head><body><form method="get" action="/operator/pano">
 <h1>Operatör panosu</h1><p>Gelen yardım çağrılarını görmek için pano anahtarını girin.</p>
 ${yanlis ? '<p class="h">Anahtar yanlış.</p>' : ''}<input name="t" type="password" autocomplete="current-password" aria-label="Pano anahtarı" required autofocus>
 <button>Panoyu aç</button></form></body></html>`;
@@ -241,7 +241,8 @@ export function gatewayServer(authority, { token = null } = {}) {
     }
   });
   function yonet(req, res) {
-    const path = new URL(req.url, 'http://x').pathname;
+    // the same server answers under a site path too (kairodynedynamics.com/operator/... proxies here)
+    const path = new URL(req.url, 'http://x').pathname.replace(/^\/operator(?=\/|$)/, '') || '/';
     res.setHeader('X-Content-Type-Options', 'nosniff');
     if (path === '/v1/acil' && req.method === 'POST')
       return body(req, (env) => {

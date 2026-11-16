@@ -120,7 +120,8 @@ test('acil: the operator door asks for the dashboard key; a wrong or missing key
   try {
     const giris = await fetch(kok + '/');
     assert.equal(giris.status, 200);
-    assert.match(await giris.text(), /action="pano"/);
+    assert.match(await giris.text(), /action="/operator/pano"/);
+    assert.equal((await fetch(kok + "/operator/pano?t=gizli-anahtar")).status, 200, "also under the site path");
     const yanlis = await fetch(kok + '/pano?t=yanlis');
     assert.equal(yanlis.status, 401);
     const y = await yanlis.text();

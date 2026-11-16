@@ -232,8 +232,9 @@ def operator_yonlendirme():
         return ""
     adres = adres_dosyasi.read_text(encoding="utf-8").strip().rstrip("/")
     assert re.fullmatch(r"https://[a-z0-9-]+\.trycloudflare\.com", adres), adres
-    # "/operator" itself opens the operator's sign-in page; its relative "pano" link needs the trailing slash
-    return ('[[redirects]]\n  from = "/operator"\n  to = "/operator/"\n  status = 301\n  force = true\n\n'
+    # "/operator" itself opens the sign-in page (proxied, never redirected: Netlify ignores the trailing slash when
+    # matching, so a /operator -> /operator/ redirect loops); the server accepts paths with or without /operator
+    return (f'[[redirects]]\n  from = "/operator"\n  to = "{adres}/"\n  status = 200\n  force = true\n\n'
             f'[[redirects]]\n  from = "/operator/*"\n  to = "{adres}/:splat"\n  status = 200\n  force = true\n\n')
 
 
