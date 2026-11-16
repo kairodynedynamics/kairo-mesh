@@ -158,13 +158,18 @@ ACIL_CEZA = torch.tensor([[0, 1, 4, 4], [1, 0, 4, 4], [1, 1, 0, 1], [1, 1, 1, 0]
 
 
 def kayip(m, b):
+    b = [x.to(CIHAZ) for x in b]
     harf, tip, et, tur, ac, ozel, il, ilce = b
     e, t, a, o, i, c = m(harf, tip)
     maske = harf > 0
     l_et = F.cross_entropy(e[maske], et[maske])
-    l_ac = F.cross_entropy(a, ac) + 0.5 * (F.softmax(a, -1) * ACIL_CEZA[ac]).sum(-1).mean()
+    l_ac = F.cross_entropy(a, ac) + 0.5 * (F.softmax(a, -1) * ACIL_CEZA.to(a.device)[ac]).sum(-1).mean()
     return (l_et + F.cross_entropy(t, tur) + l_ac + F.binary_cross_entropy_with_logits(o, ozel)
             + 0.5 * F.cross_entropy(i, il) + 0.5 * F.cross_entropy(c, ilce))
+
+
+# TRIYAJ_CIHAZ=cuda: GPU'da eğit (ölçüm ve dışa aktarma her zaman CPU'da)
+CIHAZ = os.environ.get("TRIYAJ_CIHAZ", "cpu")
 
 
 def egit():
@@ -172,7 +177,7 @@ def egit():
     torch.manual_seed(0)
     sz = sozluk_kur()
     d, dv = onbellek("egitim", sz), onbellek("dogrulama", sz)
-    m = Triyaj(len(sz.harfler) + 2)
+    m = Triyaj(len(sz.harfler) + 2).to(CIHAZ)
     print("parametre", sum(p.numel() for p in m.parameters()), "örnek", len(d["H"]), flush=True)
     opt = torch.optim.AdamW(m.parameters(), lr=2e-3, weight_decay=0.01)
     B, DONEM = 256, int(os.environ.get("TRIYAJ_DONEM", "2"))
@@ -200,7 +205,7 @@ def egit():
                           f"{(time.time() - t0) / 60:.1f} dk", flush=True)
                     if lv < en_iyi:
                         en_iyi = lv
-                        torch.save(m.state_dict(), MODEL / "triyaj.pt")
+                        torch.save({k: v.cpu() for k, v in m.state_dict().items()}, MODEL / "triyaj.pt")
     print("bitti, en iyi dogrulama", en_iyi, flush=True)
 
 

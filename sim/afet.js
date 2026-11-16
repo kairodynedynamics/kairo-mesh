@@ -28,7 +28,7 @@ const TOPLANMA = [[300, 300], [1700, 300], [300, 1700], [1700, 1700], [1000, 100
 const HASTANE = [1500, 1050];
 
 export async function senaryo({ yayginlik = 0.1, tohum = 1, saat = 12, nufus = 4000, enkaz = 30, kairo = true,
-  adimSn = 10, cowSaat = 8, sikisiklik = 0.35, bleAcik = 30, bleEnkaz = 8 } = {}) {
+  adimSn = 10, cowSaat = 8, sikisiklik = 0.35, bleAcik = 30, bleEnkaz = 8, ekipAgGecidi = false } = {}) {
   const r = rng(tohum);
   const saat0 = 1_800_000_000_000;
   let simdi = saat0;
@@ -112,7 +112,8 @@ export async function senaryo({ yayginlik = 0.1, tohum = 1, saat = 12, nufus = 4
       } else k.p = [k.p[0] + (h[0] - k.p[0]) * adim / d, k.p[1] + (h[1] - k.p[1]) * adim / d];
     }
     // şebeke: kapsama içinde dakikada bir bağlantı denemesi
-    if (t % 60 === 0) for (const k of kisiler) k.cevrimici = !k.olu && kapsama(k.p, t) && r() < sikisiklik;
+    // `ekipAgGecidi`: rescue teams carry a phone with its own link (e.g. a satellite terminal), online throughout
+    if (t % 60 === 0) for (const k of kisiler) k.cevrimici = !k.olu && ((ekipAgGecidi && k.tur === 'ekip') || (kapsama(k.p, t) && r() < sikisiklik));
     // çağrılar
     for (const k of kisiler)
       if (k.tur === 'enkaz' && !k.gonderdi && t >= k.yazar && !k.olu) {
@@ -164,16 +165,17 @@ export function ozet(kosular) {
 if (import.meta.url === `file://${process.argv[1].replace(/\\/g, '/').replace(/^([A-Z]):/, '/$1:')}` || process.argv[1]?.endsWith('afet.js')) {
   const arg = (ad, v) => { const i = process.argv.indexOf(ad); return i > 0 ? +process.argv[i + 1] : v; };
   const oranlar = process.argv.includes('--yayginlik') ? [arg('--yayginlik')] : [0.05, 0.1, 0.2];
+  const ekipAgGecidi = process.argv.includes('--ekip-ag-gecidi');
   const tohumlar = Array.from({ length: arg('--tohum-sayisi', 5) }, (_, i) => arg('--tohum', 1) + i);
   const tum = {};
   for (const y of oranlar) {
     const kosular = [];
     for (const t of tohumlar) {
       const t0 = Date.now();
-      kosular.push(await senaryo({ yayginlik: y, tohum: t, saat: arg('--saat', 12) }));
+      kosular.push(await senaryo({ yayginlik: y, tohum: t, saat: arg('--saat', 12), ekipAgGecidi }));
       console.error(`yayginlik ${y} tohum ${t}: ${((Date.now() - t0) / 1000).toFixed(0)} sn`);
     }
     tum[y] = ozet(kosular);
-    console.log(JSON.stringify({ yayginlik: y, ...tum[y] }));
+    console.log(JSON.stringify({ yayginlik: y, ...(ekipAgGecidi ? { ekipAgGecidi: true } : {}), ...tum[y] }));
   }
 }

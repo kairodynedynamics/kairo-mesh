@@ -353,9 +353,91 @@ def konum(r, test, b, c):
     return out
 
 
+# Bileşenli üretim (v2): sabit şablonlar modelin şablonu ezberlemesine yol açtı (görülmemiş kalıplarda olay türü
+# doğruluğu %50'ye düştü). Bu yüzden mesajların çoğu, her tür için ayrı ifade havuzundan seçilen olay ifadesi ile
+# konum, kişi sayısı, özel durum ve çağrı eklerinin rastgele sırada birleşmesiyle kurulur. `|T` ile biten ifadeler
+# YALNIZ testte kullanılır: test, eğitimde hiç geçmeyen ifadelerle ölçülür.
+OLAY = {
+    "enkaz": ["enkaz altındayız", "bina çöktü altında kaldık", "göçük altındayız", "molozun altındayız",
+              "binamız yıkıldı içerdeyiz", "çıkamıyoruz enkazdayız", "kat çöktü mahsur kaldık", "duvar üstümüze çöktü",
+              "apartman yıkıldı altındayız", "enkazın içindeyiz nefes alabiliyoruz", "binanın altında kaldık",
+              "bodrumda sıkıştık bina çöktü", "evimiz başımıza yıkıldı", "{R} enkaz altında", "{R} göçükte kaldı",
+              "yıkılan binada mahsuruz", "merdiven çöktü çıkamıyoruz", "beton altında kaldık", "üstümüzde moloz var",
+              "bina yan yattı içindeyiz", "{R} binanın altında kaldı",
+              "harabenin altındayız|T", "tavan çöktü üstümüze|T", "yıkıntının arasındayız|T", "{R} yıkılan evin altında|T",
+              "kolonlar çöktü altında kaldık|T", "çökmüş binanın içindeyiz|T"],
+    "saglik": ["ağır yaralı var", "yaralıyız ambulans lazım", "kanaması durmuyor", "kalp krizi geçiriyor", "nefes alamıyor",
+               "bayıldı ayılmıyor", "diyaliz hastası var", "insülin bitti", "ilaçları bitti hasta", "doğum sancısı başladı",
+               "bacağı kırıldı", "başından yaralandı", "doktor lazım acil", "ambulans gelmiyor", "{R} çok kötü hastanelik",
+               "şeker hastası fenalaştı", "astım krizi var", "yanık var tedavi lazım", "oksijen cihazı çalışmıyor",
+               "yatalak hasta ilaçsız", "{R} yaralandı kan kaybediyor",
+               "tansiyonu düştü bilinci yok|T", "kolu ezildi çok kanıyor|T", "{R} sara nöbeti geçiriyor|T",
+               "sağlık ekibi lazım hemen|T", "kırık var hareket edemiyor|T", "zehirlendi kusuyor|T"],
+    "yangin": ["yangın çıktı", "bina yanıyor", "her yer duman", "doğalgaz kokusu var yangın", "alevler yükseliyor",
+               "trafo patladı yanıyor", "ev alev aldı", "duman var içeride insanlar var", "itfaiye lazım yangın", "çatı yanıyor",
+               "araç yanıyor binaya sıçradı", "mutfakta yangın başladı", "yangın büyüyor",
+               "kıvılcım sıçradı tutuştu|T", "ateş büyüyor söndüremiyoruz|T", "yanık kokusu ve duman|T", "dükkan yanıyor yanına sıçrıyor|T"],
+    "barinma": ["çadır yok dışarıdayız", "açıkta kaldık çok soğuk", "battaniye lazım", "arabada yatıyoruz", "evimize giremiyoruz",
+                "barınacak yer yok", "yağmurda kaldık", "ısıtıcı lazım donuyoruz", "sokakta kaldık", "çocuklar üşüyor çadır lazım",
+                "konteyner lazım", "ev hasarlı dışarıdayız", "çadır verin",
+                "kalacak yerimiz kalmadı|T", "parkta sabahladık|T", "naylon altındayız|T", "geceyi dışarda geçirdik üşüyoruz|T"],
+    "gida_su": ["su yok", "içme suyu bitti", "yemek yok", "ekmek yok", "bebek maması lazım", "iki gündür aç", "gıda yardımı lazım",
+                "su ve yemek gelmedi", "hiç yardım gelmedi aç kaldık", "bez ve mama lazım", "temiz su lazım", "erzak bitti",
+                "susuz kaldık|T", "yiyecek bir şey kalmadı|T", "aç ve susuzuz|T", "kumanya lazım|T"],
+    "kayip": ["{A} dan haber alamıyoruz", "{A} kayıp", "{A} ı arıyorum", "{A} ya ulaşamıyoruz", "{R} kayıp gören var mı",
+              "{A} hayatta mı bilen var mı", "{A} hangi hastanede", "{R} {A} kayıp bilgisi olan yazsın",
+              "{A} nereye götürüldü bilen yok|T", "{R} {A} den ses seda yok|T", "{A} enkazdan çıkarıldı mı|T"],
+    "lojistik": ["vinç lazım", "kepçe lazım", "iş makinesi lazım", "jeneratör lazım", "projektör lazım", "kırıcı hilti lazım",
+                 "akaryakıt bitti", "kurtarma ekibi var makine yok", "beton kesme makinesi lazım",
+                 "kaldırma aracı gerekiyor|T", "ağır makine şart|T", "ışık yok gece çalışamıyoruz|T"],
+    "guvende": ["iyiyiz", "güvendeyiz", "sağ salim çıktık", "kurtarıldık", "{R} ile iyiyiz", "toplanma alanındayız iyiyiz",
+                "merak etmeyin iyiyiz", "hastanedeyiz durumumuz iyi", "{A} güvende", "dışarı çıktık bir şeyimiz yok",
+                "korkmayın sağlıklıyız|T", "sorun yok hepimiz iyiyiz|T", "{A} sağ ve iyi|T", "yara almadan kurtulduk|T"],
+    "bilgi": ["yol kapalı", "köprü çökmüş", "eczane açık", "su dağıtımı var", "toplanma alanı açıldı", "hastane hasarlı",
+              "çorba dağıtılıyor", "binalar hasarlı girmeyin", "elektrik kesik", "artçı için dikkat",
+              "geçiş yok yol çökmüş|T", "aşevi kuruldu|T", "bu bölgede gaz kaçağı var uzak durun|T"],
+    "alakasiz": ["geçmiş olsun", "Allah yardımcımız olsun", "bağış linki", "deprem kaç şiddetindeydi", "herkes iyi mi",
+                 "çok korktuk", "haberleri izliyorum", "yardım kampanyası başlattık", "sorumlular hesap versin", "dua edelim",
+                 "milletçe yanınızdayız|T", "sabırlar diliyorum|T", "büyüklüğü ne kadarmış|T"],
+}
+KISI_IFADE = ["{N} kişiyiz", "{N} kişi var", "içeride {N} kişi var", "{N} kişi mahsur", "toplam {N} kişi", "{N} kişilik aileyiz",
+              "{N} can var|T", "biz {N} kişiyiz|T"]
+EK_IFADE = ["acil yardım", "lütfen yardım edin", "ekip gönderin", "kimse gelmedi", "duyan yayılsın", "saatlerdir bekliyoruz",
+            "acil", "yardım", "çabuk gelin|T", "imdat|T"]
+KISI_TURLERI = {"enkaz", "saglik", "yangin", "barinma", "gida_su", "lojistik", "guvende"}
+OZEL_TURLERI = {"enkaz", "saglik", "yangin", "barinma", "gida_su"}
+
+
+def bilesen_sablon(r, tur, test):
+    """Bir türün ifadesi + isteğe bağlı konum, kişi, özel durum ve ek; rastgele sırada, rastgele ayraçla."""
+    sec = lambda havuz: r.choice([x for x in havuz if x.endswith("|T") == test] or havuz).removesuffix("|T")  # noqa: E731
+    olay = sec(OLAY[tur])
+    parca = [olay]
+    acil = tur in OZEL_TURLERI or tur == "lojistik"
+    if r.random() < (0.85 if acil else 0.5):
+        parca.append("{K}")
+    if tur in KISI_TURLERI and "{N}" not in olay and r.random() < 0.55:
+        parca.append(sec(KISI_IFADE))
+    if tur in OZEL_TURLERI and r.random() < 0.45:
+        parca.append("{O}")
+    if acil and r.random() < 0.4:
+        parca.append(sec(EK_IFADE))
+    yol = r.random()
+    if yol < 0.4 and "{K}" in parca:  # adres önce
+        parca.remove("{K}")
+        parca.insert(0, "{K}")
+    elif yol > 0.8:
+        r.shuffle(parca)
+    ayrac = r.choice([" ", " ", ", ", ". ", " - "])
+    return ayrac.join(parca)
+
+
 def ornek(r, test, siddet):
     tur, aciliyet, ihtiyac, sablonlar = r.choice(TUR)
-    s = r.choice([x for x in sablonlar if x.endswith("|T") == test]).removesuffix("|T")
+    if r.random() < 0.7:
+        s = bilesen_sablon(r, tur, test)
+    else:
+        s = r.choice([x for x in sablonlar if x.endswith("|T") == test]).removesuffix("|T")
     b = bicim(r)
     c = {"tur": tur, "aciliyet": aciliyet, "kisi": None, "il": None, "ilce": None, "mahalle": None,
          "sokak": None, "bina": None, "ozel": [], "ihtiyac": list(ihtiyac), "ad": None, "tel": None}

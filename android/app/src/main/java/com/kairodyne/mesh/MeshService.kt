@@ -70,11 +70,21 @@ class MeshService : Service() {
         }, delivered = profile.delivered,
             authority = k?.pub, online = ::online,
             uplink = k?.let { kk -> { env: ByteArray, done: (ByteArray?) -> Unit -> kk.upload(env) { r -> synchronized(this) { done(r) } } } },
-            onEmergencyDelivered = { id -> show("ACIL_ULASTI id=$id saat=${saat()}") },
+            onEmergencyDelivered = { id -> profile.bekleyenAcil = null; show("ACIL_ULASTI id=$id saat=${saat()}") },
             authoritySign = k?.signPub,
             downlink = k?.let { kk -> { done: (List<ByteArray>) -> Unit -> kk.announcements { f -> synchronized(this) { done(f) } } } },
             onAnnouncement = { n -> show("DUYURU ${n.text}") })
         for ((name, pub) in profile.contacts) node.addContact(name, pub)
+        // A call the authority has not confirmed survives a restart of the app or the phone: it is sent again.
+        // The authority may then receive it twice (the old envelope may still be on its way); a duplicate costs less
+        // than a lost call.
+        val bekleyen = profile.bekleyenAcil
+        if (k != null && bekleyen != null) Thread {
+            try {
+                val id = synchronized(this) { node.sendEmergency(bekleyen) }
+                show("ACIL_YENIDEN id=$id saat=${saat()}")
+            } catch (e: RuntimeException) { show("ERROR ${e.message}") }
+        }.start()
     }
 
     private fun online(): Boolean {
@@ -139,7 +149,9 @@ class MeshService : Service() {
         // reading the text and the proof of work take a moment: off the main thread, then queued under the node lock
         Thread {
             try {
+                val t0 = System.nanoTime()
                 val k = if (p[3].isNotBlank()) triyaj?.coz(p[3]) else null
+                if (k != null) show("TRIYAJ tur=${k.tur} aciliyet=${k.aciliyet} kisi=${k.kisi} il=${k.il} ms=${(System.nanoTime() - t0) / 1_000_000}")
                 // an unrecognised or off-topic message still goes out as a call for rescue: missing a call costs more
                 val tur = p[0].takeIf { it in Cagri.TURLER } ?: k?.tur?.takeIf { it in Cagri.TURLER } ?: "enkaz"
                 val ozel = p[2].split(",").filter { it in Cagri.OZEL }.toSet() + (k?.ozel?.filter { it in Cagri.OZEL } ?: emptyList())
@@ -148,6 +160,7 @@ class MeshService : Service() {
                     adres = k?.let { mapOf("il" to it.il, "ilce" to it.ilce, "mahalle" to it.mahalle, "sokak" to it.sokak, "bina" to it.bina) } ?: emptyMap(),
                     aciliyet = k?.aciliyet, model = k != null && p[0] !in Cagri.TURLER)
                 val id = synchronized(this) { node.sendEmergency(json) }
+                profile.bekleyenAcil = json // on disk before the screen says it was sent
                 show("ACIL_GONDERILDI id=$id konum=${if (loc != null) "var" else "yok"} saat=${saat()}")
             } catch (e: RuntimeException) { show("ERROR ${e.message}") }
         }.start()

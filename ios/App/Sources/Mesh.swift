@@ -67,6 +67,7 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         authority: k?.pub, online: { [weak self] in self?.online ?? false },
         uplink: uplink,
         onEmergencyDelivered: { [weak self] id in
+            self?.defaults.removeObject(forKey: "bekleyenAcil")
             self?.acilDurum = "✓ KURUM ÇAĞRINIZI ALDI (\(Mesh.saat()))."
             self?.show("ACIL_ULASTI id=\(id)")
         },
@@ -77,6 +78,12 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
             self?.show("DUYURU \(n.text)")
         })
         for (name, code) in contacts { if let pub = Data(base64Encoded: code) { try? node.addContact(name, Bytes(pub)) } }
+        // A call the authority has not confirmed survives a restart of the app or the phone: it is sent again. The
+        // authority may then receive it twice; a duplicate costs less than a lost call.
+        if k != nil, let bekleyen = defaults.string(forKey: "bekleyenAcil"), let id = try? node.sendEmergency(bekleyen) {
+            acilDurum = "Önceki çağrınız yeniden gönderildi; kurum henüz almadı."
+            show("ACIL_YENIDEN id=\(id)")
+        }
     }
 
     private func tick() {
@@ -144,6 +151,7 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
                                    aciliyet: k?.aciliyet, model: k != nil && secilen == nil)
             do {
                 let id = try self.node.sendEmergency(json)
+                self.defaults.set(json, forKey: "bekleyenAcil") // kept until the authority's receipt arrives
                 self.acilDurum = "Çağrınız gönderildi (\(Mesh.saat())). Yakındaki telefonlar taşıyor; internete ulaşan ilk telefon kuruma iletecek."
                 self.show("ACIL_GONDERILDI id=\(id) konum=\(loc == nil ? "yok" : "var")")
             } catch { self.show("ERROR \(error)") }

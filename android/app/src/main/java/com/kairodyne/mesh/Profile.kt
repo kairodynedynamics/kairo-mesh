@@ -36,6 +36,11 @@ class Profile(context: Context) {
         prefs.edit().putStringSet("contacts", prefs.getStringSet("contacts", emptySet())!! + "$name=$code").apply()
     }
 
+    /** The caller's own emergency report the authority has not yet confirmed, or null. */
+    var bekleyenAcil: String?
+        get() = prefs.getString("bekleyen_acil", null)
+        set(value) { prefs.edit().putString("bekleyen_acil", value).commit() }
+
     /** The authority code (see Kurum), or null before the authority has given one. */
     var kurum: String?
         get() = prefs.getString("kurum", null)
