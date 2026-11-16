@@ -33,10 +33,10 @@ Her satır 5 tohumun toplamıdır (5 × 30 = 150 çağrı). Hücreler, çağrıl
 <!-- node sim/rapor.js md çıktısı -->
 | Koşul | 30 dk | 1 saat | 3 saat | 6 saat | 12 saat | Ulaşanlarda medyan süre | Çağrı |
 |---|---|---|---|---|---|---|---|
-| KairoMesh, uygulama nüfusun %5'inde | %4 | %12 | %29 | %29 | %85 | 7,3 saat | 150 |
-| KairoMesh, uygulama nüfusun %10'unda | %9 | %26 | %53 | %53 | %92 | 1,9 saat | 150 |
-| KairoMesh, uygulama nüfusun %10'unda + ekiplerde uydu bağlantılı telefon | %23 | %40 | %71 | %79 | %92 | 74 dk | 150 |
-| KairoMesh, uygulama nüfusun %20'sinde | %13 | %41 | %71 | %71 | %95 | 71 dk | 150 |
+| KairoMesh, uygulama nüfusun %5'inde | %4 | %13 | %31 | %31 | %83 | 7,2 saat | 150 |
+| KairoMesh, uygulama nüfusun %10'unda | %10 | %26 | %53 | %53 | %90 | 1,8 saat | 150 |
+| KairoMesh, uygulama nüfusun %10'unda + ekiplerde uydu bağlantılı telefon | %25 | %41 | %70 | %77 | %90 | 70 dk | 150 |
+| KairoMesh, uygulama nüfusun %20'sinde | %15 | %42 | %72 | %72 | %93 | 67 dk | 150 |
 | Bugün: yalnız kendi telefonu şebeke bulursa | %0 | %0 | %0 | %0 | %34 | 7,5 saat | 150 |
 
 ## Okuma
@@ -44,9 +44,12 @@ Her satır 5 tohumun toplamıdır (5 × 30 = 150 çağrı). Hücreler, çağrıl
 - **Bugün:** Çekirdekteki enkaz altındaki birinin çağrısı, mobil baz istasyonu gelene kadar hiçbir yere gitmez. 12 saatte ulaşan pay yalnızca %34'tür, çünkü birçok telefonun pili o zamana kadar biter.
 - **KairoMesh:** Çağrı, enkaz başındaki gönüllülere ve oradan toplanma alanlarına, şebekeye kavuşan ilk telefona taşınır. %10 yaygınlıkta çağrıların yarısı, %20 yaygınlıkta %71'i 3 saat içinde kurumdadır.
 - **3 ile 6 saat arasındaki düzlük:** Çekirdekte şebeke olmadığı sürece bazı enkazların çevresinden kimse geçmez. 8. saatte mobil baz istasyonu gelince bu çağrılar da ulaşır.
-- **Ekip ağ geçidi:** Bu düzlüğü kısaltan en ucuz önlem, kurtarma ekiplerinde sürekli bağlı tek bir telefon bulundurmaktır. İlk 30 dakikada ulaşan pay %9'dan %23'e, 3 saatte ulaşan pay %53'ten %71'e çıkar. Bu, uygulamanın nüfusun %20'sine yayılmasıyla aynı etkiyi verir (3 saatte ikisi de %71). Altı uydu terminali, yüz binlerce ek kurulumdan çok daha ucuzdur. Kurumlarla pilotta ilk önerilecek kurulum budur.
+- **Ekip ağ geçidi:** Kurtarma ekiplerinde sürekli bağlı tek bir telefon (ör. uydu terminali) ilk saatleri belirgin biçimde kısaltır: ilk 30 dakikada ulaşan pay %10'dan %25'e, 3 saatte %53'ten %70'e çıkar. Bu, 1 ve 3 saatlik sütunlarda uygulamanın nüfusun %20'sine yayılmasına yakın bir etkidir (%41'e karşı %42, %70'e karşı %72); 30 dakikada daha iyi, 12 saatte biraz geridir. Pilotta ilk önerilecek ucuz kurulum budur. Sınırı: bu simülasyonda ekipler çağrılara göre hareket etmez, enkazdan enkaza rastgele dolaşır; bu yüzden sonuç "daha hızlı kurtarma"yı değil, çağrının kuruma ulaşma süresini ölçer.
 
 ## Sınırlar
+
+- Enkaz altındaki 30 kişinin hepsinde uygulama olduğu varsayılır: oranlar, uygulaması olanların çağrısının kuruma ulaşma payıdır, enkaz altındaki herkesin değil.
+- Sonuçlar gönderenin anahtarı ve gönderim zamanıyla eşleştirilir (önceki sürüm yalnız zamanla eşleştiriyor, aynı 10 saniyede gönderilen çağrılar aynı sonucu paylaşıyordu; düzeltmeden sonra rakamlar 1–3 puan oynadı).
 
 - Bütün parametreler tahmindir: menzil, sıkışıklık, insan hareketi. Doğrulanmaları için gerçek telefonlarla saha tatbikatı gerekir (yol haritası, Faz 2).
 - Radyo modeli basittir: menzil içindeki herkes çerçeveyi alır; çakışma ve parazit modellenmez. Kalabalık toplanma alanlarında bunun etkisi ancak sahada ölçülebilir.

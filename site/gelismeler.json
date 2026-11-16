@@ -22,7 +22,7 @@
  {
   "tarih": "2026-11-16",
   "baslik": "Deprem simülasyonu: enkaz altından gelen çağrı",
-  "metin": "4.000 kişilik, merkezinde şebekenin çöktüğü bir deprem senaryosunda ürünün kendi kodu ve kurum sunucusuyla ölçüm yapıldı. Uygulama nüfusun %10'unda yüklüyken çağrıların %53'ü 3 saatte, %92'si 12 saatte kuruma ulaşıyor; %20'sinde yüklüyken 3 saatte ulaşan pay %71. Bugün aynı koşulda 12 saatte ulaşan pay %34. Kurtarma ekiplerinde sürekli bağlı birer telefon bulunması, uygulamanın iki kat yaygınlaşmasıyla aynı etkiyi veriyor. Rakamlar sahada doğrulanmadı."
+  "metin": "4.000 kişilik, merkezinde şebekenin çöktüğü bir deprem senaryosunda ürünün kendi kodu ve kurum sunucusuyla ölçüm yapıldı. Uygulama nüfusun %10'unda yüklüyken uygulaması olanların çağrılarının %53'ü 3 saatte, %90'ı 12 saatte kuruma ulaşıyor; %20'sinde yüklüyken 3 saatte %72. Bugün aynı koşulda 12 saatte ulaşan pay %34. Kurtarma ekiplerinde sürekli bağlı birer telefon ilk 30 dakikada ulaşan payı %10'dan %25'e çıkarıyor. Rakamlar sahada doğrulanmadı."
  },
  {
   "tarih": "2026-11-16",
