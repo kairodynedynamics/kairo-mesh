@@ -1,0 +1,72 @@
+{
+ "acil_esik": 1.0,
+ "hedef_kacirma": 0.03,
+ "dogrulama": [
+  {
+   "esik": 1.0,
+   "acil_kacirma": 0.1207,
+   "fazla_acil": 0.323
+  },
+  {
+   "esik": 0.5,
+   "acil_kacirma": 0.1188,
+   "fazla_acil": 0.3243
+  },
+  {
+   "esik": 0.4,
+   "acil_kacirma": 0.1134,
+   "fazla_acil": 0.3314
+  },
+  {
+   "esik": 0.3,
+   "acil_kacirma": 0.1079,
+   "fazla_acil": 0.3425
+  },
+  {
+   "esik": 0.25,
+   "acil_kacirma": 0.1039,
+   "fazla_acil": 0.3509
+  },
+  {
+   "esik": 0.2,
+   "acil_kacirma": 0.0992,
+   "fazla_acil": 0.358
+  },
+  {
+   "esik": 0.15,
+   "acil_kacirma": 0.0926,
+   "fazla_acil": 0.3669
+  },
+  {
+   "esik": 0.1,
+   "acil_kacirma": 0.0857,
+   "fazla_acil": 0.3744
+  },
+  {
+   "esik": 0.07,
+   "acil_kacirma": 0.0806,
+   "fazla_acil": 0.3841
+  },
+  {
+   "esik": 0.05,
+   "acil_kacirma": 0.0729,
+   "fazla_acil": 0.3899
+  },
+  {
+   "esik": 0.03,
+   "acil_kacirma": 0.0623,
+   "fazla_acil": 0.4036
+  },
+  {
+   "esik": 0.02,
+   "acil_kacirma": 0.055,
+   "fazla_acil": 0.4143
+  },
+  {
+   "esik": 0.01,
+   "acil_kacirma": 0.0437,
+   "fazla_acil": 0.4324
+  }
+ ],
+ "hedef_tuttu": false
+}

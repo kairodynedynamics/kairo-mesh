@@ -27,3 +27,6 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303") // Android's org.json is a stub in local unit tests
 }
+
+// TriyajTest reads the exported model at run time: a new export must re-run the tests
+tasks.withType<Test>().configureEach { inputs.dir("../../triyaj/telefon") }

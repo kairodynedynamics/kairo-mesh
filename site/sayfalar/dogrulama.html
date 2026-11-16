@@ -58,6 +58,7 @@
     <h2>Yardım mesajı anlamlandırma</h2>
     <p>Telefon yazımını taklit eden sentetik veri: küçük/büyük harf, aksansız yazım, Türkçe Q klavyede komşu tuş hatası, harf atlama ve yer değiştirme, kısaltmalar (mh, sk, apt, kş), bitişik kelimeler, harf uzatma ("acilll"), yazıyla sayılar. 1.000.000 eğitim örneği; test kümesi eğitimde hiç görülmeyen kalıplar, mahalle, sokak, bina ve kişi adlarıyla kurulur.</p>
     <p>Test kümesindeki olay ifadeleri ("tavan çöktü üstümüze", "susuz kaldık" gibi) eğitimde hiç geçmez. Bu yüzden anahtar kelime arayan kural tabanlı yöntem burada çöker. Telefondaki model 3,4 MB'tır, internet istemez ve Android ile iOS'ta aynı sonucu verir. Güvenlik kuralı: model bir çağrıyı kuraldan daha az acil sayamaz.</p>
+    <p><strong>Sınırlama ve önlem:</strong> Model, hiç görmediği ifadelerde hayati çağrıların yaklaşık %13'ünü düşük aciliyetle sınıflıyor. Bu yüzden uygulamada acil ekranından yalnızca yazıyla gelen bir çağrı, model ne derse desin en az "acil" (2) olarak gönderilir; model yalnızca türü, adresi ve kişi sayısını doldurur. Bu kuralla iki test kümesinde de hayati çağrı kaçırma %0'dır. Bedeli: yazıyla gelen her çağrı kurumda en az "acil" görünür. Ayrıntılı tablo: <code>triyaj/model/olcum.json</code>.</p>
     <!--TRIYAJ_TABLO-->
     <p class="soluk kucuk">Veri sentetiktir. Gerçek mesajlardan elle etiketlenmiş bir test kümesi kurulmadan sahadaki başarı bilinemez; bu küme pilot ortağıyla kurulacaktır.</p>
   </div>

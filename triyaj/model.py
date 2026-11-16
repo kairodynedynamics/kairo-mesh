@@ -212,7 +212,7 @@ def egit():
 SAYI = {**{v: k for k, v in SAYI_YAZI.items()}, **{v.translate(ASCII): k for k, v in SAYI_YAZI.items()}}
 
 
-def coz(metin, cikti, sz=None):
+def coz(metin, cikti, sz=None, esik=None):
     """Model çıktısını kayda çevir (tek örnek, numpy dizileri)."""
     e, t, a, o, i, c = cikti
     etiketler = e.argmax(-1)
@@ -248,8 +248,48 @@ def coz(metin, cikti, sz=None):
             r["il"], r["ilce"] = il2, ilce
     tur = TURLER[int(t.argmax())]
     ozel = sorted(OZELLER[k] for k in np.nonzero(o > 0)[0])
-    r.update(tur=tur, ozel=ozel, aciliyet=min(int(a.argmax()) + 1, kural_aciliyet(tur, ozel)))
+    ac = min(int(a.argmax()) + 1, kural_aciliyet(tur, ozel))
+    # asimetrik bedel: hayati (1-2) olasılığı eşiği aşarsa en az 2 (kaçırmak, fazladan acil saymaktan pahalı)
+    esik = ACIL_ESIK if esik is None else esik
+    pa = np.exp(a - a.max()); pa /= pa.sum()
+    if pa[0] + pa[1] >= esik:
+        ac = min(ac, 2)
+    r.update(tur=tur, ozel=ozel, aciliyet=ac)
     return r
+
+
+ESIK_DOSYA = MODEL / "esik.json"
+# doğrulama kümesinde seçilir (esik_sec); dosya yoksa 1.0 = yalnız argmax
+ACIL_ESIK = json.loads(ESIK_DOSYA.read_text())["acil_esik"] if ESIK_DOSYA.exists() else 1.0
+HEDEF_KACIRMA = 0.03
+
+
+def esik_sec():
+    """Ayar kümesinde (görülmemiş ifadeler, testten ayrı örnekler; uret.py --ayar), hayati kaçırma <= %3 olan
+    en yüksek eşik (en az fazladan acil). Eğitim ifadeleriyle kurulu doğrulama kümesinde model hiç kaçırmaz: işe yaramaz."""
+    sys.path.insert(0, str(KOK))
+    from degerlendir import olc as puanla
+    sz = sozluk_kur()
+    m = Triyaj(len(sz.harfler) + 2)
+    m.load_state_dict(torch.load(MODEL / "triyaj.pt"))
+    m.eval()
+    veri = list(ornekler(VERI / "ayar.jsonl"))
+    with torch.no_grad():
+        ciktilar = [[x[0].numpy() for x in m(*map(lambda v: torch.tensor([v]), sz.kodla(o["girdi"])))] for o in veri]
+    gercek = [o["cikti"] for o in veri]
+    secilen, tablo = None, []
+    for e in [1.0, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15, 0.1, 0.07, 0.05, 0.03, 0.02, 0.01]:
+        s = puanla(gercek, [coz(o["girdi"], c, esik=e) for o, c in zip(veri, ciktilar)])
+        tablo.append({"esik": e, "acil_kacirma": s["acil_kacirma"], "fazla_acil": s["fazla_acil"]})
+        print(tablo[-1], flush=True)
+        if s["acil_kacirma"] <= HEDEF_KACIRMA:
+            secilen = e
+            break
+    # hedef hiçbir eşikte tutmazsa eşik kullanılmaz (1.0): kaçırma uygulamadaki ekran kuralıyla kapatılır
+    tuttu = secilen is not None
+    secilen = secilen if tuttu else 1.0
+    ESIK_DOSYA.write_text(json.dumps({"acil_esik": secilen, "hedef_tuttu": tuttu, "hedef_kacirma": HEDEF_KACIRMA, "dogrulama": tablo}, indent=1))
+    print("secilen esik", secilen)
 
 
 def olc(yol):
@@ -270,6 +310,9 @@ def olc(yol):
     sn = (time.time() - t0) / len(veri) * 1000
     sonuc = puanla([o["cikti"] for o in veri], tahmin)
     sonuc["ms_mesaj_basina_cpu_tek_cekirdek_degil"] = round(sn, 2)
+    # uygulamadaki ekran kuralı: acil ekranından yalnız yazıyla gelen çağrı en az 2 (MeshService.kt, Mesh.swift)
+    ekran = puanla([o["cikti"] for o in veri], [{**t, "aciliyet": min(t["aciliyet"], 2)} for t in tahmin])
+    sonuc["ekran_kurali"] = {"acil_kacirma": ekran["acil_kacirma"], "fazla_acil": ekran["fazla_acil"]}
     print(json.dumps(sonuc, ensure_ascii=False, indent=1))
     return sonuc
 
@@ -314,7 +357,7 @@ def agirlik():
     (TELEFON / "triyaj.bin").write_bytes(b"".join(parcalar))
     meta = {"surum": 1, "harfler": sz.harfler, "uzun": UZUN, "alanlar": ALANLAR, "turler": TURLER, "ozeller": OZELLER,
             "iller": ILLER, "ciftler": CIFTLER, "temel_aciliyet": TEMEL, "sayi_yazi": {v: k for k, v in SAYI_YAZI.items()},
-            "tensorler": tensorler}
+            "acil_esik": ACIL_ESIK, "tensorler": tensorler}
     (TELEFON / "triyaj.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
     altin = []
     with torch.no_grad():
@@ -330,4 +373,4 @@ def agirlik():
 
 
 if __name__ == "__main__":
-    {"egit": egit, "olc": lambda: olc(sys.argv[2]), "aktar": aktar, "agirlik": agirlik}[sys.argv[1]]()
+    {"egit": egit, "olc": lambda: olc(sys.argv[2]), "esik": esik_sec, "aktar": aktar, "agirlik": agirlik}[sys.argv[1]]()

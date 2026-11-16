@@ -7,7 +7,7 @@
  {
   "tarih": "2026-11-16",
   "baslik": "Telefonda Türkçe yardım mesajı anlamlandırma",
-  "metin": "Çağrıyı yazan kişi dokunmadan yalnızca yazabiliyor, örneğin 'antakya ürgenpaşa mh enkazdayız 3 kişi bebek var'. Telefondaki küçük model (3,4 MB, internet gerekmez) metinden durum türünü, kişi sayısını, il, ilçe, mahalle ve sokağı, yanındakileri çıkarıp kuruma yapılandırılmış kayıt olarak gönderiyor. Kişinin dokunarak seçtiği her zaman önceliklidir. Model bir çağrıyı kuralın verdiğinden daha az acil sayamaz. Android ve iOS'ta aynı sonucu verdiği testle doğrulanıyor."
+  "metin": "Çağrıyı yazan kişi dokunmadan yalnızca yazabiliyor, örneğin 'antakya ürgenpaşa mh enkazdayız 3 kişi bebek var'. Telefondaki model (3,4 MB, internet gerekmez) metinden olay türünü, kişi sayısını, il, ilçe, mahalle ve sokağı, yanındakileri çıkarıyor. Eğitimde hiç geçmeyen ifadelerde olay türü doğruluğu %64,8 (kural tabanlı yöntem %39,5), il %96,7, kişi sayısı %91,2. Model hayati çağrıların bir kısmını düşük sınıfladığı için acil ekranından yazıyla gelen her çağrı en az 'acil' gönderiliyor; bu kuralla hayati çağrı kaçırma %0. Android ve iOS'ta aynı sonucu verdiği testle doğrulanıyor."
  },
  {
   "tarih": "2026-11-16",

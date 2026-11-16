@@ -31,7 +31,7 @@ def olc(gercek, tahmin):
     assert n == len(tahmin), "satır sayısı tutmuyor"
     dogru = {a: 0 for a in ALANLAR}
     ozel_tp = ozel_fp = ozel_fn = 0
-    acil = acil_kacirma = 0
+    acil = acil_kacirma = sakin = fazla_acil = 0
     tam = 0
     for g, t in zip(gercek, tahmin):
         hepsi = True
@@ -48,12 +48,16 @@ def olc(gercek, tahmin):
         if g["aciliyet"] <= 2:
             acil += 1
             acil_kacirma += (t.get("aciliyet") or 4) > 2
+        else:  # bedeli: kurumun önünde fazladan 'hayati' çağrı
+            sakin += 1
+            fazla_acil += (t.get("aciliyet") or 4) <= 2
     p = ozel_tp / max(1, ozel_tp + ozel_fp)
     r = ozel_tp / max(1, ozel_tp + ozel_fn)
     return {
         "ornek": n,
         "tam_eslesme": round(tam / n, 4),
         "acil_kacirma": round(acil_kacirma / max(1, acil), 4),
+        "fazla_acil": round(fazla_acil / max(1, sakin), 4),
         **{a: round(dogru[a] / n, 4) for a in ALANLAR},
         "ozel_f1": round(2 * p * r / max(1e-9, p + r), 4),
     }

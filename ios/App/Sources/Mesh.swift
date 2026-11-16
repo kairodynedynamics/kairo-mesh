@@ -148,7 +148,10 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
                                    enlem: loc?.coordinate.latitude, boylam: loc?.coordinate.longitude,
                                    dogruluk: loc?.horizontalAccuracy, zaman: loc?.timestamp ?? Date(),
                                    adres: ["il": k?.il, "ilce": k?.ilce, "mahalle": k?.mahalle, "sokak": k?.sokak, "bina": k?.bina],
-                                   aciliyet: k?.aciliyet, model: k != nil && secilen == nil)
+                                   // typed on the emergency screen: the model may not rank it below 2 (it misses
+                                   // ~13% of life-threatening calls on unseen phrasings; triyaj/model/olcum.json)
+                                   aciliyet: k.map { secilen == nil ? min($0.aciliyet, 2) : $0.aciliyet },
+                                   model: k != nil && secilen == nil)
             do {
                 let id = try self.node.sendEmergency(json)
                 self.defaults.set(json, forKey: "bekleyenAcil") // kept until the authority's receipt arrives

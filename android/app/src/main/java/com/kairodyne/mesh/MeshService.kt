@@ -158,7 +158,11 @@ class MeshService : Service() {
                 val json = Cagri.rapor(tur, p[1].toIntOrNull() ?: k?.kisi, ozel, p[3],
                     loc?.latitude, loc?.longitude, loc?.accuracy, loc?.time ?: System.currentTimeMillis(),
                     adres = k?.let { mapOf("il" to it.il, "ilce" to it.ilce, "mahalle" to it.mahalle, "sokak" to it.sokak, "bina" to it.bina) } ?: emptyMap(),
-                    aciliyet = k?.aciliyet, model = k != null && p[0] !in Cagri.TURLER)
+                    // A call typed on the emergency screen is a call for help: the model fills in the details but
+                    // may not rank it below 2. On unseen phrasings it misses about 13% of life-threatening calls
+                    // (triyaj/model/olcum.json); a needless "urgent" costs the dispatcher less than a missed one.
+                    aciliyet = k?.aciliyet?.let { if (p[0] !in Cagri.TURLER) minOf(it, 2) else it },
+                    model = k != null && p[0] !in Cagri.TURLER)
                 val id = synchronized(this) { node.sendEmergency(json) }
                 profile.bekleyenAcil = json // on disk before the screen says it was sent
                 show("ACIL_GONDERILDI id=$id konum=${if (loc != null) "var" else "yok"} saat=${saat()}")

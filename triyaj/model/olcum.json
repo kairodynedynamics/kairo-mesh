@@ -1,0 +1,49 @@
+{
+ "test": {
+  "ornek": 10000,
+  "tam_eslesme": 0.2823,
+  "acil_kacirma": 0.1318,
+  "fazla_acil": 0.3258,
+  "tur": 0.6477,
+  "aciliyet": 0.7042,
+  "kisi": 0.9118,
+  "il": 0.9674,
+  "ilce": 0.87,
+  "mahalle": 0.8035,
+  "sokak": 0.9249,
+  "bina": 0.8842,
+  "ad": 0.8267,
+  "tel": 1.0,
+  "ozel_f1": 0.9637,
+  "ms_mesaj_basina_cpu_tek_cekirdek_degil": 16.86,
+  "ekran_kurali": {
+   "acil_kacirma": 0.0,
+   "fazla_acil": 1.0
+  }
+ },
+ "agir": {
+  "ornek": 5000,
+  "tam_eslesme": 0.2566,
+  "acil_kacirma": 0.136,
+  "fazla_acil": 0.3405,
+  "tur": 0.6228,
+  "aciliyet": 0.6924,
+  "kisi": 0.911,
+  "il": 0.9598,
+  "ilce": 0.8538,
+  "mahalle": 0.7864,
+  "sokak": 0.9258,
+  "bina": 0.8878,
+  "ad": 0.8204,
+  "tel": 1.0,
+  "ozel_f1": 0.9547,
+  "ms_mesaj_basina_cpu_tek_cekirdek_degil": 22.82,
+  "ekran_kurali": {
+   "acil_kacirma": 0.0,
+   "fazla_acil": 1.0
+  }
+ },
+ "boyut_mb": 3.4,
+ "ms": 17,
+ "not": "test: eğitimde hiç geçmeyen ifadeler; ms: masaüstü CPU, PyTorch, mesaj başına"
+}

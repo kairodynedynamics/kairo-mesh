@@ -511,7 +511,19 @@ def sikistir(c):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--egitim", type=int, default=1_000_000)
+    ap.add_argument("--ayar", action="store_true",
+                    help="yalnız veri/ayar.jsonl: görülmemiş ifadelerle, testten ayrı tohum; eşik seçimi için")
     a = ap.parse_args()
+    if a.ayar:
+        # Test kümesiyle aynı ifade havuzu ama farklı örnekler. Tek bir eşik seçilir; testteki örnekler kullanılmaz.
+        r = random.Random(TOHUM + 7)
+        with open(Path(__file__).parent / "veri" / "ayar.jsonl", "w", encoding="utf-8") as f:
+            for _ in range(5_000):
+                o = ornek(r, True, r.uniform(0.0, 1.0))
+                denetle(o)
+                f.write(json.dumps(o, ensure_ascii=False) + "\n")
+        print("ayar 5000 örnek")
+        return
     # bölüm: (adet, test_mi, gürültü şiddeti aralığı)
     BOLUM = {"egitim": (a.egitim, False, (0.0, 1.0)), "dogrulama": (10_000, False, (0.0, 1.0)),
              "test": (10_000, True, (0.0, 1.0)), "test_agir_gurultu": (5_000, True, (0.9, 1.0))}
