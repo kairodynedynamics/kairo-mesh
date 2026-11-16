@@ -38,7 +38,10 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         // the encoder makes the message-level decisions; without it the character model reads the message alone
         let kod = Bundle.main.url(forResource: "kodlayici", withExtension: "json").flatMap { km in
             Bundle.main.url(forResource: "kodlayici", withExtension: "bin").flatMap { kw in
-                try? Kodlayici(meta: Data(contentsOf: km), weights: Data(contentsOf: kw, options: .mappedIfSafe))
+                Bundle.main.url(forResource: "kodlayici-kelime", withExtension: "bin").flatMap { kk in
+                    try? Kodlayici(meta: Data(contentsOf: km), weights: Data(contentsOf: kw, options: .mappedIfSafe),
+                                   kelimeler: Data(contentsOf: kk))
+                }
             }
         }
         return try? Triyaj(meta: Data(contentsOf: m), weights: Data(contentsOf: w), kodlayici: kod)

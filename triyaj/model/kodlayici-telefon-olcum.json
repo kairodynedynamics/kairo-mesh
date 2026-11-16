@@ -1,0 +1,24 @@
+{
+ "test": {
+  "ornek": 10000,
+  "tur": 0.8474,
+  "aciliyet": 0.8972,
+  "il": 0.9763,
+  "ilce": 0.9507,
+  "acil_kacirma": 0.029,
+  "fazla_acil": 0.116,
+  "ozel_f1": 0.9065,
+  "ms": 5.24
+ },
+ "test_agir_gurultu": {
+  "ornek": 5000,
+  "tur": 0.8214,
+  "aciliyet": 0.886,
+  "il": 0.9618,
+  "ilce": 0.9274,
+  "acil_kacirma": 0.0382,
+  "fazla_acil": 0.1272,
+  "ozel_f1": 0.9115,
+  "ms": 4.62
+ }
+}

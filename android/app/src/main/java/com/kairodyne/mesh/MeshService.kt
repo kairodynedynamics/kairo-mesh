@@ -166,7 +166,7 @@ class MeshService : Service() {
         fun metin(ad: String) = assets.open(ad).use { it.readBytes().toString(Charsets.UTF_8) }
         // the encoder (~38 MB in memory) makes the message-level decisions; if it cannot load, the character model
         // still reads the message on its own
-        val kod = try { Kodlayici(metin("kodlayici.json"), assets.open("kodlayici.bin").use { it.readBytes() }) }
+        val kod = try { Kodlayici(metin("kodlayici.json"), assets.open("kodlayici.bin").use { it.readBytes() }, assets.open("kodlayici-kelime.bin").use { it.readBytes() }) }
             catch (e: Throwable) { show("ERROR kodlayıcı yüklenemedi, harf modeli kullanılıyor: ${e.message}"); null }
         runCatching { Triyaj(metin("triyaj.json"), assets.open("triyaj.bin").use { it.readBytes() }, kod) }
             .onFailure { show("ERROR triyaj modeli yüklenemedi: ${it.message}") }.getOrNull()

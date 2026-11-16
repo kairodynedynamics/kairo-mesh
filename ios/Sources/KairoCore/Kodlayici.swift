@@ -3,17 +3,19 @@ import Foundation
 /// The pre-trained Turkish encoder (ELECTRA-small, dbmdz, MIT; fine-tuned in triyaj/kodlayici.py) that makes the
 /// message-level decisions: type, urgency, special status, province, district. Port of
 /// android/.../core/Kodlayici.kt: a cased BERT WordPiece tokenizer and the encoder's forward pass, no dependencies.
-/// Weights are float16 on disk; all but the word embeddings are widened to Float on load, word embedding rows as used.
+/// Weights are float16 on disk, widened to Float on load; word embeddings are int8 with one Float scale per row
+/// (kodlayici-kelime.bin), widened row by row as tokens use them.
 /// Checked against PyTorch (triyaj/telefon/kodlayici-altin.json).
 public final class Kodlayici {
     private let uzun: Int, katman: Int, bas: Int, eps: Float
     private let sozluk: [String: Int]
     private let unk: Int, cls: Int, sep: Int
     private let w: [String: [Float]]
-    private let kelime: [UInt16] // word embeddings, float16 bits
+    private let kelime: [Int8] // word embeddings, row-major
+    private let olcek: [Float] // one scale per row
     private let gomme: Int
 
-    public init(meta: Data, weights: Data) throws {
+    public init(meta: Data, weights: Data, kelimeler: Data) throws {
         guard let m = try JSONSerialization.jsonObject(with: meta) as? [String: Any],
               let s = m["sozluk"] as? [String], let t = m["tensorler"] as? [[String: Any]],
               let u = m["uzun"] as? Int, let k = m["katman"] as? Int, let b = m["bas"] as? Int, let e = m["eps"] as? Double
@@ -27,17 +29,21 @@ public final class Kodlayici {
         let halves: [UInt16] = weights.withUnsafeBytes { raw in
             (0..<(raw.count / 2)).map { UInt16(littleEndian: raw.loadUnaligned(fromByteOffset: $0 * 2, as: UInt16.self)) }
         }
-        var tensors: [String: [Float]] = [:], kel: [UInt16] = [], g = 0
+        var tensors: [String: [Float]] = [:]
         for o in t {
             guard let ad0 = o["ad"] as? String, let sekil = o["sekil"] as? [Int], let ofs = o["ofs"] as? Int else { throw KairoError.malformed }
             let n = sekil.reduce(1, *)
             guard ofs + n <= halves.count else { throw KairoError.malformed }
             let ad = ad0.hasPrefix("govde.") ? String(ad0.dropFirst(6)) : ad0
-            if ad == "embeddings.word_embeddings.weight" { kel = Array(halves[ofs..<(ofs + n)]); g = sekil[1] }
-            else { tensors[ad] = halves[ofs..<(ofs + n)].map(Kodlayici.yarim) }
+            tensors[ad] = halves[ofs..<(ofs + n)].map(Kodlayici.yarim)
         }
-        w = tensors; kelime = kel; gomme = g
-        guard g > 0 else { throw KairoError.malformed }
+        w = tensors
+        guard let ks = m["kelime"] as? [Int], ks.count == 2, kelimeler.count == ks[0] * 4 + ks[0] * ks[1] else { throw KairoError.malformed }
+        gomme = ks[1]
+        olcek = kelimeler.withUnsafeBytes { raw in
+            (0..<ks[0]).map { Float(bitPattern: UInt32(littleEndian: raw.loadUnaligned(fromByteOffset: $0 * 4, as: UInt32.self))) }
+        }
+        kelime = kelimeler.dropFirst(ks[0] * 4).map { Int8(bitPattern: $0) }
     }
 
     // ---- tokenizer: BertNormalizer (clean text, chinese chars, no lowercasing, no accent stripping), BertPreTokenizer
@@ -139,9 +145,15 @@ public final class Kodlayici {
         let ids = belirtecler(metin)
         let n = ids.count
         let pos = w["embeddings.position_embeddings.weight"]!, tip = w["embeddings.token_type_embeddings.weight"]!
-        var x: [[Float]] = (0..<n).map { i in
-            let e = (0..<gomme).map { j in Kodlayici.yarim(kelime[ids[i] * gomme + j]) + pos[i * gomme + j] + tip[j] }
-            return lin(norm(e, "embeddings.LayerNorm"), "embeddings_project")
+        var x: [[Float]] = []
+        for i in 0..<n {
+            let satir = ids[i] * gomme, s = olcek[ids[i]]
+            var e = [Float](repeating: 0, count: gomme)
+            for j in 0..<gomme {
+                let k: Float = Float(kelime[satir + j]) * s
+                e[j] = k + pos[i * gomme + j] + tip[j]
+            }
+            x.append(lin(norm(e, "embeddings.LayerNorm"), "embeddings_project"))
         }
         let h = x[0].count, d = h / bas
         let olcek = 1 / Float(d).squareRoot()

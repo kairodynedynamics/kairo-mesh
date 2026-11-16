@@ -7,7 +7,8 @@ import XCTest
 final class KodlayiciTests: XCTestCase {
     private static let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../../triyaj/telefon").standardized
     private static let kod = try! Kodlayici(meta: Data(contentsOf: dir.appendingPathComponent("kodlayici.json")),
-                                            weights: Data(contentsOf: dir.appendingPathComponent("kodlayici.bin")))
+                                            weights: Data(contentsOf: dir.appendingPathComponent("kodlayici.bin")),
+                                            kelimeler: Data(contentsOf: dir.appendingPathComponent("kodlayici-kelime.bin")))
     private let altin = try! JSONSerialization.jsonObject(with: Data(contentsOf: dir.appendingPathComponent("kodlayici-altin.json"))) as! [[String: Any]]
 
     func testTokenizesLikeTheTrainingTokenizer() {

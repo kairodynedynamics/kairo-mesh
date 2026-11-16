@@ -28,10 +28,12 @@ targets:
         buildPhase: resources
       - path: ../../triyaj/telefon/triyaj.bin
         buildPhase: resources
-      # the Turkish encoder (triyaj/kodlayici.py telefon): message-level decisions, 27.5 MB float16
+      # the Turkish encoder (triyaj/kodlayici.py telefon): message-level decisions, 23.5 MB
       - path: ../../triyaj/telefon/kodlayici.json
         buildPhase: resources
       - path: ../../triyaj/telefon/kodlayici.bin
+        buildPhase: resources
+      - path: ../../triyaj/telefon/kodlayici-kelime.bin
         buildPhase: resources
     settings:
       base:

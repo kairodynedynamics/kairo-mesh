@@ -12,7 +12,7 @@ import kotlin.math.abs
 // written by `python triyaj/kodlayici.py telefon` with the same float16 weights).
 class KodlayiciTest {
     private val dir = File("../../triyaj/telefon")
-    private val kod = Kodlayici(File(dir, "kodlayici.json").readText(), File(dir, "kodlayici.bin").readBytes())
+    private val kod = Kodlayici(File(dir, "kodlayici.json").readText(), File(dir, "kodlayici.bin").readBytes(), File(dir, "kodlayici-kelime.bin").readBytes())
     private val altin = JSONArray(File(dir, "kodlayici-altin.json").readText())
 
     @Test fun tokenizesLikeTheTrainingTokenizer() {

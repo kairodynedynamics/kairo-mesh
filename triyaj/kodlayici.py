@@ -113,8 +113,8 @@ def tahmin(m, tok, metinler):
 
 def olc():
     tok = ElectraTokenizerFast.from_pretrained(ONEGITIM)
-    m = Kodlayici()
-    m.load_state_dict(torch.load(MODEL / "kodlayici.pt"))
+    telefon = os.environ.get("KOD_TELEFON") == "1"  # the phone's weights: float16, int8 word embeddings
+    m = yukle(telefon)
     sonuc = {}
     for ad in ("test", "test_agir_gurultu"):
         veri = kume(VERI / f"{ad}.jsonl")
@@ -147,7 +147,7 @@ def olc():
         sonuc[ad] = {"ornek": n, **{x: round(v / n, 4) for x, v in d.items()}, "acil_kacirma": round(kacir / max(1, acil), 4),
                      "fazla_acil": round(fazla / max(1, sakin), 4), "ozel_f1": round(2 * p * r / max(1e-9, p + r), 4), "ms": round(ms, 2)}
         print(ad, sonuc[ad], flush=True)
-    (MODEL / "kodlayici-olcum.json").write_text(json.dumps(sonuc, ensure_ascii=False, indent=1), encoding="utf-8")
+    (MODEL / ("kodlayici-telefon-olcum.json" if telefon else "kodlayici-olcum.json")).write_text(json.dumps(sonuc, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 def yukle(yarim=True):
@@ -157,7 +157,17 @@ def yukle(yarim=True):
         with torch.no_grad():
             for p in m.parameters():
                 p.copy_(p.half().float())
+            # word embeddings (a third of the weights) as int8 with one scale per row
+            e = m.govde.embeddings.word_embeddings.weight
+            e.copy_(kelime_nicem(e)[0])
     return m.eval()
+
+
+def kelime_nicem(e):
+    """Per-row symmetric int8: returns (dequantized, scales float32, int8 values)."""
+    s = (e.abs().amax(1) / 127).clamp(min=1e-8).float()
+    q = torch.round(e / s[:, None]).clamp(-127, 127).to(torch.int8)
+    return q.float() * s[:, None], s, q
 
 
 # punctuation and emoji, Turkish dotted/dotless i, an unknown word and a word split into pieces
@@ -165,8 +175,8 @@ ALTIN_EK = ["Enkazdayız!!! Yardım edin, İSKENDERUN'da 2 kişi 😭", "haraben
 
 
 def telefon():
-    """Telefon için: telefon/kodlayici.bin (float16, küçük-endian, sırayla) + kodlayici.json (sözlük, yapı, tensör
-    dizini) + kodlayici-altin.json (ALTIN mesajlarda belirteçler ve PyTorch'un beş baş çıktısı; Kotlin/Swift testleri
+    """Telefon için: telefon/kodlayici.bin (float16, küçük-endian, sırayla) + kodlayici-kelime.bin (kelime gömmeleri:
+    satır başına float32 ölçek, sonra int8) + kodlayici.json (sözlük, yapı, tensör dizini) + kodlayici-altin.json (ALTIN mesajlarda belirteçler ve PyTorch'un beş baş çıktısı; Kotlin/Swift testleri
     bunlarla karşılaştırır). Ayrıca float16'ya yuvarlamanın kararları değiştirmediğini test kümesinde ölçer."""
     from model import ALTIN, TELEFON
     tok = ElectraTokenizerFast.from_pretrained(ONEGITIM)
@@ -175,6 +185,11 @@ def telefon():
     for ad, t in m.state_dict().items():
         if not t.is_floating_point():
             continue  # position_ids buffer
+        if ad.endswith("word_embeddings.weight"):  # kodlayici-kelime.bin: float32 row scales, then int8 rows
+            _, s, q = kelime_nicem(t)
+            (TELEFON / "kodlayici-kelime.bin").write_bytes(s.numpy().astype("<f4").tobytes() + q.numpy().tobytes())
+            kelime = list(t.shape)
+            continue
         a = t.detach().numpy().astype("<f2")
         tensorler.append({"ad": ad, "sekil": list(a.shape), "ofs": ofs})
         ofs += a.size
@@ -183,7 +198,7 @@ def telefon():
     c = m.govde.config
     sozluk = [s.rstrip("\n") for s in open(os.path.join(ONEGITIM, "vocab.txt"), encoding="utf-8")]
     meta = {"surum": 1, "uzun": UZUN, "katman": c.num_hidden_layers, "bas": c.num_attention_heads, "eps": c.layer_norm_eps,
-            "sozluk": sozluk, "tensorler": tensorler}
+            "sozluk": sozluk, "kelime": kelime, "tensorler": tensorler}
     (TELEFON / "kodlayici.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
     altin = []
     with torch.no_grad():

@@ -11,11 +11,12 @@ import kotlin.math.sqrt
  * The pre-trained Turkish encoder (ELECTRA-small, dbmdz, MIT; fine-tuned in triyaj/kodlayici.py) that makes the
  * message-level decisions: type, urgency, special status, province, district. It knows words it never saw in
  * training ("harabenin altındayız" -> enkaz), which the character model cannot. No dependencies: a cased BERT
- * WordPiece tokenizer and the encoder's forward pass. Weights are float16 on disk (27.5 MB); everything except the
- * word embeddings is widened to float32 on load (~38 MB), word embedding rows are widened as they are used.
+ * WordPiece tokenizer and the encoder's forward pass. Weights are float16 on disk (19.3 MB), widened to float32 on
+ * load (~38 MB); the word embeddings are int8 with one float32 scale per row (kodlayici-kelime.bin, 4.2 MB), kept
+ * that way and widened row by row as tokens use them.
  * Checked against PyTorch (triyaj/telefon/kodlayici-altin.json).
  */
-class Kodlayici(meta: String, weights: ByteArray) {
+class Kodlayici(meta: String, weights: ByteArray, kelimeler: ByteArray) {
     private val m = JSONObject(meta)
     private val uzun = m.getInt("uzun")
     private val katman = m.getInt("katman")
@@ -26,7 +27,8 @@ class Kodlayici(meta: String, weights: ByteArray) {
     private val cls: Int
     private val sep: Int
     private val w = HashMap<String, FloatArray>()
-    private val kelime: ShortArray // word embeddings, float16 bits
+    private val kelime: ByteArray // word embeddings, int8, row-major
+    private val olcek: FloatArray // one scale per word embedding row
     private val gomme: Int // embedding width (128)
 
     init {
@@ -35,8 +37,6 @@ class Kodlayici(meta: String, weights: ByteArray) {
         unk = sozluk.getValue("[UNK]"); cls = sozluk.getValue("[CLS]"); sep = sozluk.getValue("[SEP]")
         val sb = ByteBuffer.wrap(weights).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
         val t = m.getJSONArray("tensorler")
-        var kel = ShortArray(0)
-        var g = 0
         for (i in 0 until t.length()) {
             val o = t.getJSONObject(i)
             val sekil = o.getJSONArray("sekil")
@@ -44,10 +44,13 @@ class Kodlayici(meta: String, weights: ByteArray) {
             val ham = ShortArray(n)
             sb.position(o.getInt("ofs")); sb.get(ham)
             val ad = o.getString("ad").removePrefix("govde.")
-            if (ad == "embeddings.word_embeddings.weight") { kel = ham; g = sekil.getInt(1) }
-            else w[ad] = FloatArray(n) { yarim(ham[it]) }
+            w[ad] = FloatArray(n) { yarim(ham[it]) }
         }
-        kelime = kel; gomme = g
+        val ks = m.getJSONArray("kelime")
+        val satir = ks.getInt(0); gomme = ks.getInt(1)
+        require(kelimeler.size == satir * 4 + satir * gomme) { "kodlayici-kelime.bin size" }
+        olcek = FloatArray(satir).also { ByteBuffer.wrap(kelimeler, 0, satir * 4).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(it) }
+        kelime = kelimeler.copyOfRange(satir * 4, kelimeler.size)
     }
 
     // ---- tokenizer: BertNormalizer(clean_text, chinese chars, no lowercasing, no accent stripping),
@@ -141,7 +144,7 @@ class Kodlayici(meta: String, weights: ByteArray) {
         val n = ids.size
         val pos = w.getValue("embeddings.position_embeddings.weight"); val tip = w.getValue("embeddings.token_type_embeddings.weight")
         var x = Array(n) { i ->
-            val e = FloatArray(gomme) { j -> yarim(kelime[ids[i] * gomme + j]) + pos[i * gomme + j] + tip[j] }
+            val e = FloatArray(gomme) { j -> kelime[ids[i] * gomme + j] * olcek[ids[i]] + pos[i * gomme + j] + tip[j] }
             lin(norm(e, "embeddings.LayerNorm"), "embeddings_project")
         }
         val h = x[0].size; val d = h / bas

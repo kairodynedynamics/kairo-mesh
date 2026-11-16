@@ -35,7 +35,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     // on-device triage: the character model (triyaj/model.py agirlik, 3.4 MB) and the Turkish encoder
-    // (triyaj/kodlayici.py telefon, 27.5 MB float16); stored uncompressed so they load without inflating
+    // (triyaj/kodlayici.py telefon, 23.5 MB); stored uncompressed so they load without inflating
     sourceSets["main"].assets.srcDirs("../../triyaj/telefon")
     androidResources { noCompress += "bin" }
 }
