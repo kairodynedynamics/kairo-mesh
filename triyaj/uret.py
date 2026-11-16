@@ -1,4 +1,4 @@
-"""Kairo Mesh triyaj veri seti üreteci (v1, sentetik).
+"""KairoMesh triyaj veri seti üreteci (v1, sentetik).
 
     python uret.py                 -> veri/*.jsonl, öz-denetimle
     python uret.py --egitim 200000 -> daha küçük eğitim bölümü

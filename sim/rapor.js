@@ -14,7 +14,7 @@ const y = (x) => '%' + Math.round(100 * x);
 const dk = (x) => (x == null ? '—' : x < 90 ? `${Math.round(x)} dk` : `${(x / 60).toFixed(1).replace('.', ',')} saat`);
 
 const kayit = [];
-for (const r of satirlar) kayit.push([`Kairo Mesh, uygulama nüfusun %${Math.round(r.yayginlik * 100)}${ek(Math.round(r.yayginlik * 100))}${r.ekipAgGecidi ? ' + ekiplerde uydu bağlantılı telefon' : ''}`, ...r.kairo.map(y), dk(r.medyanKairo), r.cagri]);
+for (const r of satirlar) kayit.push([`KairoMesh, uygulama nüfusun %${Math.round(r.yayginlik * 100)}${ek(Math.round(r.yayginlik * 100))}${r.ekipAgGecidi ? ' + ekiplerde uydu bağlantılı telefon' : ''}`, ...r.kairo.map(y), dk(r.medyanKairo), r.cagri]);
 if (satirlar.length) {
   const b = satirlar[0];
   kayit.push(['Bugün: yalnız kendi telefonu şebeke bulursa', ...b.bugun.map(y), dk(b.medyanBugun), b.cagri]);
@@ -29,7 +29,7 @@ if (process.argv[2] === 'grafik') {
   let out = '<div class="cizelge" aria-label="Enkaz altından gelen çağrıların kuruma ulaşma oranı">'
     + '<div class="cizelge-satir baslik"><span></span><span>3 saatte</span><span>12 saatte</span></div>';
   if (b) out += satir('Bugün', b.bugun, 'bugun');
-  for (const r of satirlar) out += satir(`Kairo Mesh, nüfusun %${Math.round(r.yayginlik * 100)}${ek(Math.round(r.yayginlik * 100))}${r.ekipAgGecidi ? ' + ekipte uydu telefonu' : ''}`, r.kairo, r.ekipAgGecidi ? 'ekip' : 'kairo');
+  for (const r of satirlar) out += satir(`KairoMesh, nüfusun %${Math.round(r.yayginlik * 100)}${ek(Math.round(r.yayginlik * 100))}${r.ekipAgGecidi ? ' + ekipte uydu telefonu' : ''}`, r.kairo, r.ekipAgGecidi ? 'ekip' : 'kairo');
   console.log(out + '</div>');
 } else if (process.argv[2] === 'html') {
   console.log('<div class="tablo"><table><thead><tr>' + baslik.map((h) => `<th>${h}</th>`).join('') + '</tr></thead><tbody>'

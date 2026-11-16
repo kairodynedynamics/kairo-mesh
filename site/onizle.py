@@ -25,6 +25,7 @@ DURUMLAR = [
     ("04-muhurlenir", "index.html", "#yolculuk", 1.5),
     ("05-tasinir", "index.html", "#yolculuk", 2.4),
     ("06-iletilir", "index.html", "#yolculuk", 3.25),
+    ("06b-uygulama", "index.html", "#uygulama", -0.02),
     ("07-olcum", "index.html", "#olcum", -0.02),
     ("08-triyaj", "index.html", "#triyaj", -0.05),
     ("09-guvenlik", "index.html", ".bento", -0.3),
@@ -51,7 +52,7 @@ def main():
             sayfa.on("console", lambda m: m.type == "error" and sorunlar.append(f"{kip} konsol: {m.text}"))
             sayfa.on("pageerror", lambda e: sorunlar.append(f"{kip} hata: {e}"))
             for ad, yol, secici, dy in DURUMLAR:
-                if kip != "masaustu" and ad not in ("01-acilis", "04-muhurlenir", "06-iletilir", "07-olcum"):
+                if kip != "masaustu" and ad not in ("01-acilis", "04-muhurlenir", "06b-uygulama", "07-olcum"):
                     continue
                 sayfa.goto(kok + yol)
                 sayfa.wait_for_timeout(1200)

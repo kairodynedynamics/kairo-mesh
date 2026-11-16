@@ -1,8 +1,8 @@
-# Kairo Mesh: Tasarım
+# KairoMesh: Tasarım
 
 ## Ne ve neden
 
-Kairo Mesh, başka uygulamaların içine gömülen bir **gecikmeye dayanıklı mesh mesajlaşma motoru**. Bitchat'in fikrini (telefonlar birbirine röle olur) alır, Bitchat'in kendi whitepaper'ında açık bıraktığı üç alanı kapatır. Ürün bir tüketici uygulaması değil; lisanslanan protokol ve kütüphanedir.
+KairoMesh, başka uygulamaların içine gömülen bir **gecikmeye dayanıklı mesh mesajlaşma motoru**. Bitchat'in fikrini (telefonlar birbirine röle olur) alır, Bitchat'in kendi whitepaper'ında açık bıraktığı üç alanı kapatır. Ürün bir tüketici uygulaması değil; lisanslanan protokol ve kütüphanedir.
 
 ## Hedefler
 

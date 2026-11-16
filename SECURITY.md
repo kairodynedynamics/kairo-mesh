@@ -1,6 +1,6 @@
 # Security policy
 
-Kairo Mesh is meant to carry emergency calls. A flaw can cost lives, so please report it privately.
+KairoMesh is meant to carry emergency calls. A flaw can cost lives, so please report it privately.
 
 ## Reporting
 

@@ -1,6 +1,6 @@
 <div align="center">
 
-# Kairo Mesh
+# KairoMesh
 
 **When the network is down, the call for help still reaches the authority.**
 

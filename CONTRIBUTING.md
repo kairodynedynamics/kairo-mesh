@@ -1,6 +1,6 @@
 # Contributing
 
-Kairo Mesh is dual licensed: AGPL-3.0-or-later for everyone, and a commercial licence for closed-source use.
+KairoMesh is dual licensed: AGPL-3.0-or-later for everyone, and a commercial licence for closed-source use.
 To keep both possible, every contribution needs the right to be offered under both.
 
 By opening a pull request you agree that:

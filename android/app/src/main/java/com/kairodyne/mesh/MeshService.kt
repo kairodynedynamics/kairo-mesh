@@ -46,7 +46,7 @@ class MeshService : Service() {
         getSystemService(NotificationManager::class.java)
             .createNotificationChannel(NotificationChannel(CHANNEL, "Mesh", NotificationManager.IMPORTANCE_LOW))
         startForeground(1, Notification.Builder(this, CHANNEL).setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
-            .setContentTitle("Kairo Mesh").setContentText("Yakındaki telefonlar için mesaj taşıyor").setOngoing(true).build(),
+            .setContentTitle("KairoMesh").setContentText("Yakındaki telefonlar için mesaj taşıyor").setOngoing(true).build(),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
 
         profile = Profile(this)

@@ -144,7 +144,7 @@ function dashboard(authority) {
       + `<td>${new Date(e.sentAt).toLocaleString('tr-TR')}<br><small>alındı ${new Date(e.receivedAt).toLocaleString('tr-TR')}</small></td></tr>`;
   }).join('');
   return `<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta http-equiv="refresh" content="15">
-<title>Kairo Mesh — kurum panosu</title><style>
+<title>KairoMesh — kurum panosu</title><style>
 body{font:15px system-ui,sans-serif;margin:20px;color:#14202b;background:#f6f5f1}table{border-collapse:collapse;width:100%;background:#fff}
 td,th{border-bottom:1px solid #ddd;padding:8px;text-align:left;vertical-align:top}th{background:#ecebe5}
 tr.a1 td:first-child{background:#b3261e;color:#fff;font-weight:700}tr.a2 td:first-child{background:#e8a33d;font-weight:700}

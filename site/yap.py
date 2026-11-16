@@ -1,4 +1,4 @@
-"""Kairo Mesh resmî sitesini derler ve iki yayına yazar.
+"""KairoMesh resmî sitesini derler ve iki yayına yazar.
 
     python site/yap.py                # yalnız site/cikti/ altına derler
     python site/yap.py --yayinla      # + kairodynedynamics.com deposu ve HF Space klasörü
@@ -30,22 +30,22 @@ HF_SITE = r"\\wsl.localhost\Ubuntu-22.04\home\emre\private-llm\geliştirme\site"
 
 # (dosya, menü adı, başlık, açıklama)
 SAYFALAR = [
-    ("index", "Ana sayfa", "Kairo Mesh — şebeke çöktüğünde de yardım çağrısı kuruma ulaşır",
-     "Kairo Mesh, telefonların internet ve baz istasyonu olmadan Bluetooth ile birbirinin şifreli mesajını taşıdığı yerli afet haberleşme sistemidir. Yardım çağrısı, internete ulaşan ilk telefon üzerinden 112 ve afet birimlerine iletilir."),
-    ("nasil-calisir", "Nasıl çalışır", "Nasıl çalışır — Kairo Mesh",
+    ("index", "Ana sayfa", "KairoMesh — şebeke çöktüğünde de yardım çağrısı kuruma ulaşır",
+     "KairoMesh, telefonların internet ve baz istasyonu olmadan Bluetooth ile birbirinin şifreli mesajını taşıdığı yerli afet haberleşme sistemidir. Yardım çağrısı, internete ulaşan ilk telefon üzerinden 112 ve afet birimlerine iletilir."),
+    ("nasil-calisir", "Nasıl çalışır", "Nasıl çalışır — KairoMesh",
      "Taşıyıcı seçimi, çeşme kodlu parçalı aktarım, Noise X şifreleme, taklit edilemez makbuz ve izlenemeyen cihaz kimliği."),
-    ("acil-aktarim", "Acil aktarım", "Acil aktarım: şebekesiz telefondan kuruma — Kairo Mesh",
+    ("acil-aktarim", "Acil aktarım", "Acil aktarım: şebekesiz telefondan kuruma — KairoMesh",
      "Yardım çağrısı kurum anahtarına mühürlenir, çevredeki telefonlarca taşınır ve internete ulaşan ilk telefon tarafından arka planda 112 ya da afet birimine iletilir."),
-    ("dogrulama", "Doğrulama", "Ölçümler ve testler — Kairo Mesh",
+    ("dogrulama", "Doğrulama", "Ölçümler ve testler — KairoMesh",
      "Simülasyon yöntemi ve sonuçları, parçalı aktarım ölçümleri, Türkçe yardım mesajı anlamlandırma taban çizgisi, saldırı testleri ve platform testleri."),
-    ("kurumlar", "Kurumlar için", "Kurumlar için: lisans ve pilot — Kairo Mesh",
+    ("kurumlar", "Kurumlar için", "Kurumlar için: lisans ve pilot — KairoMesh",
      "Kamu kurumları, belediyeler, arama-kurtarma kuruluşları ve operatörler için lisans modeli, pilot süreci ve kamu taahhütleri."),
-    ("simulasyon", "Simülasyon", "Deprem simülasyonu — Kairo Mesh",
+    ("simulasyon", "Simülasyon", "Deprem simülasyonu — KairoMesh",
      "4.000 kişilik deprem senaryosunda enkaz altından gelen çağrının kuruma ulaşma süresi; ayrıca tarayıcıda çalışan mahalle simülasyonu."),
-    ("gelismeler", "Gelişmeler", "Gelişmeler — Kairo Mesh",
-     "Kairo Mesh'in tarihli geliştirme kayıtları."),
-    ("en", "English", "Kairo Mesh — when the network is down, the call for help still reaches the authority",
-     "Kairo Mesh carries encrypted emergency calls from phone to phone over Bluetooth, with no internet or cell towers; the first phone that reaches the internet delivers them to the emergency authority."),
+    ("gelismeler", "Gelişmeler", "Gelişmeler — KairoMesh",
+     "KairoMesh'in tarihli geliştirme kayıtları."),
+    ("en", "English", "KairoMesh — when the network is down, the call for help still reaches the authority",
+     "KairoMesh carries encrypted emergency calls from phone to phone over Bluetooth, with no internet or cell towers; the first phone that reaches the internet delivers them to the emergency authority."),
 ]
 # Önceki dil modeli projesinin adresleri: ana sayfaya kalıcı yönlendirme.
 ESKI = ["modeller", "algoritma", "rla", "omniprint", "egitim", "asama", "haberler", "notlar", "rapor"]
@@ -79,7 +79,7 @@ def sar(dosya, baslik, aciklama, govde):
     ld = json.dumps({"@context": "https://schema.org", "@graph": [
         {"@type": "Organization", "@id": ALAN + "/#org", "name": "Kairodyne Dynamics", "url": ALAN + "/",
          "logo": ALAN + "/icon-512.png", "sameAs": ["https://github.com/kairodynedynamics"]},
-        {"@type": "SoftwareApplication", "@id": ALAN + "/#kairo-mesh", "name": "Kairo Mesh",
+        {"@type": "SoftwareApplication", "@id": ALAN + "/#kairo-mesh", "name": "KairoMesh",
          "applicationCategory": "CommunicationApplication", "operatingSystem": "Android, iOS",
          "description": SAYFALAR[0][3], "creator": {"@id": ALAN + "/#org"}, "inLanguage": "tr",
          "license": "https://www.gnu.org/licenses/agpl-3.0.html"},
@@ -97,7 +97,7 @@ def sar(dosya, baslik, aciklama, govde):
 <link rel="canonical" href="{url}">
 <meta name="theme-color" content="#0b6e4f">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="Kairo Mesh — Kairodyne Dynamics">
+<meta property="og:site_name" content="KairoMesh — Kairodyne Dynamics">
 <meta property="og:locale" content="tr_TR">
 <meta property="og:title" content="{e(baslik)}">
 <meta property="og:description" content="{e(aciklama)}">
@@ -121,7 +121,7 @@ setTimeout(function(){{if(!window.kairoHareket)k.classList.remove('js');}},3000)
 <body>
 <a class="atla" href="#icerik">İçeriğe geç</a>
 <header class="ust"><div class="sar">
-<a class="marka" href="./"><img src="logo.png" alt="" width="30" height="30"><span>Kairo Mesh<small>Kairodyne Dynamics</small></span></a>
+<a class="marka" href="./"><img src="logo.png" alt="" width="30" height="30"><span>Kairo<b class="mesh">Mesh</b><small>Kairodyne Dynamics</small></span></a>
 <nav class="ana" aria-label="Ana menü">
 {menu}
 </nav>
@@ -131,7 +131,7 @@ setTimeout(function(){{if(!window.kairoHareket)k.classList.remove('js');}},3000)
 </main>
 <footer class="alt"><div class="sar">
 <div>
-<h3>Kairo Mesh</h3>
+<h3>KairoMesh</h3>
 <p>Şebeke çöktüğünde de çalışan, yerli geliştirilmiş afet haberleşme sistemi. Araştırma prototipidir; saha tatbikatı ve bağımsız güvenlik denetimi henüz yapılmamıştır.</p>
 <p>© {date.today().year} Kairodyne Dynamics. Protokol çekirdeği <a href="https://github.com/kairodynedynamics/kairo-mesh/blob/main/LICENSE">AGPL-3.0</a>; ticari ve kurumsal lisans ayrıca verilir.</p>
 </div>
@@ -151,8 +151,8 @@ setTimeout(function(){{if(!window.kairoHareket)k.classList.remove('js');}},3000)
 def yonlendirme(hedef="./"):
     return f"""<!doctype html><html lang="tr"><head><meta charset="utf-8">
 <meta http-equiv="refresh" content="0; url={hedef}"><link rel="canonical" href="{ALAN}/">
-<meta name="robots" content="noindex"><title>Kairo Mesh</title></head>
-<body><p>Bu sayfa kaldırıldı. <a href="{hedef}">Kairo Mesh ana sayfası</a></p></body></html>
+<meta name="robots" content="noindex"><title>KairoMesh</title></head>
+<body><p>Bu sayfa kaldırıldı. <a href="{hedef}">KairoMesh ana sayfası</a></p></body></html>
 """
 
 
@@ -193,7 +193,7 @@ def derle():
         (CIKTI / f"{dosya}.html").write_text(sar(dosya, baslik, aciklama, govde), encoding="utf-8")
     for eski in ESKI:
         (CIKTI / f"{eski}.html").write_text(yonlendirme(), encoding="utf-8")
-    (CIKTI / "404.html").write_text(sar("404", "Sayfa bulunamadı — Kairo Mesh", "Aradığınız sayfa bulunamadı.",
+    (CIKTI / "404.html").write_text(sar("404", "Sayfa bulunamadı — KairoMesh", "Aradığınız sayfa bulunamadı.",
         '<section class="bolum ilk"><div class="sar"><h1>Sayfa bulunamadı</h1><p><a href="./">Ana sayfaya dönün</a>.</p></div></section>'),
         encoding="utf-8")
     shutil.copy(KOK / "stil.css", CIKTI / "stil.css")
@@ -208,7 +208,7 @@ def derle():
         "</urlset>\n", encoding="utf-8")
     (CIKTI / "robots.txt").write_text(f"User-agent: *\nAllow: /\n\nSitemap: {ALAN}/sitemap.xml\n", encoding="utf-8")
     (CIKTI / "llms.txt").write_text(
-        "# Kairo Mesh — Kairodyne Dynamics\n\n> " + SAYFALAR[0][3] + "\n\n"
+        "# KairoMesh — Kairodyne Dynamics\n\n> " + SAYFALAR[0][3] + "\n\n"
         "Durum: araştırma prototipi. Simülasyon ölçümleri ve otomatik testler yayımlandı; gerçek telefonlarla saha tatbikatı ve bağımsız güvenlik denetimi henüz yapılmadı.\n\n"
         "Kaynak kod: https://github.com/kairodynedynamics/kairo-mesh (AGPL-3.0, ayrıca ticari lisans)\n\n## Sayfalar\n\n" +
         "".join(f"- [{ad}]({ALAN}/{'' if d == 'index' else d}): {ack}\n" for d, ad, _, ack in SAYFALAR), encoding="utf-8")
@@ -219,9 +219,9 @@ def derle():
         '    Content-Security-Policy = "default-src \'self\'; script-src \'self\' \'unsafe-inline\'; style-src \'self\' \'unsafe-inline\'; img-src \'self\' data:; frame-ancestors \'self\' https://huggingface.co"\n\n'
         '[[headers]]\n  for = "/*.txt"\n  [headers.values]\n    Content-Type = "text/plain; charset=utf-8"\n', encoding="utf-8")
     (CIKTI / "README.md").write_text(
-        "---\ntitle: Kairo Mesh\nemoji: 📡\ncolorFrom: green\ncolorTo: gray\nsdk: static\npinned: true\nlicense: agpl-3.0\n"
+        "---\ntitle: KairoMesh\nemoji: 📡\ncolorFrom: green\ncolorTo: gray\nsdk: static\npinned: true\nlicense: agpl-3.0\n"
         "short_description: Şebeke çöktüğünde de yardım çağrısı kuruma ulaşır\n---\n\n"
-        "# Kairo Mesh\n\n" + SAYFALAR[0][3] + "\n\nResmî sayfa: https://kairodynedynamics.com · Kaynak kod: https://github.com/kairodynedynamics/kairo-mesh\n",
+        "# KairoMesh\n\n" + SAYFALAR[0][3] + "\n\nResmî sayfa: https://kairodynedynamics.com · Kaynak kod: https://github.com/kairodynedynamics/kairo-mesh\n",
         encoding="utf-8")
     print("derlendi:", len(list(CIKTI.rglob("*"))), "dosya")
 
@@ -246,7 +246,7 @@ def yayinla():
         "api = HfApi(token=_env_token()); "
         "r = api.upload_folder(repo_id='kairodynedynamics/KairodyneDynamics', repo_type='space', "
         "folder_path='/mnt/d/Kairodyne-Dynamics/site/cikti', delete_patterns=['*'], "
-        "commit_message='Kairo Mesh resmi sitesi'); print('hf:', r)")
+        "commit_message='KairoMesh resmi sitesi'); print('hf:', r)")
     subprocess.run(["wsl.exe", "-d", "Ubuntu-22.04", "--", "bash", "-c",
                     f"cd /home/emre/private-llm/geli*tirme && python3 -c \"{betik}\""], check=True,
                    env={**__import__("os").environ, "MSYS_NO_PATHCONV": "1"})

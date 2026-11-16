@@ -1,4 +1,4 @@
-// Kairo Mesh sitesi: kaydırmaya bağlı hareket. Bağımlılık yok; kaydırmaya müdahale etmez (yalnız okur).
+// KairoMesh sitesi: kaydırmaya bağlı hareket. Bağımlılık yok; kaydırmaya müdahale etmez (yalnız okur).
 // "Hareketi azalt" açıksa hiçbir şey hareket etmez: sahneler son hâliyle, sayılar son değeriyle görünür.
 (() => {
   const azalt = matchMedia('(prefers-reduced-motion: reduce)').matches;

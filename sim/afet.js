@@ -16,7 +16,7 @@
 //   toplanma alanı ve hastane arasında dolaşır; %15'i 1–3 saatte bölgeden çıkar (şebekeye kavuşur).
 //   Enkazların çevresinde gönüllüler toplanır (her enkazda 0–4 kişi, 30 m içinde).
 // - 6 arama-kurtarma ekibi enkazdan enkaza dolaşır; telefonları sıradan telefondur.
-// - Karşılaştırma ("bugün"): Kairo Mesh olmadan çağrı yalnız gönderenin kendi telefonu şebekeye
+// - Karşılaştırma ("bugün"): KairoMesh olmadan çağrı yalnız gönderenin kendi telefonu şebekeye
 //   kavuşursa (mobil baz istasyonu) ulaşır.
 import { createIdentity } from '../src/crypto.js';
 import { createNode } from '../src/node.js';

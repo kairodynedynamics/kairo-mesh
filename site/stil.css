@@ -1,4 +1,4 @@
-/* Kairo Mesh — resmî ürün sitesi. Dış kaynak yok: yazı tipi sitede barınır, iz sürücü yok. */
+/* KairoMesh — resmî ürün sitesi. Dış kaynak yok: yazı tipi sitede barınır, iz sürücü yok. */
 @font-face {
   font-family: "Inter"; font-style: normal; font-weight: 400 800; font-display: swap;
   src: url("fonts/inter-latin.woff2") format("woff2");
@@ -299,14 +299,25 @@ html:not(.js) :is(.y-kurum-hat, .y-tamam, .y-kayit), .az-hareket :is(.y-kurum-ha
 
 /* --- görününce açılma -------------------------------------------------------------------------------- */
 .js:not(.az-hareket) .acilir { opacity: 0; transform: translateY(22px); transition: opacity .7s var(--ease), transform .7s var(--ease); }
-.js:not(.az-hareket) :is(h1, h2).acilir { opacity: 1; transform: none; clip-path: inset(0 0 100% 0); transition: clip-path .9s var(--ease); }
+/* headings: a slightly longer rise. Not clip-path: Chrome's IntersectionObserver counts a fully clipped element as
+   never visible, so the heading would stay hidden for ever */
+.js:not(.az-hareket) :is(h1, h2).acilir { transform: translateY(28px); transition: opacity .9s var(--ease), transform .9s var(--ease); }
 .js:not(.az-hareket) .acilir.gorundu { opacity: 1; transform: none; }
-.js:not(.az-hareket) :is(h1, h2).acilir.gorundu { clip-path: inset(0); }
-:is(h1, h2).acilir { padding-bottom: .12em; margin-bottom: .38em; } /* kırpma "ğ, ç, ş" kuyruklarını kesmesin */
 :is(.izgara, .bento, .sayilar) > .acilir:nth-child(2) { transition-delay: .08s; }
 :is(.izgara, .bento, .sayilar) > .acilir:nth-child(3) { transition-delay: .16s; }
 :is(.izgara, .bento) > .acilir:nth-child(4) { transition-delay: .24s; }
 .bento > .acilir:nth-child(5) { transition-delay: .32s; } .bento > .acilir:nth-child(6) { transition-delay: .4s; }
+
+/* --- uygulama galerisi: yana kayan telefon görselleri; kaydırdıkça hafifçe kalkar ---------------------------- */
+.uygulama { overflow: hidden; }
+.galeri { display: flex; gap: 22px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 26px max(20px, calc((100vw - var(--sar)) / 2 + 20px)) 34px;
+  scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+.galeri figure { flex: 0 0 auto; width: min(300px, 70vw); margin: 0; scroll-snap-align: center; border-radius: 26px; overflow: hidden;
+  box-shadow: 0 24px 50px -28px rgba(9,17,22,.6); transform: translateY(calc((1 - var(--p, 1)) * 30px)); transition: transform .35s var(--ease); }
+.galeri figure:nth-child(even) { margin-top: 36px; }
+.galeri img { display: block; width: 100%; height: auto; }
+@media (hover: hover) and (pointer: fine) { .galeri figure:hover { transform: translateY(-6px); } }
+.marka img { width: 34px; height: 34px; border-radius: 8px; }
 
 /* telefonda menü tek satır, yana kayar */
 @media (max-width: 860px) {
@@ -315,3 +326,6 @@ html:not(.js) :is(.y-kurum-hat, .y-tamam, .y-kayit), .az-hareket :is(.y-kurum-ha
   nav.ana::-webkit-scrollbar { display: none; }
   nav.ana a { white-space: nowrap; }
 }
+
+.marka b.mesh { color: var(--acil); font-weight: 700; }
+.ust.koyu .marka b.mesh { color: #ff6b5e; }
