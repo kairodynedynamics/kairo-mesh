@@ -43,6 +43,8 @@ SAYFALAR = [
      "80 kişilik bir mahalle simülasyonunu ürünle aynı kodla tarayıcınızda çalıştırın ve taşıyıcı kurallarını karşılaştırın."),
     ("gelismeler", "Gelişmeler", "Gelişmeler — Kairo Mesh",
      "Kairo Mesh'in tarihli geliştirme kayıtları."),
+    ("en", "English", "Kairo Mesh — when the network is down, the call for help still reaches the authority",
+     "Kairo Mesh carries encrypted emergency calls from phone to phone over Bluetooth, with no internet or cell towers; the first phone that reaches the internet delivers them to the emergency authority."),
 ]
 # Önceki dil modeli projesinin adresleri: ana sayfaya kalıcı yönlendirme.
 ESKI = ["modeller", "algoritma", "rla", "omniprint", "egitim", "asama", "haberler", "notlar", "rapor"]
@@ -80,11 +82,12 @@ def sar(dosya, baslik, aciklama, govde):
          "applicationCategory": "CommunicationApplication", "operatingSystem": "Android, iOS",
          "description": SAYFALAR[0][3], "creator": {"@id": ALAN + "/#org"}, "inLanguage": "tr",
          "license": "https://www.gnu.org/licenses/agpl-3.0.html"},
-        {"@type": "WebPage", "url": url, "name": baslik, "description": aciklama, "inLanguage": "tr"}]},
+        {"@type": "WebPage", "url": url, "name": baslik, "description": aciklama, "inLanguage": "en" if dosya == "en" else "tr"}]},
         ensure_ascii=False)
     e = html.escape
+    dil = "en" if dosya == "en" else "tr"
     return f"""<!doctype html>
-<html lang="tr">
+<html lang="{dil}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">

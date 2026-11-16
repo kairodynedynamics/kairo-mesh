@@ -1,0 +1,49 @@
+<section class="bolum ilk">
+  <div class="sar kahraman">
+    <div>
+      <span class="etiket acil">Disaster communication · Made in Türkiye</span>
+      <h1>When the network is down, the call for help still reaches the authority.</h1>
+      <p class="lede">Kairo Mesh lets phones carry each other's encrypted messages over Bluetooth, with no internet and no cell towers. A call for help typed under rubble travels from phone to phone, and the first phone that reaches the internet hands it to the emergency authority in the background.</p>
+      <div class="dugmeler">
+        <a class="dugme birincil" href="https://github.com/kairodynedynamics/kairo-mesh">Source code and measurements</a>
+        <a class="dugme" href="simulasyon.html">Run the simulation</a>
+      </div>
+    </div>
+    <div class="kart">
+      <h3>Status</h3>
+      <p>Research prototype, working on Android, iOS and a reference server. Simulation results and 79 automated tests are public. Field trials with real phones and an independent security audit are the next steps.</p>
+    </div>
+  </div>
+</section>
+
+<section class="bolum">
+  <div class="sar">
+    <h2>How it works</h2>
+    <ol class="adimlar">
+      <li><div><h3>Tap, or type</h3><p>The emergency screen needs no typing: choose the situation (under rubble, injured, fire), the number of people and who is with you. GPS position is added; GPS works without a network. Free text is turned into a structured record on the phone.</p></div></li>
+      <li><div><h3>Sealed to the authority</h3><p>The call is sealed with the authority's public key using the Noise X pattern (Noise_X_25519_ChaChaPoly_SHA256), checked byte for byte against a published test vector on every platform. Carriers see neither content nor location nor sender.</p></div></li>
+      <li><div><h3>Carried by any phone</h3><p>Every phone with the app carries emergency calls without its owner doing anything. Emergency calls always go first and move toward phones that are more often online.</p></div></li>
+      <li><div><h3>Delivered and receipted</h3><p>The first phone with internet uploads the call to the authority's server. The authority's receipt, which only it can produce, travels back through the mesh: the caller sees "the authority has your call".</p></div></li>
+    </ol>
+  </div>
+</section>
+
+<section class="bolum">
+  <div class="sar iki">
+    <div>
+      <h2>Built for public authorities</h2>
+      <ul class="tik">
+        <li>The authority generates its keys on its own machine; the private key never leaves it.</li>
+        <li>The server runs in-country, on the authority's infrastructure. A dispatcher dashboard lists calls by urgency.</li>
+        <li>Signed announcements (assembly points, water distribution, unsafe buildings) flow back to the public through the same mesh.</li>
+        <li>Forged emergency calls are bounded by proof of work and a per-phone quota.</li>
+        <li>The core is open source (AGPL-3.0) for audit and trust; commercial and institutional licences are available.</li>
+      </ul>
+    </div>
+    <div class="kart">
+      <h3>Partners</h3>
+      <p>We are looking for civil protection agencies, municipalities, search-and-rescue organisations and mobile operators to run field trials with.</p>
+      <p style="margin-top:12px"><a class="dugme birincil" href="https://github.com/kairodynedynamics/kairo-mesh/issues/new?title=Pilot%20enquiry">Open a pilot enquiry</a></p>
+    </div>
+  </div>
+</section>

@@ -82,7 +82,10 @@ function dashboard(authority) {
     const r = e.report, k = r.konum ?? {};
     const yer = [r.il, r.ilce, r.mahalle, r.sokak, r.bina].filter(Boolean).join(' / ');
     return `<tr class="a${esc(r.aciliyet)}"><td>${esc(r.aciliyet)}</td><td>${esc(r.tur)}</td><td>${esc(r.kisi)}</td>`
-      + `<td>${esc(yer)}${k.enlem ? `<br><small>${esc(k.enlem)}, ${esc(k.boylam)} (±${esc(k.dogruluk_m)} m)</small>` : ''}</td>`
+      + `<td>${esc(yer)}${Number.isFinite(k.enlem) && Number.isFinite(k.boylam)
+        ? `<br><small>${esc(k.enlem)}, ${esc(k.boylam)}${k.dogruluk_m ? ` (±${esc(Math.round(k.dogruluk_m))} m)` : ''}`
+          + ` · <a href="https://www.openstreetmap.org/?mlat=${k.enlem}&amp;mlon=${k.boylam}#map=18/${k.enlem}/${k.boylam}" target="_blank" rel="noopener">haritada aç</a></small>`
+        : ''}</td>`
       + `<td>${esc((r.ozel ?? []).join(', '))}</td><td>${esc(r.metin)}</td>`
       + `<td>${new Date(e.sentAt).toLocaleString('tr-TR')}<br><small>alındı ${new Date(e.receivedAt).toLocaleString('tr-TR')}</small></td></tr>`;
   }).join('');

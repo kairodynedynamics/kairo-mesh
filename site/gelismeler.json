@@ -1,6 +1,21 @@
 [
  {
   "tarih": "2026-11-16",
+  "baslik": "Kurumun kendi anahtarı ve sunucusu: kurulum aracı",
+  "metin": "Kurum, mühür ve imza anahtarlarını kendi bilgisayarında üretir; özel anahtar oradan çıkmaz. Aynı araç kurum sunucusunu çalıştırır: çağrı kaydı, aciliyete göre sıralı pano (konum ve harita bağlantısıyla), duyuru yayımlama. Kurulum belgesi yayımlandı."
+ },
+ {
+  "tarih": "2026-11-16",
+  "baslik": "Uygulamalarda acil çağrı ekranı",
+  "metin": "Android ve iOS uygulamalarında yazmadan, dokunarak acil çağrı: durum (enkaz, yaralı, yangın…), kişi sayısı, yanındakiler (bebek, yaşlı…), isteğe bağlı adres. GPS konumu eklenir; ekranda önce 'taşınıyor', kurum alınca 'kurum aldı' yazar."
+ },
+ {
+  "tarih": "2026-11-16",
+  "baslik": "İmzalı kurum duyuruları ve sahte çağrıya karşı koruma",
+  "metin": "Kurum, toplanma alanı ve su dağıtımı gibi duyuruları imzalayarak yayımlar; internetli telefonlar ağa taşır, her telefon imzayı doğrular. Her acil çağrı küçük bir iş kanıtı taşır ve başkalarının acil çağrıları için ayrı kota tutulur. Android, iOS ve referans uygulama bayt bayt uyumlu."
+ },
+ {
+  "tarih": "2026-11-16",
   "baslik": "Kairo Mesh resmî sitesi yayında",
   "metin": "Kairodyne Dynamics bundan sonra yalnız Kairo Mesh'e odaklanıyor. Önceki dil modeli projesinin sayfaları kaldırıldı; site ürünün teknik, ölçüm ve kurum bilgilerini taşıyor."
  },
