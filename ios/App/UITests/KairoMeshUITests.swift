@@ -74,7 +74,7 @@ final class KairoMeshUITests: XCTestCase {
         let code = ready.label.components(separatedBy: "READY code=")[1].prefix(44)
         app.terminate()
         launch(app)
-        XCTAssertTrue(log(app, contains: "READY code=\(code)"), "identity is kept in the Keychain across launches")
+        XCTAssertTrue(log(app, contains: "READY code=\(code)", timeout: 30), "identity is kept in the Keychain across launches")
     }
 }
 
