@@ -47,7 +47,9 @@ export function verifySignature(pub, msg, sig) {
 
 // Proof of work on emergency envelopes: sha256(sealed || nonce) must start with POW_BITS zero bits. About 2^18
 // hashes, under a second on a phone: nothing for one real call, a real cost for someone forging thousands.
-export const POW_BITS = 18;
+// KAIRO_SIM_POW_BITS: the security simulations lower it so thousands of fakes can be made in a run; the attacker's
+// real cost is measured separately (sim/guvenlik.js is). Phones (Kotlin/Swift) have their own constant.
+export const POW_BITS = Number(process.env.KAIRO_SIM_POW_BITS) || 18;
 const zeros = (h) => { let n = 0; for (const b of h) { if (b === 0) { n += 8; continue; } n += Math.clz32(b) - 24; break; } return n; };
 export function addWork(sealed, bits = POW_BITS) {
   const nonce = Buffer.alloc(8);

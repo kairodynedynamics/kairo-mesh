@@ -28,7 +28,12 @@ const TOPLANMA = [[300, 300], [1700, 300], [300, 1700], [1700, 1700], [1000, 100
 const HASTANE = [1500, 1050];
 
 export async function senaryo({ yayginlik = 0.1, tohum = 1, saat = 12, nufus = 4000, enkaz = 30, kairo = true,
-  adimSn = 10, cowSaat = 8, sikisiklik = 0.35, bleAcik = 30, bleEnkaz = 8, ekipAgGecidi = false } = {}) {
+  adimSn = 10, cowSaat = 8, sikisiklik = 0.35, bleAcik = 30, bleEnkaz = 8, ekipAgGecidi = false,
+  // security simulations (sim/guvenlik.js): `saldirgan` phones with a modified app among the crowd at the assembly
+  // areas, each making `saldiriHizi` fake emergency calls a minute from the first minute; `akilli`: they claim a new
+  // sending id in every frame; `ayar`: the carrying rule every honest phone runs (src/node.js createNode)
+  // `saldirganYeri`: 'toplanma' (the crowds, mostly where the network works) | 'cekirdek' (among the rubble, no network)
+  saldirgan = 0, saldiriHizi = 6, akilli = false, ayar = {}, saldirganYeri = 'toplanma' } = {}) {
   const r = rng(tohum);
   const saat0 = 1_800_000_000_000;
   let simdi = saat0;
@@ -54,7 +59,11 @@ export async function senaryo({ yayginlik = 0.1, tohum = 1, saat = 12, nufus = 4
       kisiler.push({ tur: 'gonullu', p: [e[0] + rastgele(-30, 30), e[1] + rastgele(-30, 30)], hedefler: [], menzil: bleAcik });
   for (let i = 0; i < 6 && kisiler.length < enkaz + telefonSayisi; i++)
     kisiler.push({ tur: 'ekip', p: [rastgele(0, ALAN), rastgele(0, ALAN)], hedefler: [...enkazlar].sort(() => r() - 0.5), menzil: bleAcik });
-  while (kisiler.length < enkaz + telefonSayisi) {
+  for (let i = 0; i < saldirgan; i++) {           // attackers stand in the crowd at the assembly areas
+    const t = saldirganYeri === 'cekirdek' ? enkazlar[i % enkazlar.length] : TOPLANMA[i % TOPLANMA.length];
+    kisiler.push({ tur: 'saldirgan', p: [t[0] + rastgele(-60, 60), t[1] + rastgele(-60, 60)], menzil: bleAcik });
+  }
+  while (kisiler.length < enkaz + telefonSayisi + saldirgan) {
     const ev = [rastgele(0, ALAN), rastgele(0, ALAN)], z = r();
     const yakin = TOPLANMA.reduce((a, b) => (uzak(ev, a) < uzak(ev, b) ? a : b));
     const k = { tur: z < 0.7 ? 'toplanma' : z < 0.85 ? 'gezgin' : 'tahliye', p: ev, menzil: bleAcik };
@@ -79,6 +88,7 @@ export async function senaryo({ yayginlik = 0.1, tohum = 1, saat = 12, nufus = 4
       uplink: async (env) => kurum.receive(env),
       send: (f) => kuyruk.push([i, f]),
       onEmergencyDelivered: () => { k.makbuz ??= simdi; },
+      ayar: k.tur === 'saldirgan' ? { maxStore: 1e6, acilKota: 0, sahteKimlik: akilli } : ayar,
     });
   });
 
@@ -114,6 +124,9 @@ export async function senaryo({ yayginlik = 0.1, tohum = 1, saat = 12, nufus = 4
     // şebeke: kapsama içinde dakikada bir bağlantı denemesi
     // `ekipAgGecidi`: rescue teams carry a phone with its own link (e.g. a satellite terminal), online throughout
     if (t % 60 === 0) for (const k of kisiler) k.cevrimici = !k.olu && ((ekipAgGecidi && k.tur === 'ekip') || (kapsama(k.p, t) && r() < sikisiklik));
+    // sahte çağrılar: değiştirilmiş uygulama, sınırsız depo, dakikada `saldiriHizi` çağrı
+    if (t % 60 === 0) for (const k of kisiler) if (k.tur === 'saldirgan')
+      for (let n = 0; n < saldiriHizi; n++) k.dugum.sendEmergency({ tur: 'enkaz', aciliyet: 1, kisi: 20, ozel: ['bebek'] });
     // çağrılar
     for (const k of kisiler)
       if (k.tur === 'enkaz' && !k.gonderdi && t >= k.yazar && !k.olu) {
@@ -151,7 +164,9 @@ export async function senaryo({ yayginlik = 0.1, tohum = 1, saat = 12, nufus = 4
       makbuz: k.makbuz ? (k.makbuz - k.gonderdi) / 60000 : null,
     };
   });
-  return { yayginlik, tohum, telefon: kisiler.length, sonuc };
+  const saldirganlar = new Set(kisiler.filter((k) => k.tur === 'saldirgan').map((k) => Buffer.from(k.kimlik.pub).toString('hex')));
+  const sahteKurumda = kurum.reports.filter((x) => saldirganlar.has(x.sender)).length;
+  return { yayginlik, tohum, telefon: kisiler.length, sonuc, sahteKurumda, sahteUretilen: saldirgan * saldiriHizi * (saat * 60 + 1) };
 }
 
 const oran = (dizi, sinir) => dizi.filter((x) => x !== null && x <= sinir).length / dizi.length;

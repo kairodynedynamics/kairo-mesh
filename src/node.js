@@ -36,7 +36,16 @@ const KURUM = '#kurum', ACIL_TOKENS = 8;
 
 export function createNode({ identity, contacts = new Map(), send, onMessage = () => {}, now = Date.now, L = 4, delivered = [],
   authority = null, online = () => false, uplink = null, onEmergencyDelivered = () => {},
-  authoritySign = null, downlink = null, onAnnouncement = () => {} }) {
+  authoritySign = null, downlink = null, onAnnouncement = () => {}, ayar = {} }) {
+  // `ayar`: knobs for the security simulations (sim/guvenlik.js), defaults are what the phones run:
+  //   acilKota: others' emergency mail carried at once; maxStore: the whole store;
+  //   tahliye: which emergency makes room when the quota is full ('eski' oldest | 'rastgele' random);
+  //   kaynakSiniri: others' emergencies accepted from one sending id per hour (Infinity: no limit);
+  //   sahteKimlik: an attacker's modified app that claims a new sending id in every frame;
+  //   rastgele: random source for 'rastgele'.
+  const ACIL = ayar.acilKota ?? ACIL_STORE, MAXS = ayar.maxStore ?? MAX_STORE;
+  const tahliye = ayar.tahliye ?? 'eski', kaynakSiniri = ayar.kaynakSiniri ?? Infinity, rastgele = ayar.rastgele ?? Math.random;
+  const kaynaklar = new Map(); // sending id -> times its emergencies were accepted (kaynakSiniri)
   const notices = new Map(); // id -> { frame, expires, sent }
   let lastDownlink = -Infinity;
   const store = new Map();   // msgId -> { id, tag, rh, env, tokens, at, own, trusted }
@@ -57,7 +66,7 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
   const doneCache = new Map();
 
   const myRk = recognitionKey(identity.pub);
-  const eid = () => ephemeralId(myRk, now());
+  const eid = ayar.sahteKimlik ? () => randomBytes(8) : () => ephemeralId(myRk, now());
   const isMe = (id) => id.equals(eid()) || id.equals(ephemeralId(myRk, now() - EPOCH_MS));
   const tagsOf = (pub) => [recipientTag(pub, now()), recipientTag(pub, now() - DAY_MS)];
   const known = (peer) => recognise(peer, recognition, now()) !== null;
@@ -229,11 +238,17 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     if (acil && !hasWork(env)) return;
     if (!forMe()) {
       if (acil) {
-        // others' emergency mail has its own quota; when full, the oldest one makes room
+        if (kaynakSiniri !== Infinity) {
+          const k = hex(from), z = (kaynaklar.get(k) ?? []).filter((t) => now() - t < 3600000);
+          if (z.length >= kaynakSiniri) return;
+          kaynaklar.set(k, [...z, now()]);
+        }
+        // others' emergency mail has its own quota; when full, the oldest one (or a random one) makes room
         const others = [...store].filter(([, v]) => v.acil && !v.own);
-        if (others.length >= ACIL_STORE) store.delete(others.sort((a, b) => a[1].at - b[1].at)[0][0]);
+        if (others.length >= ACIL)
+          store.delete((tahliye === 'rastgele' ? others[Math.floor(rastgele() * others.length)] : others.sort((a, b) => a[1].at - b[1].at)[0])[0]);
       }
-      if (!makeRoom(store, MAX_STORE, STRANGER_STORE, trusted)) return;
+      if (!makeRoom(store, MAXS, MAXS / 2, trusted)) return;
       const m = { id: Buffer.from(id), tag, rh, env, tokens: Math.min(Math.max(tokens, 1), MAX_TOKENS), at: now(), trusted, acil };
       store.set(key, m);
       ack(from, id, proofOf(env, eid()));
@@ -292,7 +307,7 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
     const sealed = seal(identity, pub, Buffer.concat([receipt, sentAt, body]));
     const env = acil ? addWork(sealed) : sealed;
     if (Math.ceil((env.length + 4) / SYM) > MAX_K) throw new RangeError('message too large');
-    if (!makeRoom(store, MAX_STORE, STRANGER_STORE, true)) throw new Error('outbox full');
+    if (!makeRoom(store, MAXS, MAXS / 2, true)) throw new Error('outbox full');
     const id = sha256(env, rh).subarray(0, 8);
     store.set(hex(id), { id, tag: recipientTag(pub, now()), rh, env, tokens, at: now(), own: true, trusted: true, acil });
     return hex(id);
