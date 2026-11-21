@@ -50,6 +50,11 @@ SAYFALAR = [
     ("en", "English", "KairoMesh — when the network is down, the call for help still reaches the authority",
      "KairoMesh carries encrypted emergency calls from phone to phone over Bluetooth, with no internet or cell towers; the first phone that reaches the internet delivers them to the emergency authority."),
 ]
+# Pages linked from the footer, not the menu (the app stores link to the privacy policy)
+EK_SAYFALAR = [
+    ("gizlilik", "Gizlilik", "Gizlilik ve KVKK aydınlatma metni — KairoMesh",
+     "KairoMesh uygulaması hangi bilgiyi, ne zaman ve neden gönderir; çağrıyı kim görür, telefonda ne kalır, haklarınız."),
+]
 # Önceki dil modeli projesinin adresleri: 410 (kalıcı olarak kaldırıldı); arama motorları dizinden düşürür.
 ESKI = ["modeller", "algoritma", "rla", "omniprint", "egitim", "asama", "haberler", "notlar", "rapor"]
 
@@ -148,7 +153,7 @@ setTimeout(function(){{if(!window.kairoHareket)k.classList.remove('js');}},3000)
 <li><a href="dogrulama.html">Doğrulama</a></li><li><a href="simulasyon.html">Simülasyon</a></li></ul></div>
 <div><h3>Kurum</h3><ul>
 <li><a href="kurumlar.html">Lisans ve pilot</a></li><li><a href="gelismeler.html">Gelişmeler</a></li>
-<li><a href="https://github.com/kairodynedynamics/kairo-mesh">Kaynak kod</a></li></ul>
+<li><a href="https://github.com/kairodynedynamics/kairo-mesh">Kaynak kod</a></li><li><a href="gizlilik.html">Gizlilik ve KVKK</a></li></ul>
 <p class="kucuk">Bu site çerez ve izleme kullanmaz.</p></div>
 </div></footer>
 </body>
@@ -177,7 +182,7 @@ def derle():
     if CIKTI.exists():
         shutil.rmtree(CIKTI)
     CIKTI.mkdir()
-    for dosya, _, baslik, aciklama in SAYFALAR:
+    for dosya, _, baslik, aciklama in SAYFALAR + EK_SAYFALAR:
         govde = gelismeler_govdesi() if dosya == "gelismeler" else (KOK / "sayfalar" / f"{dosya}.html").read_text(encoding="utf-8")
         if "<!--AFET_TABLO-->" in govde:  # deprem simülasyonu rakamları yalnız sim/rapor.js'ten gelir
             govde = govde.replace("<!--AFET_TABLO-->", subprocess.run(["node", str(URUN / "sim" / "rapor.js"), "html"],
@@ -202,14 +207,14 @@ def derle():
     bugun = date.today().isoformat()
     (CIKTI / "sitemap.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
-        "".join(f'  <url><loc>{ALAN}/{"" if d == "index" else d}</loc><lastmod>{bugun}</lastmod></url>\n' for d, *_ in SAYFALAR) +
+        "".join(f'  <url><loc>{ALAN}/{"" if d == "index" else d}</loc><lastmod>{bugun}</lastmod></url>\n' for d, *_ in SAYFALAR + EK_SAYFALAR) +
         "</urlset>\n", encoding="utf-8")
     (CIKTI / "robots.txt").write_text(f"User-agent: *\nAllow: /\n\nSitemap: {ALAN}/sitemap.xml\n", encoding="utf-8")
     (CIKTI / "llms.txt").write_text(
         "# KairoMesh — Kairodyne Dynamics\n\n> " + SAYFALAR[0][3] + "\n\n"
         "Durum: araştırma prototipi. Simülasyon ölçümleri ve otomatik testler yayımlandı; gerçek telefonlarla saha tatbikatı ve bağımsız güvenlik denetimi henüz yapılmadı.\n\n"
         "Kaynak kod: https://github.com/kairodynedynamics/kairo-mesh (AGPL-3.0, ayrıca ticari lisans)\n\n## Sayfalar\n\n" +
-        "".join(f"- [{ad}]({ALAN}/{'' if d == 'index' else d}): {ack}\n" for d, ad, _, ack in SAYFALAR), encoding="utf-8")
+        "".join(f"- [{ad}]({ALAN}/{'' if d == 'index' else d}): {ack}\n" for d, ad, _, ack in SAYFALAR + EK_SAYFALAR), encoding="utf-8")
     (CIKTI / "netlify.toml").write_text(
         '[build]\n  publish = "."\n\n[build.processing.html]\n  pretty_urls = true\n\n' +
         operator_yonlendirme() +
@@ -244,7 +249,7 @@ INDEXNOW = "3ed33dff55babe05b900c6e88d4cec5c"
 
 def indexnow():
     import urllib.request
-    adresler = [f"{ALAN}/{'' if d == 'index' else d}" for d, *_ in SAYFALAR] + [f"{ALAN}/{e}" for e in ESKI]
+    adresler = [f"{ALAN}/{'' if d == 'index' else d}" for d, *_ in SAYFALAR + EK_SAYFALAR] + [f"{ALAN}/{e}" for e in ESKI]
     govde = json.dumps({"host": "kairodynedynamics.com", "key": INDEXNOW, "keyLocation": f"{ALAN}/{INDEXNOW}.txt",
                         "urlList": adresler}).encode()
     istek = urllib.request.Request("https://api.indexnow.org/indexnow", data=govde,

@@ -16,21 +16,30 @@ final class BleTransport: NSObject, CBCentralManagerDelegate, CBPeripheralManage
         var queue: [Data] = []
         init(_ p: CBPeripheral) { peripheral = p }
     }
+    /// CoreBluetooth never gives up on a connection attempt by itself: a phone that walked away (or changed its
+    /// Bluetooth address) would hold a slot for ever, and after `maxPeers` of them nobody new could be reached.
+    private static let baglanmaSuresi: TimeInterval = 15
 
     private let onFrame: (Bytes) -> Void
     private let log: (String) -> Void
+    /// Called with false when Bluetooth is off or not allowed, true when it is on: the screen tells the caller.
+    var onDurum: (Bool) -> Void = { _ in }
     private var central: CBCentralManager!
     private var server: CBPeripheralManager!
     private var peers: [UUID: Peer] = [:]
 
     var peerCount: Int { peers.values.filter { $0.characteristic != nil }.count }
+    /// Connections being set up count too, but only until `baglanmaSuresi` runs out.
+    private var bekleyen: Int { peers.values.filter { $0.characteristic == nil }.count }
 
     init(onFrame: @escaping (Bytes) -> Void, log: @escaping (String) -> Void) {
         self.onFrame = onFrame
         self.log = log
         super.init()
-        central = CBCentralManager(delegate: self, queue: .main)
-        server = CBPeripheralManager(delegate: self, queue: .main)
+        // restore identifiers: if iOS ends the app in the background, a Bluetooth event relaunches it with its
+        // connections and scan, so carrying goes on (UIBackgroundModes bluetooth-central / -peripheral)
+        central = CBCentralManager(delegate: self, queue: .main, options: [CBCentralManagerOptionRestoreIdentifierKey: "kairo.central"])
+        server = CBPeripheralManager(delegate: self, queue: .main, options: [CBPeripheralManagerOptionRestoreIdentifierKey: "kairo.peripheral"])
     }
 
     func send(_ frame: Bytes) {
@@ -51,17 +60,34 @@ final class BleTransport: NSObject, CBCentralManagerDelegate, CBPeripheralManage
     // MARK: client side
 
     func centralManagerDidUpdateState(_ c: CBCentralManager) {
-        guard c.state == .poweredOn else { return log("bluetooth unavailable (\(c.state.rawValue))") }
+        guard c.state == .poweredOn else {
+            log(c.state == .unauthorized ? "BLUETOOTH_IZNI_YOK" : "BLUETOOTH_KAPALI")
+            return onDurum(false)
+        }
         c.scanForPeripherals(withServices: [Self.service])
         log("transport started")
+        onDurum(true)
+    }
+
+    func centralManager(_ c: CBCentralManager, willRestoreState dict: [String: Any]) {
+        for p in dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral] ?? [] {
+            p.delegate = self
+            peers[p.identifier] = Peer(p)
+            if p.state == .connected { p.discoverServices([Self.service]) }
+        }
     }
 
     func centralManager(_ c: CBCentralManager, didDiscover p: CBPeripheral, advertisementData: [String: Any], rssi: NSNumber) {
-        guard peers[p.identifier] == nil, peers.count < Self.maxPeers else { return }
+        guard peers[p.identifier] == nil, peerCount + bekleyen < Self.maxPeers else { return }
         peers[p.identifier] = Peer(p)
         p.delegate = self
         c.connect(p)
         log("connecting \(p.identifier)")
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.baglanmaSuresi) { [weak self] in
+            guard let self, let peer = self.peers[p.identifier], peer.characteristic == nil else { return }
+            self.central.cancelPeripheralConnection(p)
+            self.peers[p.identifier] = nil
+        }
     }
 
     func centralManager(_ c: CBCentralManager, didConnect p: CBPeripheral) { p.discoverServices([Self.service]) }
@@ -90,8 +116,11 @@ final class BleTransport: NSObject, CBCentralManagerDelegate, CBPeripheralManage
 
     // MARK: server side
 
+    func peripheralManager(_ m: CBPeripheralManager, willRestoreState dict: [String: Any]) {}
+
     func peripheralManagerDidUpdateState(_ m: CBPeripheralManager) {
         guard m.state == .poweredOn else { return }
+        m.removeAllServices() // after a restore the service may already be there
         let s = CBMutableService(type: Self.service, primary: true)
         s.characteristics = [CBMutableCharacteristic(type: Self.frame, properties: [.write, .writeWithoutResponse], value: nil, permissions: [.writeable])]
         m.add(s)

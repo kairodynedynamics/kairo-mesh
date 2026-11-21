@@ -27,7 +27,7 @@ Her karar bu kişiye göre verildi. Kod: `android/.../MainActivity.kt`, `ios/App
 | Açıkta kaldık | Küçük düğme | İhtiyaç, hayati değil; aciliyet 3. Büyük düğmeler arasında olursa hayati çağrıların önünde dikkat dağıtır. |
 | Su / yiyecek yok | Küçük düğme | İhtiyaç; aciliyet 3. |
 | Yakınımı arıyorum | Küçük düğme | Kurtarma ekipleri için değerli bilgi ama başkası adına; aciliyet 2. |
-| Güvendeyim | **Ayrı yeşil düğme**, iki adımlı onay | Kurtarma ekiplerinin yükünü azaltır. Yanlışlıkla basılmasın diye ikinci dokunuş ister. Geri sayımı yoktur, çünkü acil bir şey göndermez. |
+| Güvendeyim | **Ayrı yeşil düğme**, tek dokunuş | Kurtarma ekiplerinin yükünü azaltır. Geri sayımı yoktur, çünkü acil bir şey göndermez. Bekleyen bir yardım çağrısının yerine geçer; yanlışlıkla basıldıysa **"Geri al · hâlâ yardım gerekiyor"** önceki çağrıyı tek dokunuşla hemen yeniden gönderir. |
 | Kişi sayısı | +/− düğmeleri, "?" = bilmiyorum | Klavye açmak panikte zordur. Boş bırakılabilir. |
 | Yanımda: bebek, çocuk, yaşlı, yaralı, hamile, engelli | Çok seçimli, büyük hap düğmeler | Bebek, yaralı ve hamile aciliyeti bir kademe artırır; kurum ekip ve ekipmanı buna göre seçer. |
 | Serbest metin | İsteğe bağlı | Adres ve ayrıntı. Seçim varsa ikisi birlikte gider. |
@@ -52,11 +52,13 @@ Her karar bu kişiye göre verildi. Kod: `android/.../MainActivity.kt`, `ios/App
 |---|---|
 | Yanlış düğmeye dokundu | Aynı düğmeye tekrar dokunur ya da "Kaldır"a basar; seçim kalkar. Başka bir düğmeye dokunursa seçim ona geçer (tek seçim). |
 | Gönder'e yanlışlıkla bastı | 5 saniyelik tam ekran geri sayım çıkar; büyük **İPTAL** düğmesi hiçbir şey göndermeden kapatır. |
-| Gönderdi, sonra vazgeçti ya da kurtarıldı | "Yanlışlıkla gönderdim / artık yardım gerekmiyor" düğmesi iki dokunuşla kuruma düzeltme gönderir. Kurum panosunda çağrı "gönderen geri çekti" diye işaretlenir. |
+| Gönderdi, sonra vazgeçti ya da kurtarıldı | "Yanlışlıkla gönderdim / artık yardım gerekmiyor" düğmesi tek dokunuşla, beklemeden kuruma düzeltme gönderir. Kurum panosunda çağrı "gönderen geri çekti" diye işaretlenir. Düzeltmenin kendisi yanlışsa **"Geri al"** çağrıyı hemen yeniden gönderir. |
 | Düğmeye iki kez bastı | 10 saniye içindeki ikinci basış yeni çağrı açmaz; "Çağrınız zaten gönderiliyor" yazar. |
-| Bluetooth kapalı | Çağrı kaydedilir; ekran Bluetooth'u açmasını ister. Açınca kendiliğinden gider. |
+| Bluetooth kapalı | Çağrı kaydedilir; ekran Bluetooth'u açmasını ister. Açınca kendiliğinden gider. İnternet varsa Bluetooth olmadan da doğrudan kuruma gider. |
+| Çağrı yola çıktı mı? | Ekran olanı söyler, "gönderildi" demez: "telefonunuzda hazır, henüz kimseye ulaşmadı", "yakındaki N telefona veriliyor" ya da "kuruma gönderiliyor". Yeşil "Kurum çağrınızı aldı" yalnız kurumun makbuzu gelince görünür; konum güncellemesinin ya da düzeltmenin makbuzu bunu göstermez. |
+| Ekran açık kalsın mı? | Çağrı yazılırken ekran kararmaz. Çağrı gittikten 2 dakika sonra kararabilir (pil saatlerce yetmeli); sesli sinyal çalarken açık kalır. |
 | Kurum kodu yok | Gönder'den önce açıkça söylenir; çağrı sessizce kaybolmaz. |
-| Uygulama kapandı, telefon yeniden başladı | Kurum onaylamayan çağrı yeniden gönderilir. Ağ telefonla birlikte kendiliğinden başlar (Android). |
+| Uygulama kapandı, telefon yeniden başladı | Telefonun kendi çağrısı ve başkaları için taşıdığı çağrılar diske yazılıdır; yeniden açılınca kaldığı yerden taşınır. Hazırlanırken kapanan çağrı da açılınca gönderilir. Ağ telefonla birlikte kendiliğinden başlar (Android). |
 | Kurum bir gün içinde almadı | Çağrı 6 saatte bir yeniden gönderilir; ağ zarfları bir gün sonra siler. |
 | Karanlık, ekran kararıyor | Acil ekran açıkken ekran kararmaz. |
 | Kurtarıcılar yakında ama göremiyor | **Sesli sinyal**: yüksek perdeden, aralıklı bir düdük sesi (3,1 kHz), sessiz kipte de çalar. |

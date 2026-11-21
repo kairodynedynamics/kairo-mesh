@@ -84,8 +84,6 @@ test('acil: a report forwarded by several gateways is recorded once; tampered or
   assert.equal(kurum.receive(bad), null);
   const other = addWork(seal(s, createIdentity().pub, Buffer.concat([Buffer.alloc(16), sentNow(), Buffer.from('{}')])));
   assert.equal(kurum.receive(other), null);
-  const stale = addWork(seal(s, kurum.pub, Buffer.concat([Buffer.alloc(16), sentNow(-3 * 86400000), Buffer.from('{}')])));
-  assert.equal(kurum.receive(stale), null);
   const lazy = Buffer.concat([seal(s, kurum.pub, Buffer.concat([Buffer.alloc(16, 9), sentNow(), Buffer.from('{}')])), Buffer.alloc(8)]);
   assert.equal(kurum.receive(lazy), null, 'no proof of work: refused');
 });
@@ -386,4 +384,59 @@ test('kurum aracı: kök üretir ve kurumun kodunu onaylar', async () => {
   const k = kurumKoduAc(kod, [kok]);
   assert.equal(k?.ad, 'AFAD Hatay');
   assert.throws(() => execFileSync(process.execPath, [cli, 'kok', join(d, 'kok')], { stdio: 'pipe' }), 'refuses to overwrite the root');
+});
+
+test('acil: a call from a phone with a wrong clock is kept and marked, not refused; it is placed by arrival', () => {
+  const id = createIdentity();
+  let t = Date.now();
+  const kurum = createAuthority({ identity: id, now: () => t });
+  const zarf = (s, r, ofs, n) => addWork(seal(s, id.pub, Buffer.concat([Buffer.alloc(16, n), sentNow(ofs), Buffer.from(JSON.stringify(r))])));
+  const once = createIdentity(), saatsiz = createIdentity();
+  assert.ok(kurum.receive(zarf(once, { ...RAPOR, aciliyet: 1 }, 0, 1)));
+  t += 60000;
+  // a drained phone whose clock went back to the epoch: its call still arrives
+  assert.ok(kurum.receive(zarf(saatsiz, { ...RAPOR, aciliyet: 1 }, -Date.now(), 2)));
+  const [ilk, ikinci] = kurum.reports;
+  assert.equal(ilk.sender, once.pub.toString('hex'), 'placed by when it arrived, not by its 1970 time');
+  assert.ok(ikinci.sinyaller.some((s) => s.kod === 'saat-supheli'));
+  assert.ok(!ilk.sinyaller.some((s) => s.kod === 'saat-supheli'));
+});
+
+test('acil: reports past the retention period are deleted from memory and from the log', async () => {
+  const { mkdtempSync, readFileSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  const log = join(mkdtempSync(join(tmpdir(), 'kurum-saklama-')), 'cagrilar.jsonl');
+  const id = createIdentity(), s = createIdentity();
+  let t = Date.now();
+  const zarf = (n) => addWork(seal(s, id.pub, Buffer.concat([Buffer.alloc(16, n), sentNow(t - Date.now()), Buffer.from(JSON.stringify(RAPOR))])));
+  const a = createAuthority({ identity: id, log, now: () => t, saklamaMs: 30 * 86400000 });
+  assert.ok(a.receive(zarf(1)));
+  t += 31 * 86400000;
+  assert.ok(a.receive(zarf(2)));
+  assert.equal(a.reports.length, 1, 'the 31-day-old call is gone');
+  assert.equal(readFileSync(log, 'utf8').trim().split('\n').length, 1, 'and gone from the log');
+  const b = createAuthority({ identity: id, log, now: () => t, saklamaMs: 30 * 86400000 });
+  assert.equal(b.reports.length, 1);
+});
+
+test('acil: a dashboard of 10,000 calls is built in well under a second', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  // 10,000 calls as a restarted server finds them in its log (sealing them one by one, with proof of work, would
+  // time the test, not the board)
+  const log = join(mkdtempSync(join(tmpdir(), 'kurum-yuk-')), 'cagrilar.jsonl');
+  const t0 = Date.now();
+  writeFileSync(log, Array.from({ length: 10000 }, (_, i) => JSON.stringify({
+    key: i.toString(16).padStart(64, '0'), receipt: '00'.repeat(16), sender: (i % 50).toString(16).padStart(64, '0'),
+    sentAt: t0 - i * 1000, receivedAt: t0, report: { ...RAPOR, metin: `enkaz altindayiz ${i % 300}` } }) + '\n').join(''));
+  const kurum = createAuthority({ identity: createIdentity(), log });
+  const bas = performance.now();
+  const liste = kurum.reports;
+  const sure = performance.now() - bas;
+  assert.equal(liste.length, 10000);
+  assert.ok(sure < 1000, `${Math.round(sure)} ms`);
+  assert.equal(kurum.reports, liste, 'unchanged reports are not recomputed');
+  assert.ok(liste.some((e) => e.sinyaller.some((s) => s.kod === 'cok-cagri')), 'the signs are still worked out');
 });

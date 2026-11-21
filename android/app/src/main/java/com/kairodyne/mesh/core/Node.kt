@@ -374,6 +374,30 @@ class Node(
         return yakinlar.size
     }
 
+    /**
+     * Everything carried (own and others' envelopes) and the receipts seen for carried mail, as text for the app to
+     * keep on disk: the OS killing the app or a reboot must not drop calls strangers handed over. [kayitIzi] changes
+     * whenever this does, so the app writes only after a change.
+     */
+    fun kayit(): String = buildString {
+        for (m in store.values) append("m ${m.id.hex()} ${m.tag.hex()} ${m.rh.hex()} ${m.env.hex()} ${m.tokens} ${m.at} ${m.own} ${m.trusted} ${m.acil}\n")
+        for ((k, r) in cleared) append("c $k ${r.hex()}\n")
+    }
+    val kayitIzi get() = store.entries.joinToString(",") { it.key + ":" + it.value.tokens } + "|" + cleared.size
+    /** Own emergency envelopes still on their way (after [yukle], the app need not send its pending call again). */
+    val kendiAcil get() = store.values.count { it.own && it.acil }
+
+    /** Restores what [kayit] wrote; expired envelopes go on the next [tick]. Unreadable lines are skipped. */
+    fun yukle(kayit: String) {
+        for (s in kayit.lineSequence()) runCatching {
+            val p = s.split(" ")
+            if (p[0] == "m" && p.size == 10 && p[1] !in store && store.size < MAX_STORE)
+                store[p[1]] = Msg(p[1].unhex(), p[2].unhex(), p[3].unhex(), p[4].unhex(), p[5].toInt().coerceIn(1, MAX_TOKENS),
+                    p[6].toLong(), own = p[7].toBoolean(), trusted = p[8].toBoolean(), acil = p[9].toBoolean())
+            else if (p[0] == "c" && p.size == 3) remember(cleared, p[1], p[2].unhex())
+        }
+    }
+
     fun tick() {
         store.entries.removeIf { now() - it.value.at > TTL_MS }
         partial.entries.removeIf { now() - it.value.at > PARTIAL_MS }

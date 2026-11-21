@@ -25,7 +25,23 @@ class Profile(context: Context) {
         val secret = wrapped?.let { unwrap(b64(it)) } ?: prefs.getString("secret", null)?.let(::b64)
         identity = Identity.create(secret)
         if (wrapped == null) prefs.edit().putString("secret_enc", b64(wrap(identity.secret))).remove("secret").commit()
+        // demo builds come with the operator demo's code, set here so the screen never says "no authority" in a demo
+        // (an older build's demo authority had no server: it moves to the operator demo)
+        val k = prefs.getString("kurum", null)
+        if (BuildConfig.DEMO_KURUM.isNotEmpty() && (k == null || k.contains("demo.kairodynedynamics.com")))
+            prefs.edit().putString("kurum", BuildConfig.DEMO_KURUM).commit()
     }
+
+    /** The emergency form as tapped, on disk the moment it reaches the service: a call being prepared (location,
+     *  reading the text, proof of work) is not lost if the app dies meanwhile. Null once the call is queued. */
+    var bekleyenForm: String?
+        get() = prefs.getString("bekleyen_form", null)
+        set(value) { prefs.edit().putString("bekleyen_form", value).commit() }
+
+    /** The call a correction or "I am safe" replaced, so a mistaken tap can be undone with one more tap. */
+    var oncekiAcil: String?
+        get() = prefs.getString("onceki_acil", null)
+        set(value) { prefs.edit().putString("onceki_acil", value).commit() }
 
     val code: String get() = b64(identity.pub)
 

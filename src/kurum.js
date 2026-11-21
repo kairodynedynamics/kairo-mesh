@@ -5,7 +5,7 @@
 // What the authority learns per report: the sender's long-term public key, the sealed send time, and the report
 // itself (triage fields, GPS location, free text). Couriers and gateways learn none of it.
 import { createServer } from 'node:http';
-import { appendFileSync, existsSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { open, sha256, hasWork, DAY_MS, verifySignature } from './crypto.js';
 
@@ -79,9 +79,12 @@ export function raporTemizle(r) {
 
 // `identity`: the sealing key (X25519). `signer`: the announcement key (Ed25519). `log`: a JSON-lines file the
 // reports are appended to and reloaded from on restart (a real deployment backs it with its own database).
-export function createAuthority({ identity, signer = null, now = Date.now, onReport = () => {}, log = null }) {
+// `saklamaMs`: reports older than this (by arrival) are deleted, from memory and from the log (KVKK: kept no longer
+// than needed); null keeps everything.
+export function createAuthority({ identity, signer = null, now = Date.now, onReport = () => {}, log = null, saklamaMs = null }) {
   const reports = new Map(); // envelope hash -> entry: a report forwarded by many gateways counts once
   const notices = [];
+  let surum = 0, onbellek = null, sonTemizlik = -Infinity; // `reports` sorted with warning signs, until a new report
   if (log && existsSync(log))
     for (const line of readFileSync(log, 'utf8').split('\n').filter(Boolean)) {
       let e;
@@ -89,6 +92,22 @@ export function createAuthority({ identity, signer = null, now = Date.now, onRep
       const report = raporTemizle(e.report); // logs written before field checks existed are cleaned on load
       if (report && typeof e.key === 'string') reports.set(e.key, { ...e, report, receipt: Buffer.from(String(e.receipt), 'hex') });
     }
+
+  // Deletes what is past the retention period, and rewrites the log without it (a temp file and a rename, so a
+  // crash leaves the old log whole). At most once an hour.
+  function temizle() {
+    if (saklamaMs == null || now() - sonTemizlik < SAAT) return;
+    sonTemizlik = now();
+    let silinen = 0;
+    for (const [k, e] of reports) if (now() - e.receivedAt > saklamaMs) { reports.delete(k); silinen++; }
+    if (!silinen) return;
+    surum++;
+    if (log) {
+      writeFileSync(log + '.tmp', [...reports.values()].map((e) => JSON.stringify({ ...e, receipt: e.receipt.toString('hex') }) + '\n').join(''));
+      renameSync(log + '.tmp', log);
+    }
+  }
+  temizle();
 
   // Returns the 16-byte receipt, or null if the envelope lacks its proof of work, is not for us, altered, stale
   // or malformed.
@@ -101,13 +120,18 @@ export function createAuthority({ identity, signer = null, now = Date.now, onRep
     try { msg = open(identity, envelope.subarray(0, -8)); } catch { return null; }
     if (msg.body.length < 24) return null;
     const sentAt = Number(msg.body.readBigUInt64BE(16));
-    if (now() - sentAt > DAY_MS + SKEW_MS || sentAt - now() > SKEW_MS) return null;
     let report;
     try { report = raporTemizle(JSON.parse(msg.body.subarray(24).toString('utf8'))); } catch { return null; }
     if (!report) return null;
     const receipt = Buffer.from(msg.body.subarray(0, 16));
-    const entry = { key, receipt, report, sender: msg.senderPub.toString('hex'), sentAt, receivedAt: now() };
+    // A send time outside the mesh's lifetime is no reason to refuse: a phone whose clock was reset (a drained
+    // battery, no network to set it) sends real calls too. It is a warning sign instead (saat-supheli): the time
+    // cannot be trusted, and an envelope made long before (a stockpile of junk) looks the same.
+    const saatSupheli = now() - sentAt > DAY_MS + SKEW_MS || sentAt - now() > SKEW_MS;
+    const entry = { key, receipt, report, sender: msg.senderPub.toString('hex'), sentAt, receivedAt: now(), ...(saatSupheli ? { saatSupheli } : {}) };
+    temizle();
     reports.set(key, entry);
+    surum++;
     if (log) appendFileSync(log, JSON.stringify({ ...entry, receipt: receipt.toString('hex') }) + '\n');
     onReport(entry);
     return receipt;
@@ -133,12 +157,17 @@ export function createAuthority({ identity, signer = null, now = Date.now, onRep
   // Most urgent first, then oldest first: the order a dispatcher works through. Each entry carries its warning
   // signs (sinyaller); a call its own sender withdrew sinks below the rest of its urgency level.
   const asagi = (e) => e.sinyaller.some((s) => ['iptal-edildi', 'metin-ilgisiz', 'test-cihazi'].includes(s.kod));
+  // a call with a doubtful clock is placed by when it arrived
+  const zaman = (e) => (e.saatSupheli ? e.receivedAt : e.sentAt);
   const sorted = () => {
-    const tum = [...reports.values()];
-    return tum.map((e) => ({ ...e, sinyaller: sinyaller(e, tum) })).sort((a, b) =>
+    if (onbellek?.surum === surum) return onbellek.liste;
+    const tum = [...reports.values()], dizin = dizinle(tum);
+    const liste = tum.map((e) => ({ ...e, sinyaller: sinyaller(e, tum, dizin) })).sort((a, b) =>
       ((a.report.aciliyet ?? 4) - (b.report.aciliyet ?? 4))
       || (asagi(a) - asagi(b))
-      || (a.sentAt - b.sentAt));
+      || (zaman(a) - zaman(b)));
+    onbellek = { surum, liste };
+    return liste;
   };
 
   return {
@@ -158,15 +187,29 @@ export function kuralAciliyet(tur, ozel = []) {
   return a > 1 && !['guvende', ...EK].includes(tur) && ozel.some((o) => ['bebek', 'yarali', 'hamile'].includes(o)) ? a - 1 : a;
 }
 const SAAT = 3600000;
+// Reports grouped by sender and by text: the warning signs compare a report with the same sender's or the same
+// text's, and scanning every report for each one made a busy dashboard slow (10,000 reports: 10^8 comparisons).
+const metinAnahtari = (r) => (r.metin ?? '').trim().toLocaleLowerCase('tr');
+export function dizinle(tum) {
+  const gonderen = new Map(), metin = new Map();
+  for (const e of tum) {
+    if (!gonderen.has(e.sender)) gonderen.set(e.sender, []);
+    gonderen.get(e.sender).push(e);
+    const m = metinAnahtari(e.report);
+    if (m.length >= 10) { if (!metin.has(m)) metin.set(m, []); metin.get(m).push(e); }
+  }
+  return { gonderen, metin };
+}
 // the freshest location the sender sent after this call (and before their next call): phones keep looking for a
-// GPS fix after sending and send it as a follow-up
+// GPS fix after sending and send it as a follow-up. `tum` may be all reports or only this sender's.
 export function sonKonum(e, tum) {
   const sonraki = tum.filter((o) => o.sender === e.sender && !EK.includes(o.report.tur) && o.sentAt > e.sentAt)
     .reduce((m, o) => Math.min(m, o.sentAt), Infinity);
   return tum.filter((o) => o.sender === e.sender && o.report.tur === 'konum' && o.report.konum && o.sentAt > e.sentAt && o.sentAt < sonraki)
     .reduce((m, o) => (!m || o.sentAt > m.sentAt ? o : m), null);
 }
-export function sinyaller(e, tum) {
+export function sinyaller(e, butun, dizin = dizinle(butun)) {
+  const tum = dizin.gonderen.get(e.sender) ?? []; // this sender's reports: every comparison below but the text's
   const r = e.report, out = [];
   const ekle = (kod, metin) => out.push({ kod, metin });
   if (!(r.tur in TEMEL)) ekle('bilinmeyen-tur', `Uygulamada olmayan durum türü: "${r.tur ?? '—'}"`);
@@ -195,12 +238,12 @@ export function sinyaller(e, tum) {
     else if (o.tur in TEMEL && !EK.includes(o.tur) && o.tur !== r.tur && r.secim?.tur)
       ekle('tur-farki', `Seçilen durum ile yazı farklı: seçilen "${TUR_AD[r.tur] ?? r.tur}", yazıdan anlaşılan "${TUR_AD[o.tur] ?? o.tur}"`);
   }
-  const metin = (r.metin ?? '').trim().toLocaleLowerCase('tr');
+  const metin = metinAnahtari(r);
   if (metin.length >= 10) {
-    const cihaz = new Set(tum.filter((o) => (o.report.metin ?? '').trim().toLocaleLowerCase('tr') === metin
-      && Math.abs(o.sentAt - e.sentAt) < SAAT / 2).map((o) => o.sender));
+    const cihaz = new Set((dizin.metin.get(metin) ?? []).filter((o) => Math.abs(o.sentAt - e.sentAt) < SAAT / 2).map((o) => o.sender));
     if (cihaz.size >= 3) ekle('kopya-metin', `Aynı metin yarım saatte ${cihaz.size} farklı cihazdan geldi: toplu sahte çağrı olabilir`);
   }
+  if (e.saatSupheli) ekle('saat-supheli', `Gönderenin telefon saati tutmuyor (çağrıdaki saat ${saatTR(e.sentAt)}): saat sıfırlanmış bir telefon ya da önceden üretilmiş bir zarf olabilir; sırası kuruma ulaştığı ana göre`);
   if (!EK.includes(r.tur) && !r.konum && !sonKonum(e, tum)) ekle('konum-yok', 'Konum yok (izin verilmemiş ya da GPS alınamamış)');
   else if (r.konum?.dogruluk_m > 1000) ekle('konum-belirsiz', `Konum belirsiz (±${Math.round(r.konum.dogruluk_m)} m)`);
   return out;
@@ -248,9 +291,9 @@ function konumYazisi(k, sentAt, etiket) {
     + ' (taşıyan telefonların değil; mühürlü, yolda değiştirilemez)</small>';
 }
 
-function cihazHucresi(e, tum, t) {
+function cihazHucresi(e, gonderenin, t) {
   const c = e.report.cihaz ?? {};
-  const cagri = tum.filter((o) => o.sender === e.sender && !EK.includes(o.report.tur));
+  const cagri = gonderenin.filter((o) => !EK.includes(o.report.tur));
   const saat = cagri.filter((o) => Math.abs(o.sentAt - e.sentAt) < SAAT).length;
   const bilgi = [c.model, c.sistem, c.uygulama && `KairoMesh ${c.uygulama}`].filter(Boolean).join(' · ');
   return `<a href="?t=${encodeURIComponent(t)}&amp;cihaz=${esc(kisaId(e.sender))}">Cihaz ${esc(kisaId(e.sender))}</a>`
@@ -260,24 +303,25 @@ function cihazHucresi(e, tum, t) {
 }
 
 function dashboard(authority, { t = '', cihaz = '' } = {}) {
-  const butun = authority.reports;
+  const butun = authority.reports, gonderen = dizinle(butun).gonderen;
   // a location follow-up is shown inside its call, not as a row of its own
   const tum = butun.filter((e) => e.report.tur !== 'konum' && (!cihaz || kisaId(e.sender) === cihaz));
   const rows = tum.map((e) => {
     const r = e.report, k = r.konum ?? {};
     const yer = [r.il, r.ilce, r.mahalle, r.sokak, r.bina].filter(Boolean).join(' / ');
-    const guncel = sonKonum(e, butun);
+    const gonderenin = gonderen.get(e.sender) ?? [];
+    const guncel = sonKonum(e, gonderenin);
     const konum = konumYazisi(k, e.sentAt, 'Gönderimdeki konum')
       + (guncel ? konumYazisi(guncel.report.konum, e.sentAt, `Güncel konum (${saatTR(guncel.sentAt)})`) : '');
     let mesaj = esc(r.metin);
     if (r.tur === 'iptal') {
-      const onceki = butun.filter((o) => o.sender === e.sender && !EK.includes(o.report.tur) && o.sentAt < e.sentAt)
+      const onceki = gonderenin.filter((o) => !EK.includes(o.report.tur) && o.sentAt < e.sentAt)
         .reduce((m, o) => (!m || o.sentAt > m.sentAt ? o : m), null);
       mesaj = onceki ? `Gönderenin ${esc(saatTR(onceki.sentAt))} tarihli çağrısını geri çekiyor` : 'Önceki çağrısını geri çekiyor';
     }
     return `<tr class="a${esc(r.aciliyet)}"><td>${esc(r.aciliyet)}</td><td>${esc(turAd(r.tur))}</td><td>${esc(r.kisi)}</td>`
       + `<td>${esc(yer)}${konum}</td><td>${esc(ozelAd(r.ozel))}</td><td>${mesaj}</td><td>${okumaHucresi(r)}</td>`
-      + `<td>${cihazHucresi(e, butun, t)}</td>`
+      + `<td>${cihazHucresi(e, gonderenin, t)}</td>`
       + `<td>${(e.sinyaller ?? []).map((s) => `<span class="s ${esc(s.kod)}">${esc(s.metin)}</span>`).join('')}</td>`
       + `<td>${esc(saatTR(e.sentAt))}<br><small>alındı ${esc(saatTR(e.receivedAt))}</small></td></tr>`;
   }).join('');

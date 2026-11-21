@@ -72,7 +72,7 @@ Bu işaretler `test/acil.test.js` içinde sınanır ("warning signs mark forged 
 |---|---|---|---|
 | Biri resmî uygulamadan şaka çağrısı yapar ("Enkaz altındayım", yanlış konum) | Çağrı ulaşır, makbuz döner | Normal görünen bir çağrı. İşaret çıkmaz; resmî uygulamadan gelmiştir. | 112'yi asılsız aramakla aynıdır. Gönderenin anahtarı kayıtlıdır; hukuki yaptırım için kurumda kalır. |
 | Değiştirilmiş uygulamadan "Güvendeyim" aciliyet 1 | Çağrı ulaşır | **Kurala aykırı aciliyet** | Görevli değiştirilmiş uygulama olduğunu görür. |
-| Bir kişi 200 sahte anahtarla aynı metni gönderir | Her çağrı yaklaşık 0,5–1 saniyelik iş kanıtı ister. 200 çağrı birkaç dakikada üretilir. | **Kopya metin** (200 cihaz) | Görevli bunu tek olay olarak görür. Gerçek çağrılar listede kalır. |
+| Bir kişi 200 sahte anahtarla aynı metni gönderir | Her çağrı 18 bitlik iş kanıtı ister: telefonda ve bu projenin Node.js kodunda zarf başına yaklaşık 0,4 saniye (çekirdek başına saatte ~8.700 zarf). Yerel kodla ya da ekran kartıyla çalışan bir saldırgan bunun onlarca, yüzlerce katını üretebilir. İş kanıtı seli durdurmaz, yalnız yavaşlatır. | **Kopya metin** (200 cihaz) | Görevli bunu tek olay olarak görür. Gerçek çağrılar listede kalır. |
 | Aynı sel, ağı doldurup gerçek çağrıyı düşürmeye çalışır | Her telefon başkalarının en çok 24 acil zarfını taşır; kota dolunca en eski zarf atılır. | — | **Açık risk** (bkz. 5). İş kanıtı henüz güne bağlı değil; afetten önce üretilmiş çöp zarflar kullanılabilir. |
 | Kullanıcı yanlışlıkla dokunur | 5 saniyelik geri sayımda İPTAL'e basar; hiçbir şey gönderilmez. Gönderdiyse "yanlışlıkla gönderdim" der. | Hiçbir şey ya da **gönderen geri çekti** | Kurumun yükü azalır. |
 | Sahte "AFAD kodu" yayılır | Telefon onaysız kodu reddeder ve kaydetmez. | — | Çağrılar saldırgana gitmez. |
@@ -85,8 +85,9 @@ Bunlar yapılmadı. Dürüstçe listeliyoruz:
 2. **İş kanıtını güne ve kuruma bağlamak.** Afetten önce çöp zarf biriktirilemesin. Üç platformda protokol değişikliği gerekir (güvenlik incelemesi bulgusu).
 3. ~~**Kalıcı ret.**~~ **Yapıldı:** kurum bir zarfı kalıcı olarak reddederse (422) ağ geçidi telefon onu bırakır, bir gün boyunca yeniden yüklemez (üç platform; `test/acil.test.js`).
 4. **Kota boşaltma kuralı.** Kota dolunca en eskiyi değil, en çok kopyası olanı ya da iş kanıtı en zayıf olanı atmak.
-5. **Kurum tarafında oran sınırı ve saklama süresi** (KVKK).
-6. **Hukuk.** Asılsız ihbarın yaptırımı ve göndericinin anahtarının bu amaçla kullanılabilirliği avukatla netleştirilmeli (`internal/kosgeb/04-hukuk-sorulari.md`).
+5. ~~**Saklama süresi** (KVKK).~~ **Yapıldı:** kurum sunucusu çağrıları 30 gün sonra hem bellekten hem kayıt dosyasından siler (`KURUM_SAKLAMA_GUN`). Pano 10.000 çağrıda bir saniyenin altında hazırlanır (`test/acil.test.js`). IP başına oran sınırı **bilerek konmadı**: bir ağ geçidi telefon onlarca kişinin çağrısını tek IP'den yükler, operatörler de çok kullanıcıyı tek IP'nin arkasında toplar (CGNAT). Böyle bir sınır gerçek çağrıları düşürür.
+6. ~~**Saati yanlış telefon.**~~ **Yapıldı:** çağrıdaki saat bir günden eski ya da bir saatten ileriyse kurum çağrıyı artık reddetmez. Pili bitip saati sıfırlanan bir telefonun gerçek çağrısı da böyle gelir. Panoda **saat şüpheli** işaretiyle, kuruma ulaştığı ana göre sıralanır. Önceden üretilmiş çöp zarflar da aynı işareti alır.
+7. **Hukuk.** Asılsız ihbarın yaptırımı ve göndericinin anahtarının bu amaçla kullanılabilirliği avukatla netleştirilmeli (`internal/kosgeb/04-hukuk-sorulari.md`).
 
 ## 6. Neden kaynak kodu açık olduğu hâlde güvenli?
 

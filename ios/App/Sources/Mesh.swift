@@ -23,6 +23,9 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
     /// The id of the caller's last call, for "I sent this by mistake".
     @Published private(set) var sonCagriId: String?
     @Published private(set) var kurumAldi = false
+    /// A correction or "I am safe" replaced a call: one tap (`geriAl`) puts it back.
+    @Published private(set) var oncekiVar = false
+    @Published private(set) var bluetoothKapali = false
     let code: String
     private let identity: Identity
     private var node: Node!
@@ -32,7 +35,11 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let path = NWPathMonitor()
     private var online = false
     private let location = CLLocationManager()
-    private lazy var triyaj: Triyaj? = {
+    /// The model loads once, on this queue, as the app starts (seconds on an older phone); a call made meanwhile
+    /// waits on the same queue instead of loading it a second time.
+    private let modelKuyrugu = DispatchQueue(label: "kairo.triyaj", qos: .userInitiated)
+    private var triyajModel: Triyaj?
+    private static func triyajYukle() -> Triyaj? {
         guard let m = Bundle.main.url(forResource: "triyaj", withExtension: "json"),
               let w = Bundle.main.url(forResource: "triyaj", withExtension: "bin") else { return nil }
         // the encoder makes the message-level decisions; without it the character model reads the message alone
@@ -45,7 +52,15 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
             }
         }
         return try? Triyaj(meta: Data(contentsOf: m), weights: Data(contentsOf: w), kodlayici: kod)
+    }
+    /// What the node carries, kept across iOS ending the app (Node.kayit).
+    private let kayitDosyasi: URL = {
+        let d = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        return d.appendingPathComponent("tasinan.txt")
     }()
+    private var sonKayitIzi = ""
+    private var bekleyenSaat: String?
 
     override init() {
         // no identity means no mesh; refusing to start beats inventing a key that is not kept safely
@@ -55,6 +70,8 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         // a frame from a nearby phone also drives the node: the timer stops while the app is in the background, but
         // Bluetooth events still wake it, so the caller's own call keeps being offered with the screen locked
         transport = BleTransport(onFrame: { [weak self] in self?.node.receive($0); self?.uyanikTick() }, log: { [weak self] in self?.show($0) })
+        transport.onDurum = { [weak self] acik in self?.bluetoothKapali = !acik; self?.bekleyenYaz() }
+        modelKuyrugu.async { [weak self] in self?.triyajModel = Mesh.triyajYukle() } // touched only on this queue
         // debug builds come with a demo authority approved by the public test root, so the app can be tried at once
         #if DEBUG
         // the authority's code is built into the app: nobody has to find and paste one (release builds get the real
@@ -79,8 +96,32 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         tick()
     }
 
-    /// (Re)creates the node, e.g. when the authority code changes. Mail queued in memory is not kept across it.
+    /// Writes what the node carries when it changed; atomically, so a crash mid-write leaves the previous copy.
+    private func kaydet() {
+        guard node != nil else { return }
+        let iz = node.kayitIzi
+        guard iz != sonKayitIzi else { return }
+        if (try? node.kayit().write(to: kayitDosyasi, atomically: true, encoding: .utf8)) != nil { sonKayitIzi = iz }
+    }
+
+    /// The status card while a call is on its way, said as it is: queued on this phone, handed to phones nearby, or
+    /// going straight to the authority. Never "sent" before anyone has it.
+    private func bekleyenYaz() {
+        guard let s = bekleyenSaat, !kurumAldi else { return }
+        if internet {
+            acilDurum = "Çağrınız kuruma gönderiliyor · \(s)\nİnternet var. Kurum alınca burada yeşil onay görürsünüz."
+        } else if bluetoothKapali {
+            acilDurum = "Çağrınız telefonunuzda hazır, henüz kimseye ulaşmadı · \(s)\nBluetooth kapalı. Ayarlar'dan Bluetooth'u açın; açılınca kendiliğinden gider."
+        } else if yakin > 0 {
+            acilDurum = "Çağrınız yakındaki telefonlara veriliyor · \(s)\nYakında \(yakin) KairoMesh'li telefon var; internete ilk ulaşan kuruma iletecek. Kurum alınca burada yeşil onay görürsünüz."
+        } else {
+            acilDurum = "Çağrınız telefonunuzda hazır, henüz kimseye ulaşmadı · \(s)\nYakında KairoMesh'li telefon ve internet yok. Biri yaklaşınca ya da internet gelince kendiliğinden gider; uygulamayı açık tutun."
+        }
+    }
+
+    /// (Re)creates the node, e.g. when the authority code changes, with what was carried before (on disk).
     private func buildNode() {
+        kaydet()
         let k = defaults.string(forKey: "kurum").flatMap(Kurum.init(code:))
         kurumVar = k != nil
         kurumAd = k?.ad ?? ""
@@ -100,10 +141,13 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         uplink: uplink,
         onEmergencyDelivered: { [weak self] id in
             guard let self else { return }
-            // only a receipt for this caller's pending call clears it (an older call's receipt must not)
-            if (self.defaults.stringArray(forKey: "bekleyenIdler") ?? []).contains(id) { self.defaults.removeObject(forKey: "bekleyenAcil") }
+            // only a receipt for this caller's pending call says "the authority has your call": a location follow-up,
+            // a correction or an older call arriving is not that
+            guard (self.defaults.stringArray(forKey: "bekleyenIdler") ?? []).contains(id) else { return self.show("EK_ULASTI id=\(id)") }
+            self.defaults.removeObject(forKey: "bekleyenAcil")
+            self.bekleyenSaat = nil
             self.kurumAldi = true
-            self.acilDurum = "✓ KURUM ÇAĞRINIZI ALDI (\(Mesh.saat())).\nYardım ekipleri bilgilendirildi. Mümkünse yerinizde kalın, sesli sinyali kullanın."
+            self.acilDurum = "✓ Kurum çağrınızı aldı · \(Mesh.saat())\nYardım ekipleri bilgilendirildi. Mümkünse yerinizde kalın, sesli sinyali kullanın."
             self.show("ACIL_ULASTI id=\(id)")
         },
         authoritySign: k?.signPub,
@@ -113,12 +157,16 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
             self?.show("DUYURU \(n.text)")
         })
         for (name, code) in contacts { if let pub = Data(base64Encoded: code) { try? node.addContact(name, Bytes(pub)) } }
-        // A call the authority has not confirmed survives a restart of the app or the phone: it is sent again. The
-        // authority may then receive it twice; a duplicate costs less than a lost call.
+        if let kayit = try? String(contentsOf: kayitDosyasi, encoding: .utf8) { node.yukle(kayit) }
+        sonKayitIzi = node.kayitIzi
+        // A call the authority has not confirmed survives a restart of the app or the phone: its envelope comes back
+        // from disk, or, if that is gone, it is sent again (a duplicate costs less than a lost call).
         if k != nil, defaults.string(forKey: "bekleyenAcil") != nil {
-            yenidenGonder()
-            acilDurum = "Önceki çağrınız yeniden gönderildi; kurum henüz almadı."
+            if node.kendiAcil == 0 { yenidenGonder() }
+            bekleyenSaat = Mesh.saat()
+            bekleyenYaz()
         }
+        oncekiVar = defaults.string(forKey: "oncekiAcil") != nil
     }
 
     /// Sends the pending call again: after a restart, and every 6 hours while unconfirmed (the mesh drops an
@@ -143,9 +191,11 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         // Carrying for others is a favour: it stops when the owner needs the battery, and resumes on the charger.
         node.relay = charging || (!ProcessInfo.processInfo.isLowPowerModeEnabled && level > 20)
         node.tick()
+        kaydet()
         status = "STATUS peers=\(transport.peerCount) carrying=\(node.carrying) relay=\(node.relay) online=\(online)"
         yakin = max(node.yakin(), transport.peerCount) // heard from, or connected to
         internet = online
+        bekleyenYaz()
         if kurumVar, defaults.string(forKey: "bekleyenAcil") != nil,
            Date().timeIntervalSince1970 - defaults.double(forKey: "bekleyenZaman") > 6 * 3600 { yenidenGonder() }
         // HELLOs only matter to phones in range, and only often while there is mail to offer them
@@ -190,9 +240,10 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         let loc = location.location // the freshest fix: asked for when the screen opened and when send was pressed
         acilDurum = "Çağrı hazırlanıyor…"
         kurumAldi = false
-        let model = triyaj
-        // reading the text and the proof of work take a moment: the text off the main thread, then the node on it
-        DispatchQueue.global(qos: .userInitiated).async {
+        // reading the text and the proof of work take a moment: the text off the main thread (on the model's queue,
+        // so a call made while the model is still loading waits for it), then the node on the main thread
+        modelKuyrugu.async { [weak self] in
+            let model = self?.triyajModel
             let t0 = Date()
             let k = metin.trimmingCharacters(in: .whitespaces).isEmpty ? nil : model?.coz(metin)
             let ms = Int(Date().timeIntervalSince(t0) * 1000)
@@ -225,13 +276,25 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
                                    secim: secimSozluk, okuma: okumaSozluk, cihaz: Mesh.cihaz())
             do {
                 let id = try self.node.sendEmergency(json)
+                self.kaydet()
+                // "I am safe" replaces a pending call: kept, so a mistaken tap can be undone with one more tap
+                let onceki = tur == "guvende" ? self.defaults.string(forKey: "bekleyenAcil") : nil
+                self.defaults.set(onceki, forKey: "oncekiAcil")
+                self.oncekiVar = onceki != nil
                 self.defaults.set(json, forKey: "bekleyenAcil") // kept until the authority's receipt arrives
                 self.defaults.set([id], forKey: "bekleyenIdler")
                 self.defaults.set(Date().timeIntervalSince1970, forKey: "bekleyenZaman")
-                self.sonCagriId = id
-                self.acilDurum = "Çağrınız gönderildi (\(Mesh.saat())).\nYakındaki telefonlar taşıyor; internete ulaşan ilk telefon kuruma iletecek. Uygulamayı kapatmayın."
-                self.show("ACIL_GONDERILDI id=\(id) konum=\(loc == nil ? "yok" : "var")")
-                self.konumTakip(loc)
+                self.show("ACIL_GONDERILDI id=\(id) tur=\(tur) konum=\(loc == nil ? "yok" : "var")")
+                if tur == "guvende" {
+                    self.sonCagriId = nil
+                    self.bekleyenSaat = nil
+                    self.acilDurum = "Güvende olduğunuz kuruma bildiriliyor · \(Mesh.saat())" + (onceki != nil ? "\nÖnceki yardım çağrınız artık yeniden gönderilmeyecek." : "")
+                } else {
+                    self.sonCagriId = id
+                    self.bekleyenSaat = Mesh.saat()
+                    self.bekleyenYaz()
+                    self.konumTakip(loc)
+                }
             } catch { self.acilDurum = "Çağrı gönderilemedi: \(error)"; self.show("ERROR \(error)") }
             }
         }
@@ -256,12 +319,29 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         guard kurumVar, let ref = sonCagriId else { return }
         do {
             let id = try node.sendEmergency(Cagri.duzeltme(ref: ref))
-            defaults.removeObject(forKey: "bekleyenAcil") // the earlier call is no longer resent
-            acilDurum = "Düzeltme gönderildi (\(Mesh.saat())): kuruma önceki çağrının yanlışlıkla gönderildiği bildiriliyor. "
-                + "Yine de yardım gerekiyorsa çağrıyı yeniden gönderin."
+            kaydet()
+            let onceki = defaults.string(forKey: "bekleyenAcil")
+            defaults.set(onceki, forKey: "oncekiAcil")
+            oncekiVar = onceki != nil
+            defaults.removeObject(forKey: "bekleyenAcil") // the earlier call is no longer resent (unless undone)
+            bekleyenSaat = nil
+            acilDurum = "Düzeltme gönderildi · \(Mesh.saat())\nKuruma önceki çağrının yanlışlıkla gönderildiği bildiriliyor."
             sonCagriId = nil
             show("DUZELTME_GONDERILDI id=\(id) ref=\(ref)")
         } catch { show("ERROR \(error)") }
+    }
+
+    /// Undoes a correction or "I am safe": the call it replaced is pending again and goes out once more at once.
+    func geriAl() {
+        guard let onceki = defaults.string(forKey: "oncekiAcil") else { return }
+        defaults.removeObject(forKey: "oncekiAcil")
+        oncekiVar = false
+        defaults.set(onceki, forKey: "bekleyenAcil")
+        defaults.set([String](), forKey: "bekleyenIdler")
+        kurumAldi = false
+        yenidenGonder()
+        bekleyenSaat = Mesh.saat()
+        bekleyenYaz()
     }
 
     #if DEBUG
@@ -305,11 +385,14 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         if ilk == nil { acilDurum += "\n\nKonum henüz alınamadı; telefon aramayı sürdürüyor ve bulunca kuruma ayrıca gönderecek." }
         ilkKonum = ilk
         konumTakipBitis = Date().addingTimeInterval(300)
+        // locking the screen must not stop the search (UIBackgroundModes location; started while on screen)
+        location.allowsBackgroundLocationUpdates = true
+        location.showsBackgroundLocationIndicator = true
         location.startUpdatingLocation()
         DispatchQueue.main.asyncAfter(deadline: .now() + 300) { [weak self] in self?.konumTakipBitir() }
     }
 
-    private func konumTakipBitir() { konumTakipBitis = nil; location.stopUpdatingLocation() }
+    private func konumTakipBitir() { konumTakipBitis = nil; location.stopUpdatingLocation(); location.allowsBackgroundLocationUpdates = false }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let bitis = konumTakipBitis, Date() < bitis, let l = locations.last, l.horizontalAccuracy >= 0 else { return }

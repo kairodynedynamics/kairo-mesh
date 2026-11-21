@@ -20,6 +20,9 @@ struct Kurum {
     /// Nil for a malformed code or one no trusted root approved (a fake code is never stored).
     init?(code: String) {
         guard let k = KurumKodu(code, kokler: Kurum.kokler) else { return nil }
+        #if !DEBUG
+        guard k.url.hasPrefix("https://") else { return nil } // calls never travel unencrypted to the server (as on Android)
+        #endif
         pub = k.pub; signPub = k.signPub; url = k.url; ad = k.ad
         self.code = code.trimmingCharacters(in: .whitespacesAndNewlines)
     }

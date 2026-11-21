@@ -19,7 +19,8 @@ jobs:
         with: { distribution: temurin, java-version: 17 }
       - uses: actions/setup-node@v4
         with: { node-version: 24 }
-      - run: ./gradlew --no-daemon testDebugUnitTest assembleDebug
+      # the demo build is the one handed out (release settings, unsigned here: the upload key never leaves the owner)
+      - run: ./gradlew --no-daemon testDebugUnitTest assembleDebug assembleDemo
       - run: node interop-check.mjs
       - uses: actions/upload-artifact@v4
         with: { name: KairoMesh-android-debug-apk, path: android/app/build/outputs/apk/debug/app-debug.apk }

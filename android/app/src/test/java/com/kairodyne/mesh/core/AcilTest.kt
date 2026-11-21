@@ -63,6 +63,26 @@ class AcilTest {
         assertEquals(1, w.delivered["ayse"]!!.size)
     }
 
+    @Test fun aCourierThatRestartsStillDeliversWhatItCarried() {
+        val w = World(listOf("ayse", "kurye"), kurum.pub, kurum)
+        w.nodes["ayse"]!!.sendEmergency(rapor)
+        w.meet("ayse", "kurye")
+        val disk = w.nodes["kurye"]!!.kayit()
+        // the app was killed: a new node in a new process, restored from disk, then the phone finds a signal
+        val yuklenen = mutableListOf<String>()
+        val yeni = Node(Identity.create(), {}, now = { w.t }, authority = kurum.pub, online = { true },
+            uplink = { env, done -> yuklenen += "x"; done(open(kurum, env.sub(0, env.size - 8)).body.sub(0, 16)) })
+        yeni.yukle(disk + "bozuk satır\n")
+        assertEquals(1, yeni.carrying)
+        assertEquals(0, yeni.kendiAcil)
+        yeni.tick()
+        assertEquals(1, yuklenen.size)
+        assertEquals(0, yeni.carrying)
+        // the sender's own envelope survives a restart too, and is known as its own
+        val ayse = Node(Identity.create(), {}, now = { w.t }, authority = kurum.pub).apply { yukle(w.nodes["ayse"]!!.kayit()) }
+        assertEquals(1, ayse.kendiAcil)
+    }
+
     @Test fun couriersRefuseAuthorityMailWithoutWork() {
         val w = World(listOf("ayse", "kurye"), kurum.pub, kurum)
         w.nodes["ayse"]!!.addContact("sahte", kurum.pub)

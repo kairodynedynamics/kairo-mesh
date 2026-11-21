@@ -136,6 +136,33 @@ public final class Node {
     public var delivered: [(String, String)] { seen.pairs.map { ($0.0, $0.1.hex) } }
     public var noticeFrames: [Bytes] { notices.values.map { $0.frame } }
 
+    /// Everything carried and the receipts seen for carried mail, as text for the app to keep on disk (see Node.kt
+    /// `kayit`): iOS ending the app must not drop calls strangers handed over. `kayitIzi` changes whenever this does.
+    public func kayit() -> String {
+        var s = ""
+        for m in store.values { s += "m \(m.id.hex) \(m.tag.hex) \(m.rh.hex) \(m.env.hex) \(m.tokens) \(m.at) \(m.own) \(m.trusted) \(m.acil)\n" }
+        for (k, r) in cleared.pairs { s += "c \(k) \(r.hex)\n" }
+        return s
+    }
+    public var kayitIzi: String { store.pairs.map { "\($0.0):\($0.1.tokens)" }.joined(separator: ",") + "|\(cleared.count)" }
+    /// Own emergency envelopes still on their way.
+    public var kendiAcil: Int { store.values.filter { $0.own && $0.acil }.count }
+
+    /// Restores what `kayit` wrote; expired envelopes go on the next `tick`. Unreadable lines are skipped.
+    public func yukle(_ kayit: String) {
+        for satir in kayit.split(separator: "\n") {
+            let p = satir.split(separator: " ").map(String.init)
+            if p.first == "m", p.count == 10, store[p[1]] == nil, store.count < MAX_STORE,
+               let id = p[1].unhex, let tag = p[2].unhex, let rh = p[3].unhex, let env = p[4].unhex,
+               let tokens = Int(p[5]), let at = Int64(p[6]) {
+                store[p[1]] = Msg(id, tag, rh, env, tokens: min(max(tokens, 1), MAX_TOKENS), at: at,
+                                  own: p[7] == "true", trusted: p[8] == "true", acil: p[9] == "true")
+            } else if p.first == "c", p.count == 3, let r = p[2].unhex {
+                remember(&cleared, p[1], r)
+            }
+        }
+    }
+
     public func addContact(_ name: String, _ pub: Bytes) throws {
         guard pub.count == 32 else { throw KairoError.malformed }
         contacts[name] = pub

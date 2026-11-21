@@ -49,15 +49,11 @@ class MeshService : Service() {
         super.onCreate()
         getSystemService(NotificationManager::class.java)
             .createNotificationChannel(NotificationChannel(CHANNEL, "Mesh", NotificationManager.IMPORTANCE_LOW))
-        startForeground(1, Notification.Builder(this, CHANNEL).setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
-            .setContentTitle("KairoMesh").setContentText("Yakındaki telefonlar için mesaj taşıyor").setOngoing(true).build(),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+        // connectedDevice may start before the Bluetooth permission (CHANGE_NETWORK_STATE also qualifies): a phone
+        // with internet sends its own call even if "Nearby devices" was refused
+        startForeground(1, bildirim(), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
 
         profile = Profile(this)
-        // debug (demo) builds come with a code approved by the public test root, so the app can be tried at once;
-        // release builds have none and trust only the production root
-        if (BuildConfig.DEMO_KURUM.isNotEmpty() && (profile.kurum == null || profile.kurum!!.contains("demo.kairodynedynamics.com")))
-            profile.kurum = BuildConfig.DEMO_KURUM // the old demo authority had no server: move to the operator demo
         getSystemService(NotificationManager::class.java)
             .createNotificationChannel(NotificationChannel(UYARI, "Kurum ve çağrı", NotificationManager.IMPORTANCE_HIGH))
         transport = BleTransport(this) { frame -> synchronized(this) { node.receive(frame) } }
@@ -67,12 +63,43 @@ class MeshService : Service() {
         kurum?.let { show("KURUM ${it.url} ad=${it.ad}") }
         // a newly met phone is greeted at once, but never more often than the node's 2-second budget allows
         transport.onPeer = { main.post { if (System.currentTimeMillis() - lastTick >= BUSY_MS) { main.removeCallbacks(ticker); ticker.run() } } }
-        transport.start()
+        bluetoothBaslat()
         main.post(ticker)
+        Thread { triyaj }.start() // ~2 s on a slow phone: loaded now, not while a caller waits
+        // a call that was being prepared when the app died goes out now
+        profile.bekleyenForm?.let(::emergency)
     }
 
-    /** (Re)creates the node, e.g. when the authority code changes. Mail queued in memory is not kept across it. */
+    private fun bildirim() = Notification.Builder(this, CHANNEL).setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
+        .setContentTitle("KairoMesh").setContentText("Yakındaki telefonlar için çağrı taşıyor").setOngoing(true).build()
+
+    private var bluetoothBasladi = false
+
+    private fun bluetoothBaslat() {
+        if (bluetoothBasladi) return
+        val izin = listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE)
+            .all { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
+        if (!izin) return show("BLUETOOTH_IZNI_YOK")
+        bluetoothBasladi = true
+        transport.start()
+    }
+
+    private val kayitDosyasi by lazy { java.io.File(filesDir, "tasinan.txt") }
+    private var sonKayitIzi = ""
+
+    /** Writes what the node carries when it changed (see Node.kayit); a temp file and a rename, so a crash mid-write
+     *  leaves the previous copy. Call under the node lock. */
+    private fun kaydet() {
+        val iz = node.kayitIzi
+        if (iz == sonKayitIzi) return
+        val gecici = java.io.File(filesDir, "tasinan.tmp")
+        runCatching { gecici.writeText(node.kayit()); gecici.renameTo(kayitDosyasi) }
+            .onSuccess { sonKayitIzi = iz }.onFailure { Log.w(BleTransport.TAG, "kayıt yazılamadı: ${it.message}") }
+    }
+
+    /** (Re)creates the node, e.g. when the authority code changes, with what was carried before (on disk). */
     private fun buildNode() = synchronized(this) {
+        if (::node.isInitialized) kaydet()
         kurum = profile.kurum?.let(Kurum::parse)
         val k = kurum
         node = Node(profile.identity, transport::send, { from, text ->
@@ -82,17 +109,23 @@ class MeshService : Service() {
             authority = k?.pub, online = ::online,
             uplink = k?.let { kk -> { env: ByteArray, done: (ByteArray?) -> Unit -> kk.upload(env) { r -> synchronized(this) { done(r) } } } },
             onEmergencyDelivered = { id ->
-                // only a receipt for this caller's pending call clears it (an older call's receipt must not)
-                if (id in profile.bekleyenIdler) profile.bekleyenAcil = null
-                show("ACIL_ULASTI id=$id saat=${saat()}")
-                bildir("Kurum çağrınızı aldı", "Yardım çağrınız ${saat()} itibarıyla kurumda.")
+                // only a receipt for this caller's pending call says "the authority has your call"; a location
+                // follow-up, a correction or an older call arriving is not that
+                if (id in profile.bekleyenIdler) {
+                    profile.bekleyenAcil = null
+                    show("ACIL_ULASTI id=$id saat=${saat()}")
+                    bildir("Kurum çağrınızı aldı", "Yardım çağrınız ${saat()} itibarıyla kurumda.")
+                } else show("EK_ULASTI id=$id saat=${saat()}")
             },
             authoritySign = k?.signPub,
             downlink = k?.let { kk -> { done: (List<ByteArray>) -> Unit -> kk.announcements { f -> synchronized(this) { done(f) } } } },
             onAnnouncement = { n -> show("DUYURU ${n.text}"); bildir("Kurum duyurusu", n.text) })
         for ((name, pub) in profile.contacts) node.addContact(name, pub)
-        // A call the authority has not confirmed survives a restart of the app or the phone: it is sent again.
-        if (k != null && profile.bekleyenAcil != null) yenidenGonder()
+        if (kayitDosyasi.exists()) runCatching { node.yukle(kayitDosyasi.readText()) }
+        sonKayitIzi = node.kayitIzi
+        // A call the authority has not confirmed survives a restart of the app or the phone: its envelope comes back
+        // from disk, or, if that is gone, it is sent again.
+        if (k != null && profile.bekleyenAcil != null && node.kendiAcil == 0) yenidenGonder()
     }
 
     /**
@@ -100,14 +133,14 @@ class MeshService : Service() {
      * envelope after a day, and the caller must not be left believing a call is on its way when it is not. The
      * authority may receive it twice; a duplicate costs less than a lost call.
      */
-    private fun yenidenGonder() {
+    private fun yenidenGonder(satir: String = "ACIL_YENIDEN") {
         val bekleyen = profile.bekleyenAcil ?: return
         profile.bekleyenZaman = System.currentTimeMillis()
         Thread {
             try {
                 val id = synchronized(this) { node.sendEmergency(bekleyen) }
                 profile.bekleyenIdEkle(id)
-                show("ACIL_YENIDEN id=$id saat=${saat()}")
+                show("$satir id=$id saat=${saat()}")
             } catch (e: RuntimeException) { show("ERROR ${e.message}") }
         }.start()
     }
@@ -133,10 +166,18 @@ class MeshService : Service() {
         intent?.getStringExtra("kurum")?.let(::setKurum)
         intent?.getStringExtra("acil")?.let(::emergency)
         intent?.getStringExtra("iptal")?.let(::duzelt)
+        if (intent?.hasExtra("geriAl") == true) geriAl()
+        bluetoothBaslat() // the permission may have been granted since
+        if (intent?.hasExtra("uyan") == true) {
+            // the alarm below: the CPU stays up long enough for a round of greetings, uploads and the resend check
+            getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "kairo:uyan").acquire(15_000)
+            main.post { main.removeCallbacks(ticker); ticker.run() }
+        }
         return START_STICKY
     }
 
     override fun onDestroy() {
+        synchronized(this) { kaydet() }
         transport.stop()
         main.removeCallbacksAndMessages(null)
         super.onDestroy()
@@ -188,6 +229,7 @@ class MeshService : Service() {
         // a second tap within a few seconds is the same call, not a new one
         if (System.currentTimeMillis() - sonCagri < 10_000) return show("ACIL_ZATEN id=- saat=${saat()}")
         sonCagri = System.currentTimeMillis()
+        profile.bekleyenForm = form
         // reading the text, a fresh GPS fix and the proof of work take a moment: off the main thread, then queued
         // under the node lock
         Thread {
@@ -224,15 +266,27 @@ class MeshService : Service() {
                     // (triyaj/model/kodlayici-olcum.json); a needless "urgent" costs the dispatcher less than a missed one.
                     aciliyet = k?.aciliyet?.let { if (p[0] !in Cagri.TURLER) minOf(it, 2) else it },
                     model = k != null && p[0] !in Cagri.TURLER, secim = secim, okuma = okuma, cihaz = cihaz())
-                val id = synchronized(this) { node.sendEmergency(json) }
+                val id = synchronized(this) { node.sendEmergency(json).also { kaydet() } }
+                // "I am safe" (or a new call) replaces the pending call: kept, so a mistaken tap can be undone
+                val onceki = profile.bekleyenAcil.takeIf { tur == "guvende" }
+                profile.oncekiAcil = onceki
                 profile.bekleyenAcil = json // on disk before the screen says it was sent
                 profile.bekleyenZaman = System.currentTimeMillis()
                 profile.bekleyenIdEkle(id)
+                profile.bekleyenForm = null
                 konumTakip(loc)
-                show("ACIL_GONDERILDI id=$id konum=${if (loc != null) "var" else "yok"} saat=${saat()}" +
-                    if (!transport.acik) " bluetooth=kapali" else "")
-            } catch (e: RuntimeException) { show("ERROR çağrı gönderilemedi: ${e.message}") }
+                show("ACIL_GONDERILDI id=$id tur=$tur konum=${if (loc != null) "var" else "yok"} saat=${saat()}" +
+                    (if (!transport.acik) " bluetooth=kapali" else "") + (if (onceki != null) " onceki=var" else ""))
+            } catch (e: RuntimeException) { profile.bekleyenForm = null; show("ERROR çağrı gönderilemedi: ${e.message}") }
         }.start()
+    }
+
+    /** Undoes a correction or "I am safe": the call it replaced is pending again and goes out once more at once. */
+    private fun geriAl() {
+        val onceki = profile.oncekiAcil ?: return
+        profile.oncekiAcil = null
+        profile.bekleyenAcil = onceki
+        yenidenGonder("GERI_ALINDI")
     }
 
     @Volatile private var sonCagri = 0L
@@ -242,9 +296,11 @@ class MeshService : Service() {
         if (kurum == null) return show("ERROR kurum kodu yok: çağrının gideceği kurum tanımlı değil")
         Thread {
             try {
-                val id = synchronized(this) { node.sendEmergency(Cagri.duzeltme(ref, System.currentTimeMillis())) }
-                profile.bekleyenAcil = null // the earlier call is no longer resent
-                show("DUZELTME_GONDERILDI id=$id ref=$ref saat=${saat()}")
+                val id = synchronized(this) { node.sendEmergency(Cagri.duzeltme(ref, System.currentTimeMillis())).also { kaydet() } }
+                val onceki = profile.bekleyenAcil
+                profile.oncekiAcil = onceki
+                profile.bekleyenAcil = null // the earlier call is no longer resent (unless the correction is undone)
+                show("DUZELTME_GONDERILDI id=$id ref=$ref saat=${saat()}" + if (onceki != null) " onceki=var" else "")
             } catch (e: RuntimeException) { show("ERROR düzeltme gönderilemedi: ${e.message}") }
         }.start()
     }
@@ -282,11 +338,17 @@ class MeshService : Service() {
         val esik = if (taze) ilk!!.accuracy * 0.7f else Float.MAX_VALUE
         val lm = getSystemService(LocationManager::class.java)
         konumDinleyici?.let { lm.removeUpdates(it) } // a new call replaces the previous follow-up
+        // a location service for these minutes: without it, locking the screen stops the updates. Started while the
+        // caller is on the screen (the while-in-use permission allows it then); refused, the search goes on as far
+        // as Android lets it.
+        runCatching { startForeground(1, bildirim(), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION) }
+        val bitti = { runCatching { startForeground(1, bildirim(), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE) } }
         val dinleyici = object : android.location.LocationListener {
             override fun onLocationChanged(l: Location) {
                 if (!l.hasAccuracy() || l.accuracy >= esik) return
                 lm.removeUpdates(this)
                 konumDinleyici = null
+                bitti()
                 Thread {
                     try {
                         synchronized(this@MeshService) { node.sendEmergency(Cagri.konumGuncel(l.latitude, l.longitude, l.accuracy, l.time)) }
@@ -299,8 +361,8 @@ class MeshService : Service() {
             for (s in listOf(LocationManager.GPS_PROVIDER, LocationManager.FUSED_PROVIDER, LocationManager.NETWORK_PROVIDER))
                 if (runCatching { lm.isProviderEnabled(s) }.getOrDefault(false)) lm.requestLocationUpdates(s, 2000L, 0f, dinleyici, main.looper)
             konumDinleyici = dinleyici
-            main.postDelayed({ lm.removeUpdates(dinleyici) }, KONUM_TAKIP_MS)
-        } catch (e: SecurityException) { show("KONUM_IZNI_YOK") }
+            main.postDelayed({ lm.removeUpdates(dinleyici); if (konumDinleyici === dinleyici) { konumDinleyici = null; bitti() } }, KONUM_TAKIP_MS)
+        } catch (e: SecurityException) { bitti(); show("KONUM_IZNI_YOK") }
     }
 
     private fun konum(): Location? {
@@ -336,10 +398,13 @@ class MeshService : Service() {
             val power = getSystemService(PowerManager::class.java)
             // Carrying for others is a favour: it stops when the owner needs the battery, and resumes on the charger.
             val relay = charging || (!power.isPowerSaveMode && level > LOW_BATTERY)
-            transport.setLowPower(!charging && (!power.isInteractive || !relay))
-            val (carrying, duyulan) = synchronized(this@MeshService) { node.relay = relay; node.tick(); node.carrying to node.yakin() }
+            // fastest discovery only while someone is looking at the screen and the battery can afford it: under
+            // rubble the caller's phone must last for hours
+            transport.setLowPower(!charging && (!power.isInteractive || !relay || level < 50))
+            val (carrying, duyulan) = synchronized(this@MeshService) { node.relay = relay; node.tick(); kaydet(); node.carrying to node.yakin() }
             transport.temizle()
             if (kurum != null && profile.bekleyenAcil != null && System.currentTimeMillis() - profile.bekleyenZaman > YENIDEN_MS) yenidenGonder()
+            if (carrying > 0 || profile.bekleyenAcil != null) uyandir()
             val peers = transport.peerCount
             // phones heard (their HELLO) or connected to, whichever is more: a phone we write to that has not yet
             // connected back to us is still a carrier in reach
@@ -354,11 +419,31 @@ class MeshService : Service() {
         }
     }
 
+    private var sonAlarm = 0L
+
+    /**
+     * With the screen off the CPU sleeps and this service's timer stops with it: while there is a call to carry or
+     * resend, an alarm that fires even in Doze (at most every ~9 minutes there) wakes it for a round. Inexact, so it
+     * needs no special permission.
+     */
+    private fun uyandir() {
+        if (System.currentTimeMillis() - sonAlarm < 5 * 60_000L) return
+        sonAlarm = System.currentTimeMillis()
+        val pi = android.app.PendingIntent.getService(this, 7, Intent(this, MeshService::class.java).putExtra("uyan", 1),
+            android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT)
+        getSystemService(android.app.AlarmManager::class.java).setAndAllowWhileIdle(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP,
+            android.os.SystemClock.elapsedRealtime() + UYANMA_MS, pi)
+    }
+
     private fun saat() = SimpleDateFormat("HH:mm", Locale("tr")).format(Date())
 
     private fun show(line: String) {
         Log.i(BleTransport.TAG, line)
-        main.post { lines += line; listener?.invoke(line) }
+        main.post {
+            lines += line
+            if (lines.size > 200) lines.removeAt(0) // the screen replays these on opening: days of carrying must not pile up
+            listener?.invoke(line)
+        }
     }
 
     companion object {
@@ -370,6 +455,7 @@ class MeshService : Service() {
         private const val IDLE_MS = 10_000L
         private const val LOW_BATTERY = 20 // percent
         private const val KONUM_TAKIP_MS = 5 * 60_000L
+        private const val UYANMA_MS = 10 * 60_000L
         /** Log lines for the screen; touched only on the main thread. */
         val lines = mutableListOf<String>()
         var listener: ((String) -> Unit)? = null

@@ -68,6 +68,8 @@ if (komut === 'anahtar' && klasor && arg) {
     identity: createIdentity(Buffer.from(k.muhurGizli, 'base64')),
     signer: createSigner(Buffer.from(k.imzaGizli, 'base64')),
     log: join(klasor, 'cagrilar.jsonl'),
+    // KVKK: calls are deleted after KURUM_SAKLAMA_GUN days (30 unless set; 0 keeps everything)
+    saklamaMs: Number(process.env.KURUM_SAKLAMA_GUN ?? 30) * 86400000 || null,
     onReport: (e) => console.log(`${new Date().toISOString()} ÇAĞRI aciliyet=${e.report.aciliyet ?? '?'} tür=${e.report.tur ?? '?'} kişi=${e.report.kisi ?? '?'}`),
   });
   let token = process.env.KURUM_PANO_ANAHTARI;

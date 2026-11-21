@@ -68,6 +68,27 @@ final class AcilTests: XCTestCase {
         XCTAssertEqual(1, w.delivered["ayse"]!.count)
     }
 
+    func testACourierThatRestartsStillDeliversWhatItCarried() throws {
+        let kurum = try Identity.create()
+        let w = try World(["ayse", "kurye"], kurum)
+        try w.nodes["ayse"]!.sendEmergency(rapor)
+        w.meet("ayse", "kurye")
+        let disk = w.nodes["kurye"]!.kayit()
+        // iOS ended the app: a new node, restored from disk, then the phone finds a signal
+        var yuklenen = 0
+        let yeni = Node(identity: try Identity.create(), send: { _ in }, now: { w.t }, authority: kurum.pub, online: { true },
+                        uplink: { env, done in yuklenen += 1; done((try? open(kurum, env.sub(0, env.count - 8)))?.body.sub(0, 16)) })
+        yeni.yukle(disk + "bozuk satır\n")
+        XCTAssertEqual(1, yeni.carrying)
+        XCTAssertEqual(0, yeni.kendiAcil)
+        yeni.tick()
+        XCTAssertEqual(1, yuklenen)
+        XCTAssertEqual(0, yeni.carrying)
+        let ayse = Node(identity: try Identity.create(), send: { _ in }, now: { w.t }, authority: kurum.pub)
+        ayse.yukle(w.nodes["ayse"]!.kayit())
+        XCTAssertEqual(1, ayse.kendiAcil)
+    }
+
     func testCouriersRefuseAuthorityMailWithoutWork() throws {
         let kurum = try Identity.create()
         let w = try World(["ayse", "kurye"], kurum)

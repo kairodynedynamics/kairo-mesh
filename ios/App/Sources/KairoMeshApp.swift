@@ -57,8 +57,9 @@ struct ContentView: View {
         }
         .preferredColorScheme(.light)
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true; mesh.konumIste() } // the screen must not go dark under rubble
-        // back after a while: nothing left selected from before (a short switch keeps a half-written call)
-        .onChange(of: faz) { _, yeni in
+        // back after a while: nothing left selected from before (a short switch keeps a half-written call).
+        // The one-argument form: the app supports iOS 16.
+        .onChange(of: faz) { yeni in
             if yeni == .background { arkaPlan = Date() }
             if yeni == .active, let a = arkaPlan, Date().timeIntervalSince(a) > 120, geriSayim == nil { formuTemizle() }
         }
@@ -74,16 +75,18 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
                 Circle().fill(Tema.kirmizi).frame(width: 14, height: 14)
-                Text("KairoMesh").font(.system(size: 28, weight: .heavy)).foregroundColor(Tema.metin)
+                Text("KairoMesh").font(.title.weight(.heavy)).foregroundColor(Tema.metin)
             }
             Text(mesh.kurumVar ? "Çağrılar şu kuruma gider: \(mesh.kurumAd)" : "Bu sürümde çağrıların gideceği kurum tanımlı değil (kurumla sözleşme öncesi sürüm).")
                 .font(.subheadline).foregroundColor(Tema.ikincil)
-            Text(agYazisi).font(.callout.bold()).foregroundColor(mesh.internet || mesh.yakin > 0 ? Tema.yesil : Tema.amber)
+            Text(agYazisi).font(.callout.bold())
+                .foregroundColor(mesh.bluetoothKapali && !mesh.internet ? Tema.kirmizi : mesh.internet || mesh.yakin > 0 ? Tema.yesil : Tema.amber)
         }
     }
 
     private var agYazisi: String {
         if mesh.internet { return "● İnternet var · çağrılar doğrudan kuruma gider" }
+        if mesh.bluetoothKapali { return "● Bluetooth kapalı ya da izin verilmemiş · Ayarlar'dan açın; yoksa çağrınız başka telefonlara ulaşamaz" }
         if mesh.yakin > 0 { return "● İnternet yok · yakında çağrınızı taşıyabilecek \(mesh.yakin) telefon var" }
         return "● İnternet yok · yakında KairoMesh'li telefon yok; biri yaklaşınca çağrınız gider"
     }
@@ -108,10 +111,10 @@ struct ContentView: View {
             }
             Text("Kaç kişisiniz?").font(.headline).foregroundColor(Tema.metin)
             HStack(spacing: 14) {
-                Button { kisi = kisi.flatMap { $0 <= 1 ? nil : $0 - 1 } } label: { Text("−").font(.system(size: 30, weight: .bold)).frame(width: 64, height: 54) }
+                Button { kisi = kisi.flatMap { $0 <= 1 ? nil : $0 - 1 } } label: { Text("−").font(.title.bold()).frame(minWidth: 64, minHeight: 54) }
                     .buttonStyle(KutuStil()).accessibilityLabel("Bir azalt")
-                Text(kisi.map(String.init) ?? "?").font(.system(size: 30, weight: .heavy)).frame(minWidth: 50).foregroundColor(Tema.metin)
-                Button { kisi = min(99, (kisi ?? 0) + 1) } label: { Text("+").font(.system(size: 30, weight: .bold)).frame(width: 64, height: 54) }
+                Text(kisi.map(String.init) ?? "?").font(.title.weight(.heavy)).frame(minWidth: 50).foregroundColor(Tema.metin)
+                Button { kisi = min(99, (kisi ?? 0) + 1) } label: { Text("+").font(.title.bold()).frame(minWidth: 64, minHeight: 54) }
                     .buttonStyle(KutuStil()).accessibilityLabel("Bir artır")
                 Text("? = bilinmiyor").font(.subheadline).foregroundColor(Tema.ikincil)
             }
@@ -144,10 +147,15 @@ struct ContentView: View {
             if !mesh.acilDurum.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(mesh.acilDurum).font(.headline).foregroundColor(Tema.metin).accessibilityIdentifier("acilDurum")
+                    if mesh.oncekiVar {
+                        // one tap undoes a correction or "I am safe" sent by mistake
+                        Button { mesh.geriAl() } label: {
+                            Text("Geri al · hâlâ yardım gerekiyor").kalinDugme(Tema.kirmizi, .white)
+                        }.accessibilityIdentifier("geriAl")
+                    }
                     if mesh.sonCagriId != nil && !mesh.kurumAldi {
                         Button {
-                            // a second tap confirms: correcting a real call by accident would be as bad as a false one
-                            mesh.duzelt() // one tap: if it was itself a mistake, the call can be sent again at once
+                            mesh.duzelt() // one tap, no delay; a mistaken correction is undone with "Geri al"
                         } label: {
                             Text("Yanlışlıkla gönderdim · yardım gerekmiyor")
                                 .kalinDugme(Tema.kart, Tema.metin, kenar: Tema.cizgi)
@@ -225,13 +233,16 @@ struct ContentView: View {
         geriSayim = nil
         mesh.emergency(tur: tur, kisi: kisi, ozel: ozel, metin: metin)
         formuTemizle() // what went out is in the status card; the next call starts from nothing selected
+        // once the call has gone the battery matters more: two minutes later the screen may sleep again (the sound
+        // signal keeps it on while it plays)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 120) { if !Siren.shared.caliyor { UIApplication.shared.isIdleTimerDisabled = false } }
     }
 
     private func formuTemizle() { tur = nil; kisi = nil; ozel = []; metin = "" }
 
     private func sinyalDegistir() {
         sinyal.toggle()
-        if sinyal { Siren.shared.baslat() } else { Siren.shared.durdur() }
+        if sinyal { Siren.shared.baslat(); UIApplication.shared.isIdleTimerDisabled = true } else { Siren.shared.durdur() }
     }
 }
 
@@ -240,6 +251,7 @@ struct ContentView: View {
 final class Siren {
     static let shared = Siren()
     private var oynatici: AVAudioPlayer?
+    var caliyor: Bool { oynatici?.isPlaying ?? false }
 
     func baslat() {
         try? AVAudioSession.sharedInstance().setCategory(.playback)
