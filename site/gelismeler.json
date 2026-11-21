@@ -1,5 +1,10 @@
 [
  {
+  "tarih": "2026-11-21",
+  "baslik": "0.6.0: dağıtıma hazırlık, karşı tarafın gözüyle",
+  "metin": "Uygulamayı çürütmekle görevli bağımsız bir inceleme 25 bulgu çıkardı; mantıklı olanlar düzeltildi. Telefonun taşıdığı çağrılar artık diske yazılıyor: uygulama kapansa ya da telefon yeniden başlasa da kaybolmuyor. Ekran 'gönderildi' demiyor, olanı söylüyor: 'telefonunuzda hazır, henüz kimseye ulaşmadı', 'yakındaki N telefona veriliyor' ya da 'kuruma gönderiliyor'. Yanlışlıkla basılan 'Güvendeyim' ya da düzeltme tek dokunuşla geri alınıyor. İnternet varsa Bluetooth izni olmadan da çağrı gidiyor. Konum araması ekran kilitlense de sürüyor. Saati sıfırlanmış bir telefonun çağrısı reddedilmiyor, işaretleniyor. Dağıtılan Android sürümü artık imzalı ve test kancası içermiyor; iOS için gizlilik bildirimi eklendi. Gizlilik ve KVKK sayfası yayında."
+ },
+ {
   "tarih": "2026-11-16",
   "baslik": "Yeni KairoMesh uygulaması: enkaz altında kullanılabilsin diye",
   "metin": "Android ve iOS'ta aynı yeni ekran: açık gri, göz almayan ama karanlıkta okunan tema; dört büyük hayati durum düğmesi; seçilen her şey yazıyla gösterilir ve tek dokunuşla geri alınır; gönderilecek bilgilerin özeti; yanlış dokunuşa karşı 5 saniyelik İPTAL; 'yanlışlıkla gönderdim' düzeltmesi; kurtarıcılar için sesli sinyal; ekran kararmaz. Tasarım gerekçeleri docs/08'de."
