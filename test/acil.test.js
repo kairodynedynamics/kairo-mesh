@@ -411,13 +411,20 @@ test('acil: reports past the retention period are deleted from memory and from t
   let t = Date.now();
   const zarf = (n) => addWork(seal(s, id.pub, Buffer.concat([Buffer.alloc(16, n), sentNow(t - Date.now()), Buffer.from(JSON.stringify(RAPOR))])));
   const a = createAuthority({ identity: id, log, now: () => t, saklamaMs: 30 * 86400000 });
-  assert.ok(a.receive(zarf(1)));
+  const eski = zarf(1);
+  assert.ok(a.receive(eski));
   t += 31 * 86400000;
+  assert.equal(a.reports.length, 0, 'deleted on reading too, not only when a new call comes in');
   assert.ok(a.receive(zarf(2)));
   assert.equal(a.reports.length, 1, 'the 31-day-old call is gone');
-  assert.equal(readFileSync(log, 'utf8').trim().split('\n').length, 1, 'and gone from the log');
+  const satirlar = readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(satirlar.filter((l) => l.report).length, 1, 'and gone from the log');
+  assert.ok(satirlar.every((l) => l.report || Object.keys(l).join() === 'key,silindi'), 'only its hash is kept');
+  // a courier that kept the old envelope uploads it again: it must not come back as a fresh call
+  assert.equal(a.receive(eski), null);
   const b = createAuthority({ identity: id, log, now: () => t, saklamaMs: 30 * 86400000 });
   assert.equal(b.reports.length, 1);
+  assert.equal(b.receive(eski), null, 'not after a restart either');
 });
 
 test('acil: a dashboard of 10,000 calls is built in well under a second', async () => {

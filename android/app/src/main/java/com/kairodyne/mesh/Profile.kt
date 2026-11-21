@@ -36,12 +36,19 @@ class Profile(context: Context) {
      *  reading the text, proof of work) is not lost if the app dies meanwhile. Null once the call is queued. */
     var bekleyenForm: String?
         get() = prefs.getString("bekleyen_form", null)
-        set(value) { prefs.edit().putString("bekleyen_form", value).commit() }
+        set(value) { prefs.edit().putString("bekleyen_form", value).putLong("bekleyen_form_zaman", System.currentTimeMillis()).commit() }
+    /** When the form was written: an old one is never sent as if it were new. */
+    val bekleyenFormZaman: Long get() = prefs.getLong("bekleyen_form_zaman", 0)
+    /** The form was already sent again once after a restart: if that crashed too, it is not tried a third time. */
+    var formTekrarlandi: Boolean
+        get() = prefs.getBoolean("form_tekrar", false)
+        set(value) { prefs.edit().putBoolean("form_tekrar", value).commit() }
 
-    /** The call a correction or "I am safe" replaced, so a mistaken tap can be undone with one more tap. */
+    /** The call a correction or "I am safe" replaced, so a mistaken tap can be undone with one more tap. Kept for a
+     *  day: an undo days later would send an old call (and an old location) as if it were new. */
     var oncekiAcil: String?
-        get() = prefs.getString("onceki_acil", null)
-        set(value) { prefs.edit().putString("onceki_acil", value).commit() }
+        get() = prefs.getString("onceki_acil", null)?.takeIf { System.currentTimeMillis() - prefs.getLong("onceki_zaman", 0) < 86_400_000L }
+        set(value) { prefs.edit().putString("onceki_acil", value).putLong("onceki_zaman", System.currentTimeMillis()).commit() }
 
     val code: String get() = b64(identity.pub)
 

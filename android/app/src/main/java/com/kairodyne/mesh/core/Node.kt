@@ -384,17 +384,28 @@ class Node(
         for ((k, r) in cleared) append("c $k ${r.hex()}\n")
     }
     val kayitIzi get() = store.entries.joinToString(",") { it.key + ":" + it.value.tokens } + "|" + cleared.size
-    /** Own emergency envelopes still on their way (after [yukle], the app need not send its pending call again). */
-    val kendiAcil get() = store.values.count { it.own && it.acil }
+    /** Own emergency envelopes still on their way to this node's authority (after [yukle], the app need not send its
+     *  pending call again). */
+    val kendiAcil get() = store.values.count { it.own && it.acil && isKurumTag(it.tag) }
 
-    /** Restores what [kayit] wrote; expired envelopes go on the next [tick]. Unreadable lines are skipped. */
+    /**
+     * Restores what [kayit] wrote; expired envelopes go on the next [tick]. Unreadable lines are skipped. The
+     * authority may have changed since (the demo code replaced by a real authority's): the caller's own envelopes
+     * for the old one are dropped, so the app sends its pending call to the new one; strangers' are still carried
+     * (a phone that has the old code may yet deliver them) but no longer uploaded here, where they would be refused.
+     */
     fun yukle(kayit: String) {
         for (s in kayit.lineSequence()) runCatching {
             val p = s.split(" ")
-            if (p[0] == "m" && p.size == 10 && p[1] !in store && store.size < MAX_STORE)
-                store[p[1]] = Msg(p[1].unhex(), p[2].unhex(), p[3].unhex(), p[4].unhex(), p[5].toInt().coerceIn(1, MAX_TOKENS),
-                    p[6].toLong(), own = p[7].toBoolean(), trusted = p[8].toBoolean(), acil = p[9].toBoolean())
-            else if (p[0] == "c" && p.size == 3) remember(cleared, p[1], p[2].unhex())
+            if (p[0] == "m" && p.size == 10 && p[1] !in store && store.size < MAX_STORE) {
+                val tag = p[2].unhex()
+                val buKurum = isKurumTag(tag)
+                val own = p[7].toBoolean()
+                val acil = p[9].toBoolean()
+                if (own && acil && !buKurum) return@runCatching
+                store[p[1]] = Msg(p[1].unhex(), tag, p[3].unhex(), p[4].unhex(), p[5].toInt().coerceIn(1, MAX_TOKENS),
+                    p[6].toLong(), own = own, trusted = p[8].toBoolean(), acil = acil && buKurum)
+            } else if (p[0] == "c" && p.size == 3) remember(cleared, p[1], p[2].unhex())
         }
     }
 

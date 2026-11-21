@@ -58,9 +58,9 @@ Her karar bu kişiye göre verildi. Kod: `android/.../MainActivity.kt`, `ios/App
 | Çağrı yola çıktı mı? | Ekran olanı söyler, "gönderildi" demez: "telefonunuzda hazır, henüz kimseye ulaşmadı", "yakındaki N telefona veriliyor" ya da "kuruma gönderiliyor". Yeşil "Kurum çağrınızı aldı" yalnız kurumun makbuzu gelince görünür; konum güncellemesinin ya da düzeltmenin makbuzu bunu göstermez. |
 | Ekran açık kalsın mı? | Çağrı yazılırken ekran kararmaz. Çağrı gittikten 2 dakika sonra kararabilir (pil saatlerce yetmeli); sesli sinyal çalarken açık kalır. |
 | Kurum kodu yok | Gönder'den önce açıkça söylenir; çağrı sessizce kaybolmaz. |
-| Uygulama kapandı, telefon yeniden başladı | Telefonun kendi çağrısı ve başkaları için taşıdığı çağrılar diske yazılıdır; yeniden açılınca kaldığı yerden taşınır. Hazırlanırken kapanan çağrı da açılınca gönderilir. Ağ telefonla birlikte kendiliğinden başlar (Android). |
+| Uygulama kapandı, telefon yeniden başladı | Telefonun kendi çağrısı ve başkaları için taşıdığı çağrılar diske yazılıdır; yeniden açılınca kaldığı yerden taşınır. Android'de hazırlanırken (konum, metin okuma, iş kanıtı: birkaç saniye) kapanan çağrı da açılınca bir kez gönderilir; iOS'ta bu birkaç saniyede kapanırsa yeniden gönderilmesi gerekir. Ağ telefonla birlikte kendiliğinden başlar (Android). |
 | Kurum bir gün içinde almadı | Çağrı 6 saatte bir yeniden gönderilir; ağ zarfları bir gün sonra siler. |
-| Karanlık, ekran kararıyor | Acil ekran açıkken ekran kararmaz. |
+| Karanlık, ekran kararıyor | Çağrı yazılırken ekran kararmaz; çağrı gittikten 2 dakika sonra kararabilir, dokununca yine 2 dakika açık kalır. |
 | Kurtarıcılar yakında ama göremiyor | **Sesli sinyal**: yüksek perdeden, aralıklı bir düdük sesi (3,1 kHz), sessiz kipte de çalar. |
 
 ## 5. Tema

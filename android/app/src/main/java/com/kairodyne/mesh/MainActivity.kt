@@ -81,8 +81,45 @@ class MainActivity : Activity() {
         // replayed lines draw the screen as it was; they must not ask for permissions or Bluetooth again
         MeshService.lines.toList().forEach { onLine(it, canli = false) }
         MeshService.listener = { onLine(it) }
+        if (durumKart.visibility != View.VISIBLE) bekleyeniCiz(profile) // the app was killed or the phone restarted
+        state?.let(::geriYukle)
         waiting = automation(intent)
         requestPermissionsOnce()
+    }
+
+    /** The call still on its way, and the undo, from disk: after a restart there are no service lines to replay. */
+    private fun bekleyeniCiz(profile: Profile) {
+        val bekleyen = profile.bekleyenAcil
+        val saat = java.text.SimpleDateFormat("HH:mm", java.util.Locale("tr")).format(java.util.Date(profile.bekleyenZaman))
+        if (bekleyen != null) {
+            if (runCatching { org.json.JSONObject(bekleyen).optString("tur") }.getOrNull() == "guvende")
+                durumGoster(YESIL_ZEMIN, "Güvende olduğunuz kuruma bildiriliyor · $saat")
+            else {
+                bekleyenSaat = saat
+                sonCagriId = profile.bekleyenIdler.firstOrNull()
+                bekleyenGoster()
+                duzeltDugme.visibility = if (sonCagriId != null) View.VISIBLE else View.GONE
+            }
+        }
+        if (profile.oncekiAcil != null) {
+            if (bekleyen == null) durumGoster(GRI_ZEMIN, "Önceki yardım çağrınızı geri çektiniz.")
+            geriAlDugme.visibility = View.VISIBLE
+        }
+    }
+
+    // Activity recreated (font size, language): the form and a running countdown carry on where they were
+    override fun onSaveInstanceState(out: Bundle) {
+        super.onSaveInstanceState(out)
+        out.putString("tur", secilenTur); out.putInt("kisi", kisi ?: -1); out.putStringArrayList("ozel", ArrayList(ozel))
+        out.putString("metin", metin.text.toString()); out.putInt("kalan", if (geriSayim.visibility == View.VISIBLE) kalan else -1)
+    }
+
+    private fun geriYukle(b: Bundle) {
+        secilenTur = b.getString("tur"); kisi = b.getInt("kisi", -1).takeIf { it >= 0 }
+        ozel.clear(); ozel += b.getStringArrayList("ozel") ?: emptyList<String>()
+        metin.setText(b.getString("metin") ?: "")
+        yenile()
+        b.getInt("kalan", -1).takeIf { it >= 0 }?.let(::geriSay)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -356,9 +393,14 @@ class MainActivity : Activity() {
             return
         }
         if (tur == "guvende") return gonder() // "I am safe" has no countdown: nothing urgent can go out by mistake
-        // a stray tap must not send a call: five seconds with a large CANCEL, then it goes by itself
+        geriSay(5) // a stray tap must not send a call: five seconds with a large CANCEL, then it goes by itself
+    }
+
+    private var kalan = 5
+
+    private fun geriSay(saniye: Int) {
         geriSayim.visibility = View.VISIBLE
-        var kalan = 5
+        kalan = saniye
         val adim = object : Runnable {
             override fun run() {
                 if (geriSayim.visibility != View.VISIBLE) return

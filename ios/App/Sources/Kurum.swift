@@ -11,8 +11,8 @@ struct Kurum {
     // production root, whose private half is kept offline; debug builds also trust the public test root (test/kok-test).
     static let kokler: [Bytes] = {
         var k = ["KMrne+ak0Iqr3rLzZ9uI7Qic8fWv6o/Na2H15FF25So="]
-        #if DEBUG
-        k.append("mCZWxnPAXq0pTVoc5wwzaPbHgJvMARPQX626+hmR+zs=")
+        #if DEBUG || DEMO
+        k.append("mCZWxnPAXq0pTVoc5wwzaPbHgJvMARPQX626+hmR+zs=") // the operator demo's code is approved by the test root
         #endif
         return k.map { Bytes(Data(base64Encoded: $0)!) }
     }()

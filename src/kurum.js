@@ -85,10 +85,15 @@ export function createAuthority({ identity, signer = null, now = Date.now, onRep
   const reports = new Map(); // envelope hash -> entry: a report forwarded by many gateways counts once
   const notices = [];
   let surum = 0, onbellek = null, sonTemizlik = -Infinity; // `reports` sorted with warning signs, until a new report
+  // Envelope hashes of reports deleted for retention: the hash alone, no personal data. Any phone that carried a
+  // call (and keeps what it carries on disk) could upload it again after the deletion; it must not come back as a
+  // fresh call. Such an envelope is refused for good (422), so the courier drops it.
+  const silinenler = new Set();
   if (log && existsSync(log))
     for (const line of readFileSync(log, 'utf8').split('\n').filter(Boolean)) {
       let e;
       try { e = JSON.parse(line); } catch { continue; } // a torn last line after a crash must not stop the server
+      if (e.silindi && typeof e.key === 'string') { silinenler.add(e.key); continue; }
       const report = raporTemizle(e.report); // logs written before field checks existed are cleaned on load
       if (report && typeof e.key === 'string') reports.set(e.key, { ...e, report, receipt: Buffer.from(String(e.receipt), 'hex') });
     }
@@ -99,15 +104,18 @@ export function createAuthority({ identity, signer = null, now = Date.now, onRep
     if (saklamaMs == null || now() - sonTemizlik < SAAT) return;
     sonTemizlik = now();
     let silinen = 0;
-    for (const [k, e] of reports) if (now() - e.receivedAt > saklamaMs) { reports.delete(k); silinen++; }
+    for (const [k, e] of reports) if (now() - e.receivedAt > saklamaMs) { reports.delete(k); silinenler.add(k); silinen++; }
     if (!silinen) return;
     surum++;
     if (log) {
-      writeFileSync(log + '.tmp', [...reports.values()].map((e) => JSON.stringify({ ...e, receipt: e.receipt.toString('hex') }) + '\n').join(''));
+      writeFileSync(log + '.tmp', [...silinenler].map((key) => JSON.stringify({ key, silindi: true }) + '\n').join('')
+        + [...reports.values()].map((e) => JSON.stringify({ ...e, receipt: e.receipt.toString('hex') }) + '\n').join(''));
       renameSync(log + '.tmp', log);
     }
   }
   temizle();
+  // a quiet server deletes on time too, not only when a call or a dashboard read comes in
+  if (saklamaMs != null) setInterval(temizle, SAAT).unref();
 
   // Returns the 16-byte receipt, or null if the envelope lacks its proof of work, is not for us, altered, stale
   // or malformed.
@@ -115,6 +123,7 @@ export function createAuthority({ identity, signer = null, now = Date.now, onRep
     const key = sha256(envelope).toString('hex');
     const known = reports.get(key);
     if (known) return known.receipt;
+    if (silinenler.has(key)) return null;
     if (!hasWork(envelope)) return null;
     let msg;
     try { msg = open(identity, envelope.subarray(0, -8)); } catch { return null; }
@@ -160,6 +169,7 @@ export function createAuthority({ identity, signer = null, now = Date.now, onRep
   // a call with a doubtful clock is placed by when it arrived
   const zaman = (e) => (e.saatSupheli ? e.receivedAt : e.sentAt);
   const sorted = () => {
+    temizle();
     if (onbellek?.surum === surum) return onbellek.liste;
     const tum = [...reports.values()], dizin = dizinle(tum);
     const liste = tum.map((e) => ({ ...e, sinyaller: sinyaller(e, tum, dizin) })).sort((a, b) =>

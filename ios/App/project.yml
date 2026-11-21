@@ -3,6 +3,12 @@
 name: KairoMesh
 options:
   bundleIdPrefix: com.kairodyne
+# Demo: the build handed out for demos, like Android's "demo" build type: Release optimisation (the on-device model
+# is several times slower unoptimised), no developer log on screen, the operator demo as its authority (DEMO flag)
+configs:
+  Debug: debug
+  Release: release
+  Demo: release
   deploymentTarget:
     iOS: "16.0"
 packages:
@@ -44,6 +50,9 @@ targets:
         # install a bundle without CFBundleVersion (same numbers as the Android build)
         MARKETING_VERSION: "0.6.0"
         CURRENT_PROJECT_VERSION: "8"
+      configs:
+        Demo:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEMO
     dependencies:
       - package: KairoCore
     info:

@@ -51,7 +51,16 @@ class MeshService : Service() {
             .createNotificationChannel(NotificationChannel(CHANNEL, "Mesh", NotificationManager.IMPORTANCE_LOW))
         // connectedDevice may start before the Bluetooth permission (CHANGE_NETWORK_STATE also qualifies): a phone
         // with internet sends its own call even if "Nearby devices" was refused
-        startForeground(1, bildirim(), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+        try {
+            startForeground(1, bildirim(), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+        } catch (e: Exception) {
+            // Android 12+ may refuse a start from the background (the Doze alarm after the process was killed): no
+            // crash; the next opening of the app, the next alarm or a reboot starts it again
+            Log.w(BleTransport.TAG, "ön plan hizmeti başlatılamadı: ${e.message}")
+            stopSelf()
+            return
+        }
+        hazir = true
 
         profile = Profile(this)
         getSystemService(NotificationManager::class.java)
@@ -66,12 +75,20 @@ class MeshService : Service() {
         bluetoothBaslat()
         main.post(ticker)
         Thread { triyaj }.start() // ~2 s on a slow phone: loaded now, not while a caller waits
-        // a call that was being prepared when the app died goes out now
-        profile.bekleyenForm?.let(::emergency)
+        // a call that was being prepared when the app died goes out now; once only (if preparing it is what kills
+        // the app, it must not crash for ever), and only if it is recent (never an old form as a new call)
+        profile.bekleyenForm?.let { f ->
+            if (!profile.formTekrarlandi && System.currentTimeMillis() - profile.bekleyenFormZaman < 3_600_000L) {
+                profile.formTekrarlandi = true
+                emergency(f, tekrar = true)
+            } else profile.bekleyenForm = null
+        }
     }
 
+    private var hazir = false
+
     private fun bildirim() = Notification.Builder(this, CHANNEL).setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
-        .setContentTitle("KairoMesh").setContentText("Yakındaki telefonlar için çağrı taşıyor").setOngoing(true).build()
+        .setContentTitle("KairoMesh").setContentText("Acil çağrılar için hazır").setOngoing(true).build()
 
     private var bluetoothBasladi = false
 
@@ -84,22 +101,28 @@ class MeshService : Service() {
         transport.start()
     }
 
-    private val kayitDosyasi by lazy { java.io.File(filesDir, "tasinan.txt") }
-    private var sonKayitIzi = ""
+    // AtomicFile: fsync before the rename, so a battery dying mid-write leaves the previous copy, never an empty one
+    private val kayitDosyasi by lazy { android.util.AtomicFile(java.io.File(filesDir, "tasinan.txt")) }
+    private val yazici = java.util.concurrent.Executors.newSingleThreadExecutor()
+    @Volatile private var sonKayitIzi = ""
 
-    /** Writes what the node carries when it changed (see Node.kayit); a temp file and a rename, so a crash mid-write
-     *  leaves the previous copy. Call under the node lock. */
+    /** Writes what the node carries when it changed (see Node.kayit), off the main thread. Call under the node lock. */
     private fun kaydet() {
         val iz = node.kayitIzi
         if (iz == sonKayitIzi) return
-        val gecici = java.io.File(filesDir, "tasinan.tmp")
-        runCatching { gecici.writeText(node.kayit()); gecici.renameTo(kayitDosyasi) }
-            .onSuccess { sonKayitIzi = iz }.onFailure { Log.w(BleTransport.TAG, "kayıt yazılamadı: ${it.message}") }
+        sonKayitIzi = iz
+        val metin = node.kayit().toByteArray()
+        yazici.execute {
+            val akis = runCatching { kayitDosyasi.startWrite() }.getOrNull() ?: return@execute
+            try { akis.write(metin); kayitDosyasi.finishWrite(akis) }
+            catch (e: java.io.IOException) { kayitDosyasi.failWrite(akis); sonKayitIzi = ""; Log.w(BleTransport.TAG, "kayıt yazılamadı: ${e.message}") }
+        }
     }
 
-    /** (Re)creates the node, e.g. when the authority code changes, with what was carried before (on disk). */
+    /** (Re)creates the node, e.g. when the authority code changes, with what was carried before. */
     private fun buildNode() = synchronized(this) {
-        if (::node.isInitialized) kaydet()
+        // from the old node itself if there is one (the file may still be being written), else from disk
+        val onceki = if (::node.isInitialized) node.kayit() else runCatching { String(kayitDosyasi.readFully()) }.getOrNull()
         kurum = profile.kurum?.let(Kurum::parse)
         val k = kurum
         node = Node(profile.identity, transport::send, { from, text ->
@@ -121,8 +144,9 @@ class MeshService : Service() {
             downlink = k?.let { kk -> { done: (List<ByteArray>) -> Unit -> kk.announcements { f -> synchronized(this) { done(f) } } } },
             onAnnouncement = { n -> show("DUYURU ${n.text}"); bildir("Kurum duyurusu", n.text) })
         for ((name, pub) in profile.contacts) node.addContact(name, pub)
-        if (kayitDosyasi.exists()) runCatching { node.yukle(kayitDosyasi.readText()) }
-        sonKayitIzi = node.kayitIzi
+        onceki?.let { runCatching { node.yukle(it) } }
+        sonKayitIzi = ""
+        kaydet()
         // A call the authority has not confirmed survives a restart of the app or the phone: its envelope comes back
         // from disk, or, if that is gone, it is sent again.
         if (k != null && profile.bekleyenAcil != null && node.kendiAcil == 0) yenidenGonder()
@@ -161,10 +185,11 @@ class MeshService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (!hazir) return START_NOT_STICKY
         intent?.getStringExtra("add")?.split("=", limit = 2)?.takeIf { it.size == 2 }?.let { addContact(it[0], it[1]) }
         intent?.getStringExtra("send")?.split("=", limit = 2)?.takeIf { it.size == 2 }?.let { send(it[0], it[1]) }
         intent?.getStringExtra("kurum")?.let(::setKurum)
-        intent?.getStringExtra("acil")?.let(::emergency)
+        intent?.getStringExtra("acil")?.let { emergency(it) }
         intent?.getStringExtra("iptal")?.let(::duzelt)
         if (intent?.hasExtra("geriAl") == true) geriAl()
         bluetoothBaslat() // the permission may have been granted since
@@ -177,8 +202,8 @@ class MeshService : Service() {
     }
 
     override fun onDestroy() {
-        synchronized(this) { kaydet() }
-        transport.stop()
+        if (hazir) { synchronized(this) { kaydet() }; transport.stop() }
+        yazici.shutdown() // what is queued is still written
         main.removeCallbacksAndMessages(null)
         super.onDestroy()
     }
@@ -222,14 +247,14 @@ class MeshService : Service() {
      * What the caller tapped always wins; the on-device model fills in what is missing from the text (type, number
      * of people, address, who is present). Location is added here, if permitted.
      */
-    private fun emergency(form: String) {
+    private fun emergency(form: String, tekrar: Boolean = false) {
         val p = form.split("|", limit = 4)
         if (p.size < 4 || (p[0] !in Cagri.TURLER && p[3].isBlank())) return show("ERROR acil formu eksik")
         if (kurum == null) return show("ERROR kurum kodu yok: çağrının gideceği kurum tanımlı değil")
         // a second tap within a few seconds is the same call, not a new one
         if (System.currentTimeMillis() - sonCagri < 10_000) return show("ACIL_ZATEN id=- saat=${saat()}")
         sonCagri = System.currentTimeMillis()
-        profile.bekleyenForm = form
+        if (!tekrar) { profile.bekleyenForm = form; profile.formTekrarlandi = false }
         // reading the text, a fresh GPS fix and the proof of work take a moment: off the main thread, then queued
         // under the node lock
         Thread {
@@ -277,7 +302,7 @@ class MeshService : Service() {
                 konumTakip(loc)
                 show("ACIL_GONDERILDI id=$id tur=$tur konum=${if (loc != null) "var" else "yok"} saat=${saat()}" +
                     (if (!transport.acik) " bluetooth=kapali" else "") + (if (onceki != null) " onceki=var" else ""))
-            } catch (e: RuntimeException) { profile.bekleyenForm = null; show("ERROR çağrı gönderilemedi: ${e.message}") }
+            } catch (e: Throwable) { profile.bekleyenForm = null; show("ERROR çağrı gönderilemedi: ${e.message}") }
         }.start()
     }
 

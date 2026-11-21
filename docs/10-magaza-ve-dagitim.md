@@ -9,7 +9,8 @@ Bu belge, mağaza formlarına girilecek yanıtları ve gerekçe metinlerini tek 
 | Android **demo** | `cd android && ./gradlew assembleDemo` | Gömülü operatör demosu (kairodynedynamics.com/operator) | Tanıtım, pilot görüşmeleri, el ile dağıtılan APK |
 | Android **release** | `./gradlew bundleRelease` (AAB) | Yok; gerçek kurumun kök onaylı kodu sözleşmeden sonra gömülür | Play Store |
 | Android debug | `./gradlew assembleDebug` | Demo + test otomasyonu | Yalnız geliştirme ve emülatör testleri; **dağıtılmaz** |
-| iOS | CI: `KairoMesh-ios-ipa-imzasiz` | Debug yapılandırmasında demo kurum | AltStore/Sideloadly ile tanıtım; App Store için Release yapılandırması ve Apple Developer hesabı gerekir |
+| iOS **demo** | CI: `KairoMesh-ios-ipa-imzasiz` (Demo yapılandırması: Release optimizasyonu, ekranda log yok) | Gömülü operatör demosu | AltStore/Sideloadly ile tanıtım |
+| iOS release | Release yapılandırması | Yok; gerçek kurumun kodu gömülür | App Store; Apple Developer hesabı gerekir |
 
 Android imza anahtarı `internal/anahtarlar/android/` altında durur (git'e girmez). Play App Signing açılınca bu anahtar **yükleme anahtarı** olur. Kaybolursa Play Console'dan sıfırlanabilir. Kaybolursa demo APK'yı güncellemek için kullanıcıların uygulamayı silip yeniden kurması gerekir.
 
@@ -57,7 +58,15 @@ Android imza anahtarı `internal/anahtarlar/android/` altında durur (git'e girm
 - **App Review notu:** "Arka plan modları: bluetooth-central ve bluetooth-peripheral, şebekesiz ortamda yardım çağrılarını telefonlar arasında taşımak için; location, kullanıcı çağrı gönderdikten sonraki 5 dakika boyunca daha iyi konum aramak için (mavi gösterge görünür, sonra kapanır); audio, kullanıcının açtığı ve kurtarıcıların onu bulması için çalan sesli sinyal için. Test: uygulama sözleşme öncesi tanıtım sürümünde çağrıları bir demo operatör panosuna gönderir; gerçek acil servise gitmez."
 - **Yaş derecelendirmesi:** 4+.
 
-## 4. Sahibinin yapacakları
+## 4. Ne zaman mağazaya?
+
+Mağazalara **kurum kodu gömülü release sürümüyle** başvurulmalıdır. Demo sürümle başvurmayın. Demo sürüm acil yardım vaat ediyor ama çağrıları gerçek bir servise değil operatör demosuna gönderiyor. App Review bunu büyük olasılıkla demo ya da yanıltıcı işlev gerekçesiyle reddeder (kılavuz 2.1 ve 2.2). Kurumsuz release sürüm de hiçbir şey göndermediği için "asgari işlevsellik" gerekçesiyle reddedilir. Kurum kodu gelene kadar:
+- Android: Play Console **iç test** kanalı (100 kişiye kadar, inceleme yok) ya da imzalı demo APK.
+- iOS: **TestFlight** dış test, ya da AltStore/Sideloadly ile demo IPA.
+
+Formların yanıtları (bölüm 2 ve 3) şimdiden hazırdır; kod geldiğinde yalnız sürüm yüklenir.
+
+## 5. Sahibinin yapacakları
 
 1. **Play Console** hesabı (25 $). Paket adı `com.kairodyne.mesh`. Play App Signing açılmalı, yükleme anahtarı olarak `internal/anahtarlar/android/` verilmeli.
 2. **Apple Developer Program** (99 $/yıl). Bundle ID `com.kairodyne.KairoMesh`; imzalama ekibi `project.yml`'ye yazılmalı.
@@ -66,7 +75,7 @@ Android imza anahtarı `internal/anahtarlar/android/` altında durur (git'e girm
 5. **Avukat**: KVKK aydınlatma metninin son hâli, asılsız ihbar sorumluluğu, şifreleme ihracat beyanı.
 6. **Gerçek cihaz tatbikatı**: en az iki Android (biri Samsung ya da Xiaomi) ve bir iPhone. Ekran kilitliyken taşıma, yeniden başlatma sonrası taşıma, Android–iPhone arasında arka planda keşif (aşağıdaki sınıra bakın).
 
-## 5. Bilinen sınırlar (dağıtımdan önce bilinmeli)
+## 6. Bilinen sınırlar (dağıtımdan önce bilinmeli)
 
 - **Arka plandaki iPhone'u Android göremez.** iOS, arka plandaki uygulamanın Bluetooth duyurusunu "taşma" alanına koyar ve Android'in hizmet kimliğine göre yaptığı tarama bunu bulmaz. Ekranı açık iPhone'u Android bulur; arka plandaki iki iPhone ise birbirini ancak yavaş bulur. Gerçek cihazda ölçülmeli.
 - **Android 12 ve altı desteklenmiyor** (minSdk 33). Bunun nedeni, X25519 için platformun kripto sağlayıcısına dayanılması. Saf Kotlin bir X25519 ile minSdk 26'ya inilebilir.

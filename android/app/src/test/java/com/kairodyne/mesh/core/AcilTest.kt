@@ -81,6 +81,18 @@ class AcilTest {
         // the sender's own envelope survives a restart too, and is known as its own
         val ayse = Node(Identity.create(), {}, now = { w.t }, authority = kurum.pub).apply { yukle(w.nodes["ayse"]!!.kayit()) }
         assertEquals(1, ayse.kendiAcil)
+        // the authority code changed (demo -> a real authority): the caller's old envelope is dropped, so the app
+        // sends the pending call to the new one; a stranger's is carried on but never uploaded to the wrong server
+        val yeniKurum = Identity.create().pub
+        val ayse2 = Node(Identity.create(), {}, now = { w.t }, authority = yeniKurum).apply { yukle(w.nodes["ayse"]!!.kayit()) }
+        assertEquals(0, ayse2.kendiAcil)
+        assertEquals(0, ayse2.carrying)
+        var yanlis = 0
+        val kurye2 = Node(Identity.create(), {}, now = { w.t }, authority = yeniKurum, online = { true },
+            uplink = { _, done -> yanlis++; done(ByteArray(0)) }).apply { yukle(disk) }
+        kurye2.tick()
+        assertEquals(1, kurye2.carrying)
+        assertEquals(0, yanlis)
     }
 
     @Test fun couriersRefuseAuthorityMailWithoutWork() {

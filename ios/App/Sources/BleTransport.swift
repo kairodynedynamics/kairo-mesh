@@ -73,7 +73,7 @@ final class BleTransport: NSObject, CBCentralManagerDelegate, CBPeripheralManage
         for p in dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral] ?? [] {
             p.delegate = self
             peers[p.identifier] = Peer(p)
-            if p.state == .connected { p.discoverServices([Self.service]) }
+            if p.state == .connected { p.discoverServices([Self.service]) } else { zamanAsimi(p) }
         }
     }
 
@@ -83,6 +83,11 @@ final class BleTransport: NSObject, CBCentralManagerDelegate, CBPeripheralManage
         p.delegate = self
         c.connect(p)
         log("connecting \(p.identifier)")
+        zamanAsimi(p)
+    }
+
+    /// Gives up on a connection that is not ready in `baglanmaSuresi`, so it frees its slot.
+    private func zamanAsimi(_ p: CBPeripheral) {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.baglanmaSuresi) { [weak self] in
             guard let self, let peer = self.peers[p.identifier], peer.characteristic == nil else { return }
             self.central.cancelPeripheralConnection(p)

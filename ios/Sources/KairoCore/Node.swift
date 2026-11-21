@@ -145,18 +145,22 @@ public final class Node {
         return s
     }
     public var kayitIzi: String { store.pairs.map { "\($0.0):\($0.1.tokens)" }.joined(separator: ",") + "|\(cleared.count)" }
-    /// Own emergency envelopes still on their way.
-    public var kendiAcil: Int { store.values.filter { $0.own && $0.acil }.count }
+    /// Own emergency envelopes still on their way to this node's authority.
+    public var kendiAcil: Int { store.values.filter { $0.own && $0.acil && isKurumTag($0.tag) }.count }
 
-    /// Restores what `kayit` wrote; expired envelopes go on the next `tick`. Unreadable lines are skipped.
+    /// Restores what `kayit` wrote; expired envelopes go on the next `tick`. Unreadable lines are skipped. If the
+    /// authority changed since, the caller's own envelopes for the old one are dropped (the app sends its pending
+    /// call to the new one) and strangers' are carried but not uploaded here (see Node.kt `yukle`).
     public func yukle(_ kayit: String) {
         for satir in kayit.split(separator: "\n") {
             let p = satir.split(separator: " ").map(String.init)
             if p.first == "m", p.count == 10, store[p[1]] == nil, store.count < MAX_STORE,
                let id = p[1].unhex, let tag = p[2].unhex, let rh = p[3].unhex, let env = p[4].unhex,
                let tokens = Int(p[5]), let at = Int64(p[6]) {
+                let buKurum = isKurumTag(tag), own = p[7] == "true", acil = p[9] == "true"
+                if own && acil && !buKurum { continue }
                 store[p[1]] = Msg(id, tag, rh, env, tokens: min(max(tokens, 1), MAX_TOKENS), at: at,
-                                  own: p[7] == "true", trusted: p[8] == "true", acil: p[9] == "true")
+                                  own: own, trusted: p[8] == "true", acil: acil && buKurum)
             } else if p.first == "c", p.count == 3, let r = p[2].unhex {
                 remember(&cleared, p[1], r)
             }

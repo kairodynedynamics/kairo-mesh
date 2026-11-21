@@ -71,9 +71,13 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         // Bluetooth events still wake it, so the caller's own call keeps being offered with the screen locked
         transport = BleTransport(onFrame: { [weak self] in self?.node.receive($0); self?.uyanikTick() }, log: { [weak self] in self?.show($0) })
         transport.onDurum = { [weak self] acik in self?.bluetoothKapali = !acik; self?.bekleyenYaz() }
-        modelKuyrugu.async { [weak self] in self?.triyajModel = Mesh.triyajYukle() } // touched only on this queue
+        // the model (~40 MB in memory) loads ahead only when the app opens on screen: a background relaunch by
+        // Bluetooth must stay small or iOS ends it; there it loads when a call needs it
+        if UIApplication.shared.applicationState != .background {
+            modelKuyrugu.async { [weak self] in self?.triyajModel = Mesh.triyajYukle() } // touched only on this queue
+        }
         // debug builds come with a demo authority approved by the public test root, so the app can be tried at once
-        #if DEBUG
+        #if DEBUG || DEMO
         // the authority's code is built into the app: nobody has to find and paste one (release builds get the real
         // authority's root-approved code when there is a contract). "-demoKurumYok": the UI test of a build without one.
         let argumanlar = ProcessInfo.processInfo.arguments
@@ -161,12 +165,14 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         sonKayitIzi = node.kayitIzi
         // A call the authority has not confirmed survives a restart of the app or the phone: its envelope comes back
         // from disk, or, if that is gone, it is sent again (a duplicate costs less than a lost call).
-        if k != nil, defaults.string(forKey: "bekleyenAcil") != nil {
+        if k != nil, let bekleyen = defaults.string(forKey: "bekleyenAcil") {
             if node.kendiAcil == 0 { yenidenGonder() }
-            bekleyenSaat = Mesh.saat()
-            bekleyenYaz()
+            let saat = Mesh.saat(Date(timeIntervalSince1970: defaults.double(forKey: "bekleyenZaman"))) // when it was sent
+            if bekleyen.contains("\"tur\":\"guvende\"") { acilDurum = "Güvende olduğunuz kuruma bildiriliyor · \(saat)" }
+            else { bekleyenSaat = saat; bekleyenYaz() }
         }
-        oncekiVar = defaults.string(forKey: "oncekiAcil") != nil
+        oncekiVar = oncekiAcil != nil
+        if oncekiVar, acilDurum.isEmpty { acilDurum = "Önceki yardım çağrınızı geri çektiniz." }
     }
 
     /// Sends the pending call again: after a restart, and every 6 hours while unconfirmed (the mesh drops an
@@ -243,6 +249,7 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         // reading the text and the proof of work take a moment: the text off the main thread (on the model's queue,
         // so a call made while the model is still loading waits for it), then the node on the main thread
         modelKuyrugu.async { [weak self] in
+            if self?.triyajModel == nil { self?.triyajModel = Mesh.triyajYukle() }
             let model = self?.triyajModel
             let t0 = Date()
             let k = metin.trimmingCharacters(in: .whitespaces).isEmpty ? nil : model?.coz(metin)
@@ -279,8 +286,7 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
                 self.kaydet()
                 // "I am safe" replaces a pending call: kept, so a mistaken tap can be undone with one more tap
                 let onceki = tur == "guvende" ? self.defaults.string(forKey: "bekleyenAcil") : nil
-                self.defaults.set(onceki, forKey: "oncekiAcil")
-                self.oncekiVar = onceki != nil
+                self.oncekiYaz(onceki)
                 self.defaults.set(json, forKey: "bekleyenAcil") // kept until the authority's receipt arrives
                 self.defaults.set([id], forKey: "bekleyenIdler")
                 self.defaults.set(Date().timeIntervalSince1970, forKey: "bekleyenZaman")
@@ -321,8 +327,7 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
             let id = try node.sendEmergency(Cagri.duzeltme(ref: ref))
             kaydet()
             let onceki = defaults.string(forKey: "bekleyenAcil")
-            defaults.set(onceki, forKey: "oncekiAcil")
-            oncekiVar = onceki != nil
+            oncekiYaz(onceki)
             defaults.removeObject(forKey: "bekleyenAcil") // the earlier call is no longer resent (unless undone)
             bekleyenSaat = nil
             acilDurum = "Düzeltme gönderildi · \(Mesh.saat())\nKuruma önceki çağrının yanlışlıkla gönderildiği bildiriliyor."
@@ -331,9 +336,20 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         } catch { show("ERROR \(error)") }
     }
 
+    /// The call a correction or "I am safe" replaced, for a day: an undo days later would send an old call (and an
+    /// old location) as if it were new.
+    private var oncekiAcil: String? {
+        Date().timeIntervalSince1970 - defaults.double(forKey: "oncekiZaman") < 86400 ? defaults.string(forKey: "oncekiAcil") : nil
+    }
+    private func oncekiYaz(_ v: String?) {
+        defaults.set(v, forKey: "oncekiAcil")
+        defaults.set(Date().timeIntervalSince1970, forKey: "oncekiZaman")
+        oncekiVar = v != nil
+    }
+
     /// Undoes a correction or "I am safe": the call it replaced is pending again and goes out once more at once.
     func geriAl() {
-        guard let onceki = defaults.string(forKey: "oncekiAcil") else { return }
+        guard let onceki = oncekiAcil else { return }
         defaults.removeObject(forKey: "oncekiAcil")
         oncekiVar = false
         defaults.set(onceki, forKey: "bekleyenAcil")
@@ -344,7 +360,7 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
         bekleyenYaz()
     }
 
-    #if DEBUG
+    #if DEBUG || DEMO
     static let testKurumu = "rgExj/KgKZhYcPxK/NqXSk3/nmndBd5JIsybQuPvEXg=;9sbrD4AbOZNuhvB+CDzzHS+lxvMaqOmg5eulfRvSH7k=;https://kurum.example;Test Kurumu (yalnız test);epNYkhZFP0A8TRWKthNdQg0KDvNv8fwfdUA2DI5r/v6Uz+3wXYe2jrn/WFPJ8+9MpXv1/zJNzndXsG1N5tPXBA==" // test/kurum-kodu-ornek.json
     static let demoKurum = "mdUshEx3g4fN93giVHNo85Sj514ZAnJmwzN2mBU/bTU=;tIp0lLyJX6b7Co+dC7Ipt5BjJBNZXUzbnk9UVuDqQy4=;https://kairodynedynamics.com/operator;KairoMesh Operatör Demo - test;W5eevjIWZV2sLHFwyYrsWO9EjfyGC6fZYSf/Zm94HxcKPMr/1DnYSCW4QQpiTL/hm/fHl6EhtlcIXO6VMlWCBA=="
     #endif
@@ -406,10 +422,10 @@ final class Mesh: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
 
-    static func saat() -> String {
+    static func saat(_ t: Date = Date()) -> String {
         let f = DateFormatter()
         f.dateFormat = "HH:mm"
-        return f.string(from: Date())
+        return f.string(from: t)
     }
 
     private func show(_ line: String) {

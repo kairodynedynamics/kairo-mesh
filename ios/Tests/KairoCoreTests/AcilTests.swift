@@ -87,6 +87,19 @@ final class AcilTests: XCTestCase {
         let ayse = Node(identity: try Identity.create(), send: { _ in }, now: { w.t }, authority: kurum.pub)
         ayse.yukle(w.nodes["ayse"]!.kayit())
         XCTAssertEqual(1, ayse.kendiAcil)
+        // the authority code changed: the caller's old envelope is dropped, a stranger's is carried but not uploaded
+        let yeniKurum = try Identity.create().pub
+        let ayse2 = Node(identity: try Identity.create(), send: { _ in }, now: { w.t }, authority: yeniKurum)
+        ayse2.yukle(w.nodes["ayse"]!.kayit())
+        XCTAssertEqual(0, ayse2.kendiAcil)
+        XCTAssertEqual(0, ayse2.carrying)
+        var yanlis = 0
+        let kurye2 = Node(identity: try Identity.create(), send: { _ in }, now: { w.t }, authority: yeniKurum, online: { true },
+                          uplink: { _, done in yanlis += 1; done([]) })
+        kurye2.yukle(disk)
+        kurye2.tick()
+        XCTAssertEqual(1, kurye2.carrying)
+        XCTAssertEqual(0, yanlis)
     }
 
     func testCouriersRefuseAuthorityMailWithoutWork() throws {
