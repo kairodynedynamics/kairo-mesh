@@ -24,8 +24,11 @@ final class KairoMeshUITests: XCTestCase {
         XCTAssertTrue(app.buttons["acilGonder"].waitForExistence(timeout: 10), "emergency screen shown")
     }
 
-    private func yukari(_ app: XCUIApplication, _ id: String) {
-        for _ in 0..<8 where !app.buttons[id].isHittable { app.swipeDown() }
+    private func scrollTo(_ element: XCUIElement, in app: XCUIApplication, direction: String = "up") {
+        let sv = app.scrollViews.firstMatch
+        for _ in 0..<10 where element.exists && !element.isHittable {
+            if direction == "up" { sv.swipeUp() } else { sv.swipeDown() }
+        }
     }
 
     private func log(_ app: XCUIApplication, contains text: String, timeout: TimeInterval = 10) -> Bool {
@@ -43,16 +46,16 @@ final class KairoMeshUITests: XCTestCase {
         app.buttons["tur_enkaz"].tap() // a second tap undoes a mistaken one
         XCTAssertEqual(app.buttons["tur_enkaz"].value as? String, "seçili değil")
         app.buttons["tur_enkaz"].tap()
-        for _ in 0..<6 where !app.buttons["acilGonder"].isHittable { app.swipeUp() }
+        scrollTo(app.buttons["acilGonder"], in: app)
         app.buttons["acilGonder"].tap()
         XCTAssertTrue(app.staticTexts["acilDurum"].waitForExistence(timeout: 5))
         XCTAssertTrue(log(app, contains: "ERROR kurum kodu yok"))
 
         app.terminate()
         launch(app)
-        yukari(app, "tur_enkaz")
+        scrollTo(app.buttons["tur_enkaz"], in: app, direction: "down")
         app.buttons["tur_enkaz"].tap()
-        for _ in 0..<6 where !app.buttons["acilGonder"].isHittable { app.swipeUp() }
+        scrollTo(app.buttons["acilGonder"], in: app)
         // a stray tap must not send: the countdown can be cancelled, and nothing is sealed
         app.buttons["acilGonder"].tap()
         XCTAssertTrue(app.buttons["iptal"].waitForExistence(timeout: 3))
