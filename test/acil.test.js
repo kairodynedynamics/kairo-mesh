@@ -447,3 +447,14 @@ test('acil: a dashboard of 10,000 calls is built in well under a second', async 
   assert.equal(kurum.reports, liste, 'unchanged reports are not recomputed');
   assert.ok(liste.some((e) => e.sinyaller.some((s) => s.kod === 'cok-cagri')), 'the signs are still worked out');
 });
+
+test('acil: a relay node accepts at most kaynakSiniri emergencies per sender per hour (default 3)', async () => {
+  const { w, kurum } = setup(['ayse', 'kurye']);
+  for (let i = 0; i < 5; i++) w.nodes.ayse.sendEmergency({ ...RAPOR, metin: `çağrı ${i}` });
+  await meet(w, [['ayse', 'kurye']], 60);
+  assert.equal(w.nodes.kurye.carrying, 3, 'only 3 of 5 accepted from the same sender');
+  // advance the clock past the 1-hour window; the 4th should now be accepted
+  w.clock.t += 3_600_001;
+  await meet(w, [['ayse', 'kurye']], 60);
+  assert.ok(w.nodes.kurye.carrying >= 4, 'after an hour the sender can send again');
+});

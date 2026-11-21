@@ -10,7 +10,7 @@ is sealed to the emergency authority (112, AFAD, a municipality) and delivered b
 [![Live demo](https://img.shields.io/badge/live_demo-run_the_simulation-2da77a?style=for-the-badge)](https://kairodynedynamics.github.io/kairo-mesh/#run)
 
 ![status](https://img.shields.io/badge/status-research_prototype-f2b134)
-![tests](https://img.shields.io/badge/tests-116_passing-2da77a)
+![tests](https://img.shields.io/badge/tests-117_passing-2da77a)
 ![dependencies](https://img.shields.io/badge/dependencies-0-2da77a)
 ![node](https://img.shields.io/badge/node-24-8b949e)
 ![licence](https://img.shields.io/badge/licence-AGPL--3.0-8b949e)
@@ -95,7 +95,7 @@ Or skip the install and [run the simulation in your browser](https://kairodynedy
 | ✅ | Working node that chats over a local network |
 | ✅ | Android app with Bluetooth LE transport, byte-compatible with the JS node; courier delivery verified on three emulators |
 | ✅ | Swift core for iOS (`ios/`), byte-compatible with the JS and Kotlin nodes |
-| ✅ | 54 tests in JS (attacks, real-world courier scenarios, Noise vector checks, emergency, announcement, authority-code and dashboard scenarios), 31 in Kotlin, 29 in Swift, 2 UI tests on iPhone and iPad |
+| ✅ | 55 tests in JS (attacks, real-world courier scenarios, Noise vector checks, emergency, announcement, authority-code and dashboard scenarios), 31 in Kotlin, 29 in Swift, 2 UI tests on iPhone and iPad |
 | ✅ | Authority codes must be approved by a root key built into the app: a fake "new AFAD code" cannot redirect calls and locations ([setup](docs/07-kurum-kurulumu.md), Turkish) |
 | ✅ | Emergency call screens on Android and iOS: tap the situation or just type it; GPS added; the call is kept until the authority confirms it |
 | 🟨 | On-device Turkish triage (`triyaj/`): a character model for addresses (3.4 MB) and a Turkish ELECTRA encoder for the message-level decisions (23.5 MB, int8), both run offline on the phone. On phrasings it never saw the encoder ranks about 3% of life-threatening calls too low, so a typed call is never sent below urgency 2 ([measurements](triyaj/README.md), Turkish) |
