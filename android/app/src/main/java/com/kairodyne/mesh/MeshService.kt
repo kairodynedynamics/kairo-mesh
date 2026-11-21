@@ -112,11 +112,14 @@ class MeshService : Service() {
         if (iz == sonKayitIzi) return
         sonKayitIzi = iz
         val metin = node.kayit().toByteArray()
-        yazici.execute {
-            val akis = runCatching { kayitDosyasi.startWrite() }.getOrNull() ?: return@execute
+        val yaz = Runnable {
+            val akis = runCatching { kayitDosyasi.startWrite() }.getOrNull()
+            if (akis == null) { sonKayitIzi = ""; return@Runnable } // written again on the next tick
             try { akis.write(metin); kayitDosyasi.finishWrite(akis) }
             catch (e: java.io.IOException) { kayitDosyasi.failWrite(akis); sonKayitIzi = ""; Log.w(BleTransport.TAG, "kayıt yazılamadı: ${e.message}") }
         }
+        // the service is shutting down: written here, now, rather than lost with the call being prepared
+        try { yazici.execute(yaz) } catch (e: java.util.concurrent.RejectedExecutionException) { yaz.run() }
     }
 
     /** (Re)creates the node, e.g. when the authority code changes, with what was carried before. */

@@ -112,6 +112,7 @@ class MainActivity : Activity() {
         super.onSaveInstanceState(out)
         out.putString("tur", secilenTur); out.putInt("kisi", kisi ?: -1); out.putStringArrayList("ozel", ArrayList(ozel))
         out.putString("metin", metin.text.toString()); out.putInt("kalan", if (geriSayim.visibility == View.VISIBLE) kalan else -1)
+        out.putLong("an", android.os.SystemClock.elapsedRealtime())
     }
 
     private fun geriYukle(b: Bundle) {
@@ -119,7 +120,9 @@ class MainActivity : Activity() {
         ozel.clear(); ozel += b.getStringArrayList("ozel") ?: emptyList<String>()
         metin.setText(b.getString("metin") ?: "")
         yenile()
-        b.getInt("kalan", -1).takeIf { it >= 0 }?.let(::geriSay)
+        // a countdown resumes only if the screen came back at once (font size, language); after the app was killed
+        // and reopened much later the form stays filled in and nothing goes out by itself
+        if (android.os.SystemClock.elapsedRealtime() - b.getLong("an", 0) < 30_000) b.getInt("kalan", -1).takeIf { it >= 0 }?.let(::geriSay)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -397,8 +400,10 @@ class MainActivity : Activity() {
     }
 
     private var kalan = 5
+    private var geriSayimAdimi: Runnable? = null
 
     private fun geriSay(saniye: Int) {
+        geriSayimAdimi?.let(ana::removeCallbacks) // cancel and send again within a second: one countdown, not two
         geriSayim.visibility = View.VISIBLE
         kalan = saniye
         val adim = object : Runnable {
@@ -411,6 +416,7 @@ class MainActivity : Activity() {
                 ana.postDelayed(this, 1000)
             }
         }
+        geriSayimAdimi = adim
         adim.run()
     }
 
