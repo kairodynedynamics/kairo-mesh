@@ -40,11 +40,11 @@ export function createNode({ identity, contacts = new Map(), send, onMessage = (
   // `ayar`: knobs for the security simulations (sim/guvenlik.js), defaults are what the phones run:
   //   acilKota: others' emergency mail carried at once; maxStore: the whole store;
   //   tahliye: which emergency makes room when the quota is full ('eski' oldest | 'rastgele' random);
-  //   kaynakSiniri: others' emergencies accepted from one sending id per hour (Infinity: no limit);
+  //   kaynakSiniri: others' emergencies accepted from one sending id per hour (default 3);
   //   sahteKimlik: an attacker's modified app that claims a new sending id in every frame;
   //   rastgele: random source for 'rastgele'.
   const ACIL = ayar.acilKota ?? ACIL_STORE, MAXS = ayar.maxStore ?? MAX_STORE;
-  const tahliye = ayar.tahliye ?? 'eski', kaynakSiniri = ayar.kaynakSiniri ?? Infinity, rastgele = ayar.rastgele ?? Math.random;
+  const tahliye = ayar.tahliye ?? 'eski', kaynakSiniri = ayar.kaynakSiniri ?? 3, rastgele = ayar.rastgele ?? Math.random;
   const kaynaklar = new Map(); // sending id -> times its emergencies were accepted (kaynakSiniri)
   const notices = new Map(); // id -> { frame, expires, sent }
   let lastDownlink = -Infinity;
