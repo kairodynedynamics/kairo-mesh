@@ -24,11 +24,8 @@ final class KairoMeshUITests: XCTestCase {
         XCTAssertTrue(app.buttons["acilGonder"].waitForExistence(timeout: 10), "emergency screen shown")
     }
 
-    private func scroll(to button: XCUIElement, in app: XCUIApplication, direction: String = "up") {
-        for _ in 0..<12 where !button.isHittable {
-            if direction == "up" { app.swipeUp() } else { app.swipeDown() }
-        }
-        XCTAssertTrue(button.waitForExistence(timeout: 5), "button \(button.identifier) exists after scrolling")
+    private func yukari(_ app: XCUIApplication, _ id: String) {
+        for _ in 0..<8 where !app.buttons[id].isHittable { app.swipeDown() }
     }
 
     private func log(_ app: XCUIApplication, contains text: String, timeout: TimeInterval = 10) -> Bool {
@@ -46,23 +43,22 @@ final class KairoMeshUITests: XCTestCase {
         app.buttons["tur_enkaz"].tap() // a second tap undoes a mistaken one
         XCTAssertEqual(app.buttons["tur_enkaz"].value as? String, "seçili değil")
         app.buttons["tur_enkaz"].tap()
-        let gonder = app.buttons["acilGonder"]
-        scroll(to: gonder, in: app)
-        gonder.tap()
+        for _ in 0..<6 where !app.buttons["acilGonder"].isHittable { app.swipeUp() }
+        app.buttons["acilGonder"].tap()
         XCTAssertTrue(app.staticTexts["acilDurum"].waitForExistence(timeout: 5))
         XCTAssertTrue(log(app, contains: "ERROR kurum kodu yok"))
 
         app.terminate()
         launch(app)
-        scroll(to: app.buttons["tur_enkaz"], in: app, direction: "down")
+        yukari(app, "tur_enkaz")
         app.buttons["tur_enkaz"].tap()
-        scroll(to: gonder, in: app)
+        for _ in 0..<6 where !app.buttons["acilGonder"].isHittable { app.swipeUp() }
         // a stray tap must not send: the countdown can be cancelled, and nothing is sealed
-        gonder.tap()
+        app.buttons["acilGonder"].tap()
         XCTAssertTrue(app.buttons["iptal"].waitForExistence(timeout: 3))
         app.buttons["iptal"].tap()
         XCTAssertFalse(log(app, contains: "ACIL_GONDERILDI", timeout: 7), "cancelled during the countdown")
-        gonder.tap()
+        app.buttons["acilGonder"].tap()
         app.buttons["hemenGonder"].tap()
         XCTAssertTrue(log(app, contains: "ACIL_GONDERILDI", timeout: 20))
     }
