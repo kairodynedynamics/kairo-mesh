@@ -18,6 +18,7 @@ deneme sürümlerindeki kurum kodu https://kairodynedynamics.com/operator adresi
 import argparse
 import html
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -28,8 +29,7 @@ KOK = Path(__file__).resolve().parent
 CIKTI = KOK / "cikti"
 URUN = KOK.parent
 ALAN = "https://kairodynedynamics.com"
-GITHUB_SITE = Path(r"C:\Users\Emre\Documents\GitHub\kairodynedynamics.com")
-HF_SITE = r"\\wsl.localhost\Ubuntu-22.04\home\emre\private-llm\geliştirme\site"
+GITHUB_SITE = URUN / "yayin" / "kairodynedynamics.com"  # the published site repo, cloned here (git-ignored)
 
 # (dosya, menü adı, başlık, açıklama)
 SAYFALAR = [
@@ -281,9 +281,14 @@ def yayinla():
         "commit_message='KairoMesh resmi sitesi'); print('hf:', r); "
         "api.super_squash_history(repo_id='kairodynedynamics/KairodyneDynamics', repo_type='space', "
         "commit_message='KairoMesh resmi sitesi'); print('hf gecmis tek commit')")
+    # the WSL folder holding _hf_yayinla.py and the token stays on this machine: KAIRO_HF_DIZIN or yerel/hf-dizin.txt
+    ayar = URUN / "yerel" / "hf-dizin.txt"
+    hf = os.environ.get("KAIRO_HF_DIZIN") or (ayar.read_text(encoding="utf-8").strip() if ayar.exists() else "")
+    if not hf:
+        return print("hf: KAIRO_HF_DIZIN ya da yerel/hf-dizin.txt yok; HF Space atlandı")
     subprocess.run(["wsl.exe", "-d", "Ubuntu-22.04", "--", "bash", "-c",
-                    f"cd /home/emre/private-llm/geli*tirme && python3 -c \"{betik}\""], check=True,
-                   env={**__import__("os").environ, "MSYS_NO_PATHCONV": "1"})
+                    f"cd {hf} && python3 -c \"{betik}\""], check=True,
+                   env={**os.environ, "MSYS_NO_PATHCONV": "1"})
 
 
 if __name__ == "__main__":

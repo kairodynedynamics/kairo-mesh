@@ -1,0 +1,6 @@
+#!/bin/sh
+# Commit messages carry no tool or assistant attribution lines (rules: PAYLASIM.md).
+if grep -qiE '^co-authored-by:.*(claude|anthropic|copilot|openai|gemini)|^claude-session:|noreply@anthropic\.com|generated with \[?claude|🤖 generated' "$1"; then
+  echo "HATA: commit mesajında araç/asistan atfı var (Co-Authored-By, Claude-Session, 'Generated with …'). Kaldırın."
+  exit 1
+fi

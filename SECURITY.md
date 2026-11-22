@@ -20,4 +20,4 @@ Of particular interest: reading or forging emergency calls, receipts or announce
 
 Research prototype. The envelope follows the Noise X pattern and matches a published test vector, but the implementation has **not** had an independent security audit; one is planned. Do not rely on it for safety yet.
 
-The test root key in `test/kok-test/` is public on purpose and is trusted only by debug builds. Release builds trust only the production root, whose private key is not in this repository.
+The test root key in `test/kok-test/` is public on purpose and is trusted only by debug builds and by the demo build, whose one built-in authority is the operator demo. Release builds trust only the production root, whose private key is not in this repository.

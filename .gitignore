@@ -1,12 +1,41 @@
-node_modules/
+# What stays out of this public repository: PAYLASIM.md. .githooks/pre-commit enforces the same list.
+
+# private repositories and local-only folders (each is its own git repository or never shared)
 internal/
+kurumsal/
+medya/
+dagitim/
+yerel/
+yayin/
+
+# secrets: keys, signing, environment files, authority state
+.env
+.env.*
+!.env.ornek
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+*.p8
+*.mobileprovision
+imza.properties
+local.properties
+google-services.json
+GoogleService-Info.plist
+kurum-anahtar*.json
+pano-anahtari.txt
+cagrilar.jsonl
+site/operator-adres.txt
 kairo-profile.json
+
+# build output and generated files
+node_modules/
 ios/.build/
 ios/App/KairoMesh.xcodeproj/
 ios/App/Info.plist
 site/_onizleme/
-medya/
-kurumsal/
-dagitim/
-site/operator-adres.txt
 *.pt
+.DS_Store
+Thumbs.db

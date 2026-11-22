@@ -51,7 +51,7 @@ Her karar bu kişiye göre verildi. Kod: `android/.../MainActivity.kt`, `ios/App
 | Senaryo | Ne olur |
 |---|---|
 | Yanlış düğmeye dokundu | Aynı düğmeye tekrar dokunur ya da "Kaldır"a basar; seçim kalkar. Başka bir düğmeye dokunursa seçim ona geçer (tek seçim). |
-| Gönder'e yanlışlıkla bastı | 5 saniyelik tam ekran geri sayım çıkar; büyük **İPTAL** düğmesi hiçbir şey göndermeden kapatır. |
+| Gönder'e yanlışlıkla bastı | 5 saniyelik tam ekran geri sayım çıkar; opak katmanda büyük bir halka içinde saniye sayılır; büyük **İptal et** düğmesi hiçbir şey göndermeden kapatır. |
 | Gönderdi, sonra vazgeçti ya da kurtarıldı | "Yanlışlıkla gönderdim / artık yardım gerekmiyor" düğmesi tek dokunuşla, beklemeden kuruma düzeltme gönderir. Kurum panosunda çağrı "gönderen geri çekti" diye işaretlenir. Düzeltmenin kendisi yanlışsa **"Geri al"** çağrıyı hemen yeniden gönderir. |
 | Düğmeye iki kez bastı | 10 saniye içindeki ikinci basış yeni çağrı açmaz; "Çağrınız zaten gönderiliyor" yazar. |
 | Bluetooth kapalı | Çağrı kaydedilir; ekran Bluetooth'u açmasını ister. Açınca kendiliğinden gider. İnternet varsa Bluetooth olmadan da doğrudan kuruma gider. |
@@ -65,9 +65,10 @@ Her karar bu kişiye göre verildi. Kod: `android/.../MainActivity.kt`, `ios/App
 
 ## 5. Tema
 
-- **Zemin:** Açık gri, hafif parlak bir geçiş (#ECEFF2'den #D6DCE1'e).
-- **Kartlar:** Neredeyse beyaz.
-- **Yazı:** Neredeyse siyah (#0E1A22). Karttaki kontrast 14:1'in üstünde; çatlak ya da kısık ekranda okunur.
+- **Zemin:** Açık gri bir geçiş (#F2F2F7'den #E4E4EA'ya). Adımlar bu zemin üzerinde çerçevesiz beyaz kartlarda durur ve numaralıdır (1 Ne oldu, 2 Kaç kişisiniz, 3 Yanınızda, 4 Ya da kısaca yazın).
+- **Yazı:** Neredeyse siyah (#1C1C1E), ikincil yazı #48484A (beyaz kartta 9:1). Çatlak ya da kısık ekranda okunur.
+- **Düğme sırası:** Tek dolu ve gölgeli düğme "Çağrıyı gönder"dir. Hayati durumlar açık kırmızı zeminle başlar, seçilince dolu kırmızıya döner. Diğer seçimler gri dolgulu kapsüllerdir.
+- **Dokunma geri bildirimi:** Her düğme basılınca %96'ya küçülür ve yaylanarak geri döner. Seçimde, gönderirken ve iptalde kısa titreşim olur. Telefonda hareket azaltma açıksa animasyonlar kapanır.
 - **Neden ne çok açık ne çok koyu:** Saf beyaz karanlıkta göz alır. Koyu tema güneşte ve kısık parlaklıkta okunmaz.
 - **Renk kullanımı:** Kırmızı yalnızca acil öğelerde, yeşil yalnızca olumlu durumlarda (internet var, kurum aldı) kullanılır.
 - **Boyutlar:** Dokunma alanları en az 56 dp, büyük durum düğmeleri 100 dp. Yazılar 15–26 sp.

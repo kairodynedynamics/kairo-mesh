@@ -1,12 +1,23 @@
 package com.kairodyne.mesh
 
 import android.Manifest
+import android.animation.ValueAnimator
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
+import android.graphics.drawable.StateListDrawable
+import android.text.SpannableStringBuilder
+import android.text.style.StyleSpan
+import android.view.HapticFeedbackConstants
+import android.view.MotionEvent
+import android.view.animation.DecelerateInterpolator
+import android.view.animation.OvershootInterpolator
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Bundle
@@ -63,7 +74,10 @@ class MainActivity : Activity() {
     private lateinit var metin: EditText
     private lateinit var geriSayim: FrameLayout
     private lateinit var geriSayimYazi: TextView
+    private lateinit var geriSayimSayi: TextView
     private val turDugmeleri = linkedMapOf<String, LinearLayout>()
+    private val turBasliklari = mutableMapOf<String, TextView>()
+    private val turAltlari = mutableMapOf<String, TextView>()
     private val ozelDugmeleri = linkedMapOf<String, Button>()
     private var waiting: Intent? = null // extras that arrived before Bluetooth permission was granted
     private var secilenTur: String? = null
@@ -231,7 +245,7 @@ class MainActivity : Activity() {
             line.startsWith("BLUETOOTH_KAPALI") -> {
                 bluetoothKapali = true
                 agSatiri.text = "● Bluetooth kapalı · çağrınız yakındaki telefonlara ulaşamaz, lütfen açın"
-                agSatiri.setTextColor(KIRMIZI); if (canli) bluetoothIste()
+                agRenk(KIRMIZI); if (canli) bluetoothIste()
                 bekleyenGoster()
             }
             line.startsWith("BLUETOOTH_ACIK") -> { bluetoothKapali = false; bekleyenGoster() }
@@ -256,12 +270,16 @@ class MainActivity : Activity() {
             yakin > 0 -> "● İnternet yok · yakında çağrınızı taşıyabilecek $yakin telefon var"
             else -> "● İnternet yok · yakında KairoMesh'li telefon yok; biri yaklaşınca çağrınız gider"
         }
-        agSatiri.setTextColor(if (!bt) KIRMIZI else if (internet || yakin > 0) YESIL else AMBER)
+        agRenk(if (!bt) KIRMIZI else if (internet || yakin > 0) YESIL else AMBER)
     }
 
     private fun durumGoster(zemin: Int, yazi: String) {
         durum.text = yazi
-        durumKart.background = kutu(zemin, zemin, 14)
+        durumKart.background = kutu(zemin, zemin, 16)
+        if (durumKart.visibility != View.VISIBLE && hareket) { // the card arrives: fades in and rises a little
+            durumKart.alpha = 0f; durumKart.translationY = dp(8).toFloat()
+            durumKart.animate().alpha(1f).translationY(0f).setDuration(260).setInterpolator(DecelerateInterpolator()).start()
+        }
         durumKart.visibility = View.VISIBLE
     }
 
@@ -341,6 +359,7 @@ class MainActivity : Activity() {
         // tapping the selected situation again clears it: a mistaken tap is undone where it happened
         secilenTur = if (secilenTur == anahtar) null else anahtar
         yenile()
+        turDugmeleri[secilenTur]?.let { sic(it); it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP) }
         duyur(secilenTur?.let { "${Cagri.TURLER[it]} seçildi" } ?: "Seçim kaldırıldı")
     }
 
@@ -348,20 +367,21 @@ class MainActivity : Activity() {
     private fun yenile() {
         for ((k, v) in turDugmeleri) {
             val secili = k == secilenTur
-            val hayati = k in Cagri.HAYATI
-            v.background = if (secili) kutu(KIRMIZI, KIRMIZI, 16) else kutu(OZET_ZEMIN, if (hayati) KIRMIZI_KENAR else CIZGI, 16)
+            // tinted when idle, filled and lifted when selected
+            v.background = dalga(if (secili) kutu(KIRMIZI, KIRMIZI, 18) else kutu(KIRMIZI_ZEMIN, KIRMIZI_ZEMIN, 18), 18, koyu = secili)
+            v.elevation = if (secili) dp(4).toFloat() else 0f
+            v.outlineSpotShadowColor = KIRMIZI
             v.isSelected = secili
             v.stateDescription = if (secili) "seçili" else "seçili değil"
-            (v.getChildAt(0) as TextView).setTextColor(if (secili) Color.WHITE else if (hayati) KIRMIZI else METIN)
-            (v.getChildAt(1) as TextView).apply {
-                setTextColor(if (secili) Color.WHITE else IKINCIL)
-                textSize = if (hayati) 14f else if (secili) 12f else 1f // small buttons only show it when selected
+            turBasliklari[k]?.setTextColor(if (secili) Color.WHITE else KIRMIZI)
+            turAltlari[k]?.apply {
+                setTextColor(if (secili) Color.argb(235, 255, 255, 255) else IKINCIL)
                 text = if (secili) "✓ Seçildi · kaldırmak için yine dokunun" else Cagri.ALT_YAZI[k] ?: ""
             }
         }
         for ((k, b) in ozelDugmeleri) {
             val secili = k in ozel
-            b.background = if (secili) kutu(KIRMIZI_ZEMIN, KIRMIZI, 24) else kutu(OZET_ZEMIN, CIZGI, 24)
+            b.background = dalga(if (secili) kutu(KIRMIZI_ZEMIN, KIRMIZI, 99, 1.5f) else kutu(GRI_DOLGU, GRI_DOLGU, 99), 99)
             b.setTextColor(if (secili) KIRMIZI else METIN)
             b.text = (if (secili) "✓ " else "") + Cagri.OZEL[k]
             b.stateDescription = if (secili) "seçili" else "seçili değil"
@@ -375,8 +395,8 @@ class MainActivity : Activity() {
         metinNotu.visibility = if (yazili) View.VISIBLE else View.GONE
         metinNotu.text = if (tur != null) "“${Cagri.TURLER[tur]}” seçimi de yazınızla birlikte gönderilecek. İstemiyorsanız seçimi kaldırın."
         else "Durum seçmediniz: telefon yazınızdan anlayacak ve çağrıyı acil olarak gönderecek."
-        ozet.text = buildString {
-            append("Gönderilecekler\n")
+        ozet.text = SpannableStringBuilder("Gönderilecekler\n").apply {
+            setSpan(StyleSpan(Typeface.BOLD), 0, length - 1, 0)
             append("• Durum: ${tur?.let { Cagri.TURLER[it] } ?: if (yazili) "yazdığınızdan anlaşılacak" else "—"}\n")
             append("• Kişi sayısı: ${kisi ?: "belirtilmedi"}\n")
             append("• Yanınızda: ${if (ozel.isEmpty()) "belirtilmedi" else ozel.joinToString(", ") { Cagri.OZEL[it] ?: it }}\n")
@@ -404,12 +424,14 @@ class MainActivity : Activity() {
 
     private fun geriSay(saniye: Int) {
         geriSayimAdimi?.let(ana::removeCallbacks) // cancel and send again within a second: one countdown, not two
+        if (geriSayim.visibility != View.VISIBLE && hareket) { geriSayim.alpha = 0f; geriSayim.animate().alpha(1f).setDuration(180).start() }
         geriSayim.visibility = View.VISIBLE
         kalan = saniye
         val adim = object : Runnable {
             override fun run() {
                 if (geriSayim.visibility != View.VISIBLE) return
                 if (kalan == 0) { geriSayim.visibility = View.GONE; gonder(); return }
+                geriSayimSayi.text = "$kalan"; sic(geriSayimSayi)
                 geriSayimYazi.text = "Çağrı $kalan saniye içinde\ngönderilecek"
                 geriSayimYazi.announceForAccessibility("$kalan")
                 kalan--
@@ -454,49 +476,102 @@ class MainActivity : Activity() {
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
-    private fun kutu(renk: Int, kenar: Int, r: Int = 12) = GradientDrawable().apply {
-        setColor(renk); cornerRadius = dp(r).toFloat(); if (kenar != renk) setStroke(dp(1), kenar) // a hairline, never a heavy frame
+    // motion follows the system: "remove animations" in accessibility settings turns every move off
+    private val hareket get() = ValueAnimator.areAnimatorsEnabled()
+
+    private fun kutu(renk: Int, kenar: Int, r: Int = 12, cizgi: Float = 1f) = GradientDrawable().apply {
+        setColor(renk); cornerRadius = dp(r).toFloat(); if (kenar != renk) setStroke((cizgi * resources.displayMetrics.density).toInt(), kenar)
+    }
+
+    // the system press highlight, clipped to the rounded shape (also on transparent buttons)
+    private fun dalga(icerik: GradientDrawable, r: Int, koyu: Boolean = false) = RippleDrawable(
+        ColorStateList.valueOf(if (koyu) Color.argb(70, 255, 255, 255) else Color.argb(30, 14, 26, 34)), icerik, kutu(Color.WHITE, Color.WHITE, r))
+
+    /** Press: a quick squeeze to 96 %, then a spring back on release (Apple's custom-button feel). */
+    @SuppressLint("ClickableViewAccessibility")
+    private fun basinc(v: View) = v.setOnTouchListener { _, e ->
+        if (hareket) when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> v.animate().scaleX(0.96f).scaleY(0.96f).setDuration(80).setInterpolator(DecelerateInterpolator()).start()
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                v.animate().scaleX(1f).scaleY(1f).setDuration(320).setInterpolator(OvershootInterpolator(2.2f)).start()
+        }
+        false // the click itself is handled as usual
+    }
+
+    /** A selected item answers once: grows a little and settles (snappy spring). */
+    private fun sic(v: View) {
+        if (!hareket) return
+        v.scaleX = 1.04f; v.scaleY = 1.04f
+        v.animate().scaleX(1f).scaleY(1f).setDuration(360).setInterpolator(OvershootInterpolator(3f)).start()
     }
 
     private fun yazi(t: String, boy: Float, renk: Int = METIN, kalin: Boolean = false) = TextView(this).apply {
-        text = t; textSize = boy; setTextColor(renk); if (kalin) setTypeface(Typeface.DEFAULT, Typeface.BOLD)
+        text = t; textSize = boy; setTextColor(renk); typeface = if (kalin) AGIR else NORMAL
         setLineSpacing(0f, 1.15f)
     }
 
     private fun kart(): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(14), dp(16), dp(16))
-        background = kutu(KART, KART, 16); elevation = dp(1).toFloat()
+        orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(16))
+        background = kutu(KART, KART, 20) // grouped card: white, no frame, no shadow
+    }
+
+    /** Step heading inside a card: a small numbered disc, then the question. */
+    private fun adim(no: Int, t: String) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+        addView(yazi("$no", 14f, Color.WHITE, true).apply {
+            gravity = Gravity.CENTER; background = kutu(METIN, METIN, 99); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }, LinearLayout.LayoutParams(dp(26), dp(26)))
+        addView(yazi(t, 19f, METIN, true).apply { setPadding(dp(10), 0, 0, 0); isAccessibilityHeading = true })
     }
 
     private fun yer(ust: Int = 12) = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(ust) }
 
-    private fun dugme(t: String, zemin: Int, yaziRenk: Int, kenar: Int = zemin, boy: Float = 18f) = Button(this).apply {
-        text = t; isAllCaps = false; textSize = boy; setTextColor(yaziRenk); setTypeface(Typeface.DEFAULT, Typeface.BOLD)
-        background = kutu(zemin, kenar, 14); minHeight = dp(56); setPadding(dp(16), dp(10), dp(16), dp(10))
+    // a grid inside a card: the cells' own margins line their edges up with the card's padding
+    private fun izgaraYeri(ust: Int) = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(ust); leftMargin = -dp(4); rightMargin = -dp(4) }
+
+    private fun dugme(t: String, zemin: Int, yaziRenk: Int, kenar: Int = zemin, boy: Float = 18f, r: Int = 16) = Button(this).apply {
+        text = t; isAllCaps = false; textSize = boy; setTextColor(yaziRenk); typeface = AGIR; letterSpacing = 0f
+        background = dalga(kutu(zemin, kenar, r, 1.5f), r, koyu = zemin == KIRMIZI || zemin == KOYU)
+        minHeight = dp(56); minimumHeight = dp(56); minWidth = 0; minimumWidth = 0; setPadding(dp(16), dp(12), dp(16), dp(12))
         stateListAnimator = null; elevation = 0f // flat: no Material shadow under every button
+        basinc(this)
+    }
+
+    /** Network status as a tinted capsule: the colour of the text is the colour of the pill. */
+    private fun agRenk(renk: Int) {
+        agSatiri.setTextColor(renk)
+        agSatiri.background = kutu(Color.argb(28, Color.red(renk), Color.green(renk), Color.blue(renk)), Color.TRANSPARENT, 14, 0f)
     }
 
     private fun buildUi(kurumVar: Boolean) {
         val pad = dp(16)
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, dp(18), pad, dp(40)) }
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, dp(20), pad, dp(40)) }
 
-        // header: name, where calls go, the network
+        // header: a signal mark and the large title, where calls go, the network as a capsule
         root.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            addView(View(this@MainActivity).apply { background = kutu(KIRMIZI, KIRMIZI, 8) }, LinearLayout.LayoutParams(dp(14), dp(14)))
-            addView(yazi("KairoMesh", 26f, METIN, true).apply { setPadding(dp(10), 0, 0, 0) })
+            addView(FrameLayout(this@MainActivity).apply {
+                background = kutu(KIRMIZI_ZEMIN, KIRMIZI_ZEMIN, 99)
+                addView(View(this@MainActivity).apply { background = kutu(KIRMIZI, KIRMIZI, 99) },
+                    FrameLayout.LayoutParams(dp(12), dp(12), Gravity.CENTER))
+            }, LinearLayout.LayoutParams(dp(30), dp(30)))
+            addView(yazi("KairoMesh", 30f, METIN, true).apply { typeface = KALIN; letterSpacing = -0.01f; setPadding(dp(10), 0, 0, 0); isAccessibilityHeading = true })
         })
         kurumSatiri = yazi(if (kurumVar) "" else "Bu sürümde çağrıların gideceği kurum tanımlı değil (kurumla sözleşme öncesi sürüm).", 15f, IKINCIL)
-        root.addView(kurumSatiri, yer(4))
-        agSatiri = yazi("● Ağ hazırlanıyor…", 16f, AMBER, true)
-        root.addView(agSatiri, yer(6))
+        root.addView(kurumSatiri, yer(6))
+        agSatiri = yazi("● Ağ hazırlanıyor…", 15f, AMBER, true).apply { setPadding(dp(12), dp(7), dp(12), dp(7)) }
+        root.addView(agSatiri, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = dp(10) })
+        agRenk(AMBER)
+        root.addView(yazi("Acil yardım çağrısı", 24f, METIN, true).apply { typeface = KALIN; isAccessibilityHeading = true }, yer(22))
+        root.addView(yazi("İnternet olmasa da çalışır. Durumunuzu seçin ya da yazın, sonra gönderin.", 16f, IKINCIL), yer(4))
 
         // 1. what happened: four life-threatening situations, large
-        val acil = kart()
-        acil.addView(yazi("Acil yardım çağrısı", 22f, METIN, true))
-        acil.addView(yazi("İnternet olmasa da çalışır. Durumunuzu seçin ya da yazın, sonra gönderin.", 15f, IKINCIL), yer(4))
+        val ne = kart()
+        ne.addView(adim(1, "Ne oldu?"))
         val izgara = GridLayout(this).apply { columnCount = 2 }
         for (k in Cagri.HAYATI) {
+            val baslik = yazi(Cagri.TURLER[k]!!, 19f, KIRMIZI, true)
+            val alt = yazi(Cagri.ALT_YAZI[k] ?: "", 14f, IKINCIL).apply { setPadding(0, dp(4), 0, 0) }
             val kutuK = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(14), dp(14), dp(14)); minimumHeight = dp(104)
                 isClickable = true; isFocusable = true; contentDescription = Cagri.TURLER[k]
@@ -507,69 +582,96 @@ class MainActivity : Activity() {
                     }
                 }
                 setOnClickListener { turSec(k) }
-                addView(yazi(Cagri.TURLER[k]!!, 20f, KIRMIZI, true))
-                addView(yazi(Cagri.ALT_YAZI[k] ?: "", 14f, IKINCIL).apply { setPadding(0, dp(4), 0, 0) })
+                addView(baslik); addView(alt)
+                basinc(this)
             }
-            turDugmeleri[k] = kutuK
+            turDugmeleri[k] = kutuK; turBasliklari[k] = baslik; turAltlari[k] = alt
             izgara.addView(kutuK, GridLayout.LayoutParams().apply {
                 width = 0; columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f); setMargins(dp(4), dp(4), dp(4), dp(4))
                 setGravity(Gravity.FILL) // both buttons in a row as tall as the taller one
             })
         }
-        acil.addView(izgara, yer(10))
+        ne.addView(izgara, izgaraYeri(10))
 
         // the selection, said in words, with an undo
         val secim = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         secimSatiri = yazi("", 17f, IKINCIL, true)
         secim.addView(secimSatiri, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-        secimKaldir = dugme("Kaldır", KIRMIZI_ZEMIN, KIRMIZI, KIRMIZI_ZEMIN, 16f).apply { setOnClickListener { turSec(null) }; contentDescription = "Seçimi kaldır" }
+        secimKaldir = dugme("Kaldır", KIRMIZI_ZEMIN, KIRMIZI, KIRMIZI_ZEMIN, 16f, 99).apply { setOnClickListener { turSec(null) }; contentDescription = "Seçimi kaldır" }
         secim.addView(secimKaldir)
-        acil.addView(secim, yer(12))
+        ne.addView(secim, yer(10))
+        root.addView(ne, yer(16))
 
-        // 2. how many, who is with you: no keyboard needed
-        acil.addView(yazi("Kaç kişisiniz?", 17f, METIN, true), yer(16))
+        // 2. how many: a value and a connected −/+ stepper, no keyboard needed
+        val kac = kart()
+        kac.addView(adim(2, "Kaç kişisiniz?"))
         val sayac = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        sayac.addView(dugme("−", KART, METIN, CIZGI, 26f).apply {
-            contentDescription = "Bir azalt"; setOnClickListener { kisi = kisi?.let { if (it <= 1) null else it - 1 }; yenile() }
-        }, LinearLayout.LayoutParams(dp(72), WRAP_CONTENT))
-        kisiYazi = yazi("?", 28f, METIN, true).apply { gravity = Gravity.CENTER }
-        sayac.addView(kisiYazi, LinearLayout.LayoutParams(dp(80), WRAP_CONTENT))
-        sayac.addView(dugme("+", KART, METIN, CIZGI, 26f).apply {
-            contentDescription = "Bir artır"; setOnClickListener { kisi = minOf(99, (kisi ?: 0) + 1); yenile() }
-        }, LinearLayout.LayoutParams(dp(72), WRAP_CONTENT))
-        sayac.addView(yazi("  ? = bilinmiyor", 15f, IKINCIL))
-        acil.addView(sayac, yer(6))
-        acil.addView(yazi("Yanınızda", 17f, METIN, true), yer(16))
+        val deger = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        kisiYazi = yazi("?", 34f, METIN, true).apply { typeface = KALIN }
+        deger.addView(kisiYazi)
+        deger.addView(yazi("? = bilinmiyor", 15f, IKINCIL))
+        sayac.addView(deger, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+        sayac.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; background = kutu(GRI_DOLGU, GRI_DOLGU, 16)
+            addView(dugme("−", Color.TRANSPARENT, METIN, Color.TRANSPARENT, 28f).apply {
+                contentDescription = "Bir azalt"
+                setOnClickListener { kisi = kisi?.let { if (it <= 1) null else it - 1 }; yenile(); performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP) }
+            }, LinearLayout.LayoutParams(dp(72), dp(60)))
+            addView(View(this@MainActivity).apply { setBackgroundColor(CIZGI) }, LinearLayout.LayoutParams(dp(1), dp(30)))
+            addView(dugme("+", Color.TRANSPARENT, METIN, Color.TRANSPARENT, 28f).apply {
+                contentDescription = "Bir artır"
+                setOnClickListener { kisi = minOf(99, (kisi ?: 0) + 1); yenile(); performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP) }
+            }, LinearLayout.LayoutParams(dp(72), dp(60)))
+        })
+        kac.addView(sayac, yer(12))
+
+        // 3. who is with you: capsules, several can be on
+        kac.addView(adim(3, "Yanınızda"), yer(22))
         val ozelIzgara = GridLayout(this).apply { columnCount = 3 }
         for ((k, ad) in Cagri.OZEL) {
-            val b = dugme(ad, KART, METIN, CIZGI, 16f).apply { setOnClickListener { if (!ozel.remove(k)) ozel += k; yenile() } }
+            val b = dugme(ad, GRI_DOLGU, METIN, GRI_DOLGU, 16f, 99).apply {
+                setPadding(dp(6), dp(12), dp(6), dp(12))
+                setOnClickListener { if (!ozel.remove(k)) { ozel += k; sic(this) }; yenile(); performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP) }
+            }
             ozelDugmeleri[k] = b
-            ozelIzgara.addView(b, GridLayout.LayoutParams().apply { width = 0; columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f); setMargins(dp(3), dp(3), dp(3), dp(3)) })
+            ozelIzgara.addView(b, GridLayout.LayoutParams().apply { width = 0; columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f); setMargins(dp(4), dp(4), dp(4), dp(4)) })
         }
-        acil.addView(ozelIzgara, yer(4))
+        kac.addView(ozelIzgara, izgaraYeri(8))
+        root.addView(kac, yer(12))
 
-        // 3. or write it
-        acil.addView(yazi("Ya da kısaca yazın", 17f, METIN, true), yer(16))
+        // 4. or write it
+        val yaz = kart()
+        yaz.addView(adim(4, "Ya da kısaca yazın"))
         metin = EditText(this).apply {
-            hint = "Adres ve durum: ör. Antakya Ürgenpaşa Mh., enkazdayız, 3 kişi"; minLines = 2; textSize = 17f
-            setTextColor(METIN); setHintTextColor(IKINCIL); background = kutu(Color.WHITE, CIZGI, 12); setPadding(dp(12), dp(10), dp(12), dp(10))
+            hint = "Adres ve durum: ör. Antakya Ürgenpaşa Mh., enkazdayız, 3 kişi"; minLines = 2; textSize = 17f; typeface = NORMAL
+            setTextColor(METIN); setHintTextColor(IKINCIL)
+            // a filled field; focus draws a dark ring so the caller sees where the text goes
+            background = StateListDrawable().apply {
+                addState(intArrayOf(android.R.attr.state_focused), kutu(GRI_DOLGU, METIN, 14, 2f))
+                addState(intArrayOf(), kutu(GRI_DOLGU, GRI_DOLGU, 14))
+            }
+            setPadding(dp(14), dp(12), dp(14), dp(12))
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                 override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                 override fun afterTextChanged(s: Editable?) = yenile()
             })
         }
-        acil.addView(metin, yer(4))
+        yaz.addView(metin, yer(12))
         metinNotu = yazi("", 15f, AMBER, true)
-        acil.addView(metinNotu, yer(6))
+        yaz.addView(metinNotu, yer(8))
+        root.addView(yaz, yer(12))
 
-        // 4. exactly what will go, then send
-        ozet = yazi("", 16f, METIN).apply { background = kutu(OZET_ZEMIN, CIZGI, 12); setPadding(dp(12), dp(10), dp(12), dp(10)) }
-        acil.addView(ozet, yer(14))
-        acil.addView(dugme("Çağrıyı gönder", KIRMIZI, Color.WHITE, KIRMIZI, 22f).apply {
-            minHeight = dp(72); setOnClickListener { gonderBas() }
-        }, yer(12))
-        durumKart = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(12), dp(14), dp(12)); visibility = View.GONE }
+        // exactly what will go, then send
+        val gonderKart = kart()
+        ozet = yazi("", 16f, METIN).apply { background = kutu(GRI_DOLGU, GRI_DOLGU, 14); setPadding(dp(14), dp(12), dp(14), dp(12)) }
+        gonderKart.addView(ozet)
+        gonderKart.addView(dugme("Çağrıyı gönder", KIRMIZI, Color.WHITE, KIRMIZI, 22f, 20).apply {
+            minHeight = dp(72); minimumHeight = dp(72); typeface = KALIN
+            elevation = dp(6).toFloat(); outlineSpotShadowColor = KIRMIZI; outlineAmbientShadowColor = KIRMIZI // the one lifted control
+            setOnClickListener { performHapticFeedback(HapticFeedbackConstants.CONFIRM); gonderBas() }
+        }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(14); bottomMargin = dp(6) })
+        durumKart = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(14), dp(16), dp(14)); visibility = View.GONE }
         durum = yazi("", 18f, METIN, true)
         durumKart.addView(durum)
         duzeltDugme = dugme("Yanlışlıkla gönderdim · yardım gerekmiyor", KART, METIN, CIZGI, 16f).apply {
@@ -580,30 +682,33 @@ class MainActivity : Activity() {
                 toService(Intent().putExtra("iptal", id))
             }
         }
-        durumKart.addView(duzeltDugme, yer(10))
+        durumKart.addView(duzeltDugme, yer(12))
         // one tap undoes a correction or "I am safe" sent by mistake: the earlier call goes out again at once
         geriAlDugme = dugme("Geri al · hâlâ yardım gerekiyor", KIRMIZI, Color.WHITE, KIRMIZI, 17f).apply {
             visibility = View.GONE
             setOnClickListener { visibility = View.GONE; toService(Intent().putExtra("geriAl", "1")) }
         }
         durumKart.addView(geriAlDugme, yer(10))
-        acil.addView(durumKart, yer(12))
-        root.addView(acil, yer(12))
+        gonderKart.addView(durumKart, yer(12))
+        root.addView(gonderKart, yer(12))
 
         // sound signal and "I am safe"
-        root.addView(dugme("♪ Sesli sinyal · kurtarıcılar sizi duysun", KART, METIN, CIZGI).apply { setOnClickListener { sinyal(this) } }, yer(16))
-        root.addView(dugme("Güvendeyim · kuruma bildir", YESIL_ZEMIN, YESIL, YESIL_ZEMIN).apply {
+        root.addView(dugme("♪ Sesli sinyal · kurtarıcılar sizi duysun", KART, METIN, KART, 17f, 18).apply {
+            minHeight = dp(60); minimumHeight = dp(60); setOnClickListener { sinyal(this) }
+        }, yer(16))
+        root.addView(dugme("✓ Güvendeyim · kuruma bildir", YESIL_ZEMIN, YESIL, YESIL_ZEMIN, 17f, 18).apply {
+            minHeight = dp(60); minimumHeight = dp(60)
             setOnClickListener {
                 secilenTur = "guvende"; yenile(); gonderBas() // one tap: "I am safe" never sends anything urgent
             }
-        }, yer(8))
+        }, yer(10))
 
         // announcements
         val duyuru = kart()
-        duyuru.addView(yazi("Kurum duyuruları", 20f, METIN, true))
+        duyuru.addView(yazi("Kurum duyuruları", 19f, METIN, true).apply { isAccessibilityHeading = true })
         duyurular = yazi("Henüz duyuru yok.", 16f, IKINCIL)
         duyuru.addView(duyurular, yer(6))
-        root.addView(duyuru, yer(14))
+        root.addView(duyuru, yer(16))
 
         log = TextView(this).apply {
             typeface = Typeface.MONOSPACE; textSize = 11f; setTextColor(IKINCIL); setPadding(0, dp(16), 0, 0)
@@ -612,17 +717,26 @@ class MainActivity : Activity() {
         }
         root.addView(log)
 
-        // countdown over everything: large CANCEL, or send now
+        // countdown over everything: the seconds in a large ring, a large CANCEL, or send now
         geriSayim = FrameLayout(this).apply {
-            visibility = View.GONE; setBackgroundColor(Color.argb(250, 14, 26, 34)); isClickable = true
+            visibility = View.GONE; setBackgroundColor(KOYU); isClickable = true
             val ic = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(dp(24), 0, dp(24), 0) }
-            geriSayimYazi = yazi("", 28f, Color.WHITE, true).apply { gravity = Gravity.CENTER }
-            ic.addView(geriSayimYazi)
-            ic.addView(dugme("İptal et", Color.WHITE, KIRMIZI, Color.WHITE, 30f).apply {
-                minHeight = dp(96); setOnClickListener { geriSayim.visibility = View.GONE; durumGoster(GRI_ZEMIN, "Çağrı iptal edildi. Hiçbir şey gönderilmedi.") }
-            }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(28) })
-            ic.addView(dugme("Hemen gönder", KIRMIZI, Color.WHITE, Color.WHITE, 20f).apply { setOnClickListener { gonder() } },
-                LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(16) })
+            geriSayimSayi = yazi("5", 76f, Color.WHITE, true).apply {
+                typeface = KALIN; gravity = Gravity.CENTER; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.argb(40, 179, 38, 30)); setStroke(dp(4), KIRMIZI_ACIK) }
+            }
+            ic.addView(geriSayimSayi, LinearLayout.LayoutParams(dp(168), dp(168)))
+            geriSayimYazi = yazi("", 24f, Color.WHITE, true).apply { gravity = Gravity.CENTER }
+            ic.addView(geriSayimYazi, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(24) })
+            ic.addView(dugme("İptal et", Color.WHITE, KIRMIZI, Color.WHITE, 30f, 24).apply {
+                minHeight = dp(96); minimumHeight = dp(96); typeface = KALIN
+                setOnClickListener {
+                    performHapticFeedback(HapticFeedbackConstants.REJECT)
+                    geriSayim.visibility = View.GONE; durumGoster(GRI_ZEMIN, "Çağrı iptal edildi. Hiçbir şey gönderilmedi.")
+                }
+            }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(32) })
+            ic.addView(dugme("Hemen gönder", KOYU, Color.WHITE, Color.argb(150, 255, 255, 255), 20f, 24).apply { setOnClickListener { gonder() } },
+                LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = dp(14) })
             addView(ic, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         }
 
@@ -648,12 +762,16 @@ class MainActivity : Activity() {
     private companion object {
         val BLUETOOTH = arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE)
         // theme (Apple's grouped light surfaces): a light grey ground with a soft sheen, white cards without frames,
-        // near-black text (16:1 on the cards; secondary text 9:1, readable on a cracked screen), one accent: red
-        val ZEMIN_UST = Color.rgb(242, 242, 247); val ZEMIN_ALT = Color.rgb(226, 226, 232)
-        val KART = Color.WHITE; val CIZGI = Color.rgb(209, 209, 214); val OZET_ZEMIN = Color.rgb(242, 242, 247)
-        val METIN = Color.rgb(28, 28, 30); val IKINCIL = Color.rgb(72, 72, 74)
-        val KIRMIZI = Color.rgb(179, 38, 30); val KIRMIZI_KENAR = Color.rgb(240, 190, 186); val KIRMIZI_ZEMIN = Color.rgb(253, 236, 234)
+        // filled grey controls, near-black text (16:1 on the cards; secondary text 9:1, readable on a cracked screen),
+        // one accent: red, only on emergency elements; green only for good news
+        val ZEMIN_UST = Color.rgb(242, 242, 247); val ZEMIN_ALT = Color.rgb(228, 228, 234)
+        val KART = Color.WHITE; val CIZGI = Color.rgb(199, 199, 204); val GRI_DOLGU = Color.rgb(239, 239, 244)
+        val METIN = Color.rgb(28, 28, 30); val IKINCIL = Color.rgb(72, 72, 74); val KOYU = Color.rgb(14, 26, 34)
+        val KIRMIZI = Color.rgb(179, 38, 30); val KIRMIZI_ACIK = Color.rgb(255, 105, 97); val KIRMIZI_ZEMIN = Color.rgb(253, 236, 234)
         val YESIL = Color.rgb(11, 110, 79); val YESIL_ZEMIN = Color.rgb(221, 240, 231); val AMBER = Color.rgb(138, 90, 0)
         val GRI_ZEMIN = Color.rgb(228, 232, 236)
+        val NORMAL: Typeface = Typeface.create(Typeface.DEFAULT, 400, false)
+        val AGIR: Typeface = Typeface.create(Typeface.DEFAULT, 600, false)
+        val KALIN: Typeface = Typeface.create(Typeface.DEFAULT, 700, false)
     }
 }

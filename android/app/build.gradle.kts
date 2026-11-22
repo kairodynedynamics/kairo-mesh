@@ -12,8 +12,8 @@ android {
         applicationId = "com.kairodyne.mesh"
         minSdk = 33 // X25519 (XDH) in the platform crypto provider
         targetSdk = 36
-        versionCode = 8
-        versionName = "0.6.0"
+        versionCode = 9
+        versionName = "0.6.1"
         // test automation drives the screen through intent extras (MainActivity); never in a build that is handed out
         buildConfigField("boolean", "OTOMASYON", "false")
         // Root keys that may approve authority codes (src/kurum-cli.js kok/onayla). Release builds trust only the

@@ -1,0 +1,43 @@
+#!/bin/sh
+# Refuses a commit that would publish a secret or closed material (rules: PAYLASIM.md).
+#   staged files (git hook)      .githooks/pre-commit
+#   every tracked file (CI)      sh .githooks/pre-commit --tum
+# Applies only to the public kairo-mesh repository; the private repositories keep their own content.
+set -eu
+case "$(git remote get-url origin 2>/dev/null || true)" in *kairo-mesh*) ;; *) exit 0 ;; esac
+
+if [ "${1:-}" = "--tum" ]; then
+  dosyalar=$(git ls-files)
+else
+  dosyalar=$(git diff --cached --name-only --diff-filter=ACMR)
+  # commits go out under the GitHub no-reply address, never a personal one
+  case "$(git config user.email)" in *@users.noreply.github.com) ;; *)
+    echo "HATA: git user.email GitHub no-reply adresi olmalı (…@users.noreply.github.com)."; exit 1 ;; esac
+fi
+[ -n "$dosyalar" ] || exit 0
+
+hata=0
+# 1. paths that never belong in the public repository
+yasak_yol='^(internal|kurumsal|medya|dagitim|yerel|yayin)/|(^|/)\.env(\..+)?$|\.(jks|keystore|p12|pfx|pem|key|p8|mobileprovision|cer|der)$|(^|/)(imza\.properties|local\.properties|google-services\.json|GoogleService-Info\.plist|pano-anahtari\.txt|cagrilar\.jsonl|operator-adres\.txt|kurum-anahtar[^/]*\.json|kok-anahtar\.json|id_rsa|id_ed25519)$'
+izinli_yol='^test/kok-test/kok-anahtar\.json$|(^|/)\.env\.ornek$'
+yollar=$(printf '%s\n' "$dosyalar" | grep -E "$yasak_yol" | grep -vE "$izinli_yol" || true)
+if [ -n "$yollar" ]; then echo "HATA: herkese açık depoya girmemesi gereken dosya:"; printf '  %s\n' $yollar; hata=1; fi
+
+# 2. secrets inside files: private keys, tokens, authority secrets, live tunnel addresses
+yasak_icerik='-----BEGIN [A-Z ]*PRIVATE KEY-----|"(kokGizli|muhurGizli|imzaGizli)"[[:space:]]*:[[:space:]]*"[A-Za-z0-9+/=]{20,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|hf_[A-Za-z0-9]{30,}|sk-ant-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{32,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|xox[abpr]-[A-Za-z0-9-]{10,}|[a-z0-9-]+\.trycloudflare\.com|(store|key)Password[[:space:]]*[=:][[:space:]]*["'"'"']?[A-Za-z0-9!@#$%^&*_.+-]{6,}["'"'"']?[[:space:]]*$'
+for f in $dosyalar; do
+  [ -f "$f" ] || continue
+  case "$f" in test/kok-test/kok-anahtar.json|.githooks/*) continue ;; esac
+  if [ "${1:-}" = "--tum" ]; then bulgu=$(grep -nIE -- "$yasak_icerik" "$f" || true)
+  else bulgu=$(git show ":$f" 2>/dev/null | grep -nIE -- "$yasak_icerik" || true); fi
+  [ -n "$bulgu" ] && { echo "HATA: $f içinde gizli bilgi olabilir:"; printf '%s\n' "$bulgu" | cut -c1-120 | sed 's/^/  /'; hata=1; }
+done
+
+# 3. nothing over 25 MB by accident (model weights are added on purpose with --no-verify after review)
+for f in $dosyalar; do
+  [ -f "$f" ] || continue
+  boyut=$(wc -c < "$f")
+  [ "$boyut" -gt 26214400 ] && { echo "HATA: $f çok büyük ($boyut bayt)."; hata=1; }
+done
+
+[ $hata = 0 ] || { echo "Commit durduruldu. Kurallar: PAYLASIM.md"; exit 1; }

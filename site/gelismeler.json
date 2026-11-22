@@ -1,5 +1,10 @@
 [
  {
+  "tarih": "2026-11-23",
+  "baslik": "0.6.1: daha net, daha dokunulası acil ekranı",
+  "metin": "Android ve iOS'ta acil ekranı yeniden tasarlandı. Adımlar numaralı beyaz kartlarda: 1 Ne oldu, 2 Kaç kişisiniz, 3 Yanınızda, 4 Ya da kısaca yazın. Dört hayati durum düğmesi seçilince dolu kırmızıya döner ve öne çıkar. Kişi sayısı bitişik −/+ düğmeleriyle değişir, yanınızdakiler kapsül düğmelerle seçilir. Gönder düğmesi ekrandaki tek yükseltilmiş öğedir. 5 saniyelik geri sayım artık opak bir katmanda, büyük bir halka içinde. Arkasındaki hiçbir şeye yanlışlıkla dokunulamaz. Her dokunuş hafifçe küçülüp yaylanarak karşılık verir; seçimde, gönderirken ve iptalde kısa titreşim var. Telefonda hareket azaltma açıksa animasyonlar kapanır. Ağ durumu renkli bir rozetle gösterilir. Sitedeki uygulama görselleri yeni ekranla yenilendi."
+ },
+ {
   "tarih": "2026-11-21",
   "baslik": "0.6.0: dağıtıma hazırlık, karşı tarafın gözüyle",
   "metin": "Uygulamayı çürütmekle görevli bağımsız bir inceleme 25 bulgu çıkardı; mantıklı olanlar düzeltildi. Telefonun taşıdığı çağrılar artık diske yazılıyor: uygulama kapansa ya da telefon yeniden başlasa da kaybolmuyor. Ekran 'gönderildi' demiyor, olanı söylüyor: 'telefonunuzda hazır, henüz kimseye ulaşmadı', 'yakındaki N telefona veriliyor' ya da 'kuruma gönderiliyor'. Yanlışlıkla basılan 'Güvendeyim' ya da düzeltme tek dokunuşla geri alınıyor. İnternet varsa Bluetooth izni olmadan da çağrı gidiyor. Konum araması ekran kilitlense de sürüyor. Saati sıfırlanmış bir telefonun çağrısı reddedilmiyor, işaretleniyor. Dağıtılan Android sürümü artık imzalı ve test kancası içermiyor; iOS için gizlilik bildirimi eklendi. Gizlilik ve KVKK sayfası yayında. Her telefon artık aynı gönderenden saatte en çok 3 acil zarf kabul ediyor; simülasyonda bu sınır sel saldırısına karşı gerçek çağrıların ulaşma oranını %37,8'den %51,1'e çıkardı."

@@ -125,6 +125,7 @@ Or skip the install and [run the simulation in your browser](https://kairodynedy
 | `sim/` | Earthquake scenario on the product's own code | `bash sim/calistir.sh` · `node sim/rapor.js md` |
 | `site/` | kairodynedynamics.com sources; numbers are read from the measurement files | `python site/yap.py` |
 | `docs/` | Design, validation, emergency relay, earthquake simulation, authority setup (Turkish) | |
+| `.githooks/` | Commit guards: no keys, secrets or closed material; what is shared is in [PAYLASIM.md](PAYLASIM.md) | `git config core.hooksPath .githooks` |
 
 ## Documents
 

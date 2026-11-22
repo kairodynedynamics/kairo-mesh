@@ -11,7 +11,7 @@ struct KairoMeshApp: App {
 /// KairoMesh's one screen, the same as Android's (docs/08-acil-ekran.md): four large life-threatening situations,
 /// the selection written out with an undo, typing alone enough, a summary of exactly what will be sent, a 5-second
 /// countdown with a large CANCEL, a correction for a call sent by mistake, a sound signal for rescuers.
-/// Light grey, slightly glossy theme with near-black text.
+/// Inset-grouped white cards on a grey ground, numbered steps, one accent: red.
 struct ContentView: View {
     @EnvironmentObject private var mesh: Mesh
     @State private var tur: String?
@@ -21,27 +21,41 @@ struct ContentView: View {
     @State private var geriSayim: Int?
     @State private var sinyal = false
     @State private var arkaPlan: Date?
+    @FocusState private var yaziyor: Bool
     @Environment(\.scenePhase) private var faz
+    @Environment(\.accessibilityReduceMotion) private var azHareket
     private let sayac = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    private var yay: Animation? { azHareket ? nil : .spring(response: 0.32, dampingFraction: 0.72) }
 
     var body: some View {
         ZStack {
             LinearGradient(colors: [Tema.zeminUst, Tema.zeminAlt], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 12) {
                     baslik
-                    acilKart
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Acil yardım çağrısı").font(.system(size: 26, weight: .bold)).foregroundColor(Tema.metin)
+                            .accessibilityAddTraits(.isHeader)
+                        Text("İnternet olmasa da çalışır. Durumunuzu seçin ya da yazın, sonra gönderin.")
+                            .font(.callout).foregroundColor(Tema.ikincil)
+                    }.padding(.top, 14)
+                    neOldu
+                    kacKisi
+                    yazKart
+                    gonderKart
                     Button { sinyalDegistir() } label: {
-                        Text(sinyal ? "■ Sesli sinyali durdur" : "♪ Sesli sinyal · kurtarıcılar sizi duysun").kalinDugme(Tema.kart, Tema.metin, kenar: Tema.cizgi)
-                    }.accessibilityIdentifier("sinyal")
+                        Text(sinyal ? "■ Sesli sinyali durdur" : "♪ Sesli sinyal · kurtarıcılar sizi duysun")
+                            .kalinDugme(Tema.kart, Tema.metin, boy: 60)
+                    }.buttonStyle(BasincStil()).accessibilityIdentifier("sinyal").padding(.top, 4)
                     Button {
                         tur = "guvende"; gonderBas() // one tap: "I am safe" never sends anything urgent
                     } label: {
-                        Text("Güvendeyim · kuruma bildir")
-                            .kalinDugme(Tema.yesilZemin, Tema.yesil)
-                    }
+                        Text("✓ Güvendeyim · kuruma bildir").kalinDugme(Tema.yesilZemin, Tema.yesil, boy: 60)
+                    }.buttonStyle(BasincStil())
                     kart {
-                        Text("Kurum duyuruları").font(.title3.weight(.semibold)).foregroundColor(Tema.metin)
+                        Text("Kurum duyuruları").font(.system(size: 19, weight: .semibold)).foregroundColor(Tema.metin)
+                            .accessibilityAddTraits(.isHeader)
                         if mesh.duyurular.isEmpty { Text("Henüz duyuru yok.").foregroundColor(Tema.ikincil) }
                         ForEach(mesh.duyurular, id: \.self) { Text($0).foregroundColor(Tema.metin) }
                     }
@@ -51,10 +65,12 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("log")
                     #endif
                 }
-                .padding(16)
+                .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 40)
             }
-            if let kalan = geriSayim { geriSayimKatmani(kalan) }
+            .scrollDismissesKeyboard(.interactively)
+            if let kalan = geriSayim { geriSayimKatmani(kalan).transition(.opacity) }
         }
+        .animation(azHareket ? nil : .easeOut(duration: 0.18), value: geriSayim == nil)
         .preferredColorScheme(.light)
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true; mesh.konumIste() } // the screen must not go dark under rubble
         // back after a while: nothing left selected from before (a short switch keeps a half-written call).
@@ -65,23 +81,37 @@ struct ContentView: View {
         }
         .onReceive(sayac) { _ in
             guard let k = geriSayim else { return }
-            if k <= 1 { gonder() } else { geriSayim = k - 1; UIAccessibility.post(notification: .announcement, argument: "\(k - 1)") }
+            if k <= 1 { gonder() } else {
+                withAnimation(yay) { geriSayim = k - 1 }
+                UIAccessibility.post(notification: .announcement, argument: "\(k - 1)")
+            }
         }
     }
 
     // MARK: parts
 
     private var baslik: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                Circle().fill(Tema.kirmizi).frame(width: 14, height: 14)
-                Text("KairoMesh").font(.title.weight(.heavy)).foregroundColor(Tema.metin)
+                // the signal mark: a red dot in a tinted disc
+                Circle().fill(Tema.kirmiziZemin).frame(width: 30, height: 30)
+                    .overlay(Circle().fill(Tema.kirmizi).frame(width: 12, height: 12))
+                    .accessibilityHidden(true)
+                Text("KairoMesh").font(.system(size: 30, weight: .bold)).tracking(-0.3).foregroundColor(Tema.metin)
+                    .accessibilityAddTraits(.isHeader)
             }
             Text(mesh.kurumVar ? "Çağrılar şu kuruma gider: \(mesh.kurumAd)" : "Bu sürümde çağrıların gideceği kurum tanımlı değil (kurumla sözleşme öncesi sürüm).")
                 .font(.subheadline).foregroundColor(Tema.ikincil)
-            Text(agYazisi).font(.callout.bold())
-                .foregroundColor(mesh.bluetoothKapali && !mesh.internet ? Tema.kirmizi : mesh.internet || mesh.yakin > 0 ? Tema.yesil : Tema.amber)
+            // the network as a tinted capsule: the colour of the text is the colour of the pill
+            Text(agYazisi).font(.subheadline.weight(.semibold)).foregroundColor(agRengi)
+                .padding(.horizontal, 12).padding(.vertical, 7)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(agRengi.opacity(0.11)))
+                .padding(.top, 2)
         }
+    }
+
+    private var agRengi: Color {
+        mesh.bluetoothKapali && !mesh.internet ? Tema.kirmizi : mesh.internet || mesh.yakin > 0 ? Tema.yesil : Tema.amber
     }
 
     private var agYazisi: String {
@@ -91,103 +121,147 @@ struct ContentView: View {
         return "● İnternet yok · yakında KairoMesh'li telefon yok; biri yaklaşınca çağrınız gider"
     }
 
-    private var acilKart: some View {
+    // 1. what happened: four life-threatening situations, large
+    private var neOldu: some View {
         kart {
-            Text("Acil yardım çağrısı").font(.title2.bold()).foregroundColor(Tema.metin)
-            Text("İnternet olmasa da çalışır. Durumunuzu seçin ya da yazın, sonra gönderin.").font(.subheadline).foregroundColor(Tema.ikincil)
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                ForEach(Cagri.hayati, id: \.self) { k in durumDugmesi(k, buyuk: true) }
+            adim(1, "Ne oldu?")
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                ForEach(Cagri.hayati, id: \.self) { k in durumDugmesi(k) }
             }
             HStack {
-                Text(tur.map { "Seçili: \(Cagri.ad($0))" } ?? "Durum seçilmedi").font(.headline)
+                Text(tur.map { "Seçili: \(Cagri.ad($0))" } ?? "Durum seçilmedi").font(.system(size: 17, weight: .semibold))
                     .foregroundColor(tur == nil ? Tema.ikincil : Tema.kirmizi).accessibilityIdentifier("secim")
                 Spacer()
                 if tur != nil {
-                    Button("Kaldır") { secimDegistir(nil) }.font(.headline).foregroundColor(Tema.kirmizi)
-                        .padding(.horizontal, 18).frame(minHeight: 44)
-                        .background(Capsule().fill(Tema.kirmiziZemin))
-                        .accessibilityLabel("Seçimi kaldır")
+                    Button { secimDegistir(nil) } label: {
+                        Text("Kaldır").font(.headline).foregroundColor(Tema.kirmizi)
+                            .padding(.horizontal, 20).frame(minHeight: 44)
+                            .background(Capsule().fill(Tema.kirmiziZemin))
+                    }.buttonStyle(BasincStil()).accessibilityLabel("Seçimi kaldır")
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
                 }
             }
-            Text("Kaç kişisiniz?").font(.headline).foregroundColor(Tema.metin)
-            HStack(spacing: 14) {
-                Button { kisi = kisi.flatMap { $0 <= 1 ? nil : $0 - 1 } } label: { Text("−").font(.title.bold()).frame(minWidth: 64, minHeight: 54) }
-                    .buttonStyle(KutuStil()).accessibilityLabel("Bir azalt")
-                Text(kisi.map(String.init) ?? "?").font(.title.weight(.heavy)).frame(minWidth: 50).foregroundColor(Tema.metin)
-                Button { kisi = min(99, (kisi ?? 0) + 1) } label: { Text("+").font(.title.bold()).frame(minWidth: 64, minHeight: 54) }
-                    .buttonStyle(KutuStil()).accessibilityLabel("Bir artır")
-                Text("? = bilinmiyor").font(.subheadline).foregroundColor(Tema.ikincil)
+        }
+    }
+
+    // 2. how many, 3. who is with you
+    private var kacKisi: some View {
+        kart {
+            adim(2, "Kaç kişisiniz?")
+            HStack {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(kisi.map(String.init) ?? "?").font(.system(size: 34, weight: .bold)).foregroundColor(Tema.metin)
+                    Text("? = bilinmiyor").font(.subheadline).foregroundColor(Tema.ikincil)
+                }
+                Spacer()
+                // a connected −/+ stepper, no keyboard needed
+                HStack(spacing: 0) {
+                    Button { kisi = kisi.flatMap { $0 <= 1 ? nil : $0 - 1 }; Dokunus.sec() } label: {
+                        Text("−").font(.system(size: 28, weight: .semibold)).foregroundColor(Tema.metin).frame(width: 72, height: 60)
+                    }.buttonStyle(BasincStil()).accessibilityLabel("Bir azalt")
+                    Rectangle().fill(Tema.cizgi).frame(width: 1, height: 30)
+                    Button { kisi = min(99, (kisi ?? 0) + 1); Dokunus.sec() } label: {
+                        Text("+").font(.system(size: 28, weight: .semibold)).foregroundColor(Tema.metin).frame(width: 72, height: 60)
+                    }.buttonStyle(BasincStil()).accessibilityLabel("Bir artır")
+                }
+                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Tema.griDolgu))
             }
-            Text("Yanınızda").font(.headline).foregroundColor(Tema.metin)
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
+            adim(3, "Yanınızda").padding(.top, 10)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
                 ForEach(Cagri.ozel, id: \.0) { item in
                     let secili = ozel.contains(item.0)
-                    Button { if secili { ozel.remove(item.0) } else { ozel.insert(item.0) } } label: {
-                        Text((secili ? "✓ " : "") + item.1).font(.headline).frame(maxWidth: .infinity, minHeight: 50)
+                    Button {
+                        withAnimation(yay) { if secili { ozel.remove(item.0) } else { ozel.insert(item.0) } }
+                        Dokunus.sec()
+                    } label: {
+                        Text((secili ? "✓ " : "") + item.1).font(.system(size: 16, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8)
+                            .frame(maxWidth: .infinity, minHeight: 50)
                             .foregroundColor(secili ? Tema.kirmizi : Tema.metin)
-                            .background(Capsule().fill(secili ? Tema.kirmiziZemin : Tema.ozetZemin))
-                            .overlay(Capsule().stroke(secili ? Tema.kirmizi : Tema.cizgi, lineWidth: 1))
-                    }.accessibilityValue(secili ? "seçili" : "seçili değil")
+                            .background(Capsule().fill(secili ? Tema.kirmiziZemin : Tema.griDolgu))
+                            .overlay(Capsule().stroke(secili ? Tema.kirmizi : .clear, lineWidth: 1.5))
+                    }.buttonStyle(BasincStil()).accessibilityValue(secili ? "seçili" : "seçili değil")
                 }
             }
-            Text("Ya da kısaca yazın").font(.headline).foregroundColor(Tema.metin)
+        }
+    }
+
+    // 4. or write it
+    private var yazKart: some View {
+        kart {
+            adim(4, "Ya da kısaca yazın")
             TextField("Adres ve durum: ör. Antakya Ürgenpaşa Mh., enkazdayız, 3 kişi", text: $metin, axis: .vertical)
-                .font(.body).lineLimit(2...5).padding(12).foregroundColor(Tema.metin)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.white)).overlay(RoundedRectangle(cornerRadius: 12).stroke(Tema.cizgi, lineWidth: 1))
+                .font(.system(size: 17)).lineLimit(2...5).padding(.horizontal, 14).padding(.vertical, 12).foregroundColor(Tema.metin)
+                .focused($yaziyor)
+                // a filled field; focus draws a dark ring so the caller sees where the text goes
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Tema.griDolgu))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(yaziyor ? Tema.metin : .clear, lineWidth: 2))
                 .accessibilityIdentifier("metin")
             if !metin.trimmingCharacters(in: .whitespaces).isEmpty {
                 Text(tur.map { "“\(Cagri.ad($0))” seçimi de yazınızla birlikte gönderilecek. İstemiyorsanız seçimi kaldırın." }
                      ?? "Durum seçmediniz: telefon yazınızdan anlayacak ve çağrıyı acil olarak gönderecek.")
                     .font(.subheadline.bold()).foregroundColor(Tema.amber)
             }
-            Text(ozetYazisi).foregroundColor(Tema.metin).frame(maxWidth: .infinity, alignment: .leading).padding(12)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Tema.ozetZemin))
-            Button { gonderBas() } label: { Text("Çağrıyı gönder").font(.title2.bold()).frame(maxWidth: .infinity, minHeight: 64) }
-                .foregroundColor(.white).background(RoundedRectangle(cornerRadius: 14).fill(Tema.kirmizi)).accessibilityIdentifier("acilGonder")
+        }
+    }
+
+    // exactly what will go, then send
+    private var gonderKart: some View {
+        kart {
+            (Text("Gönderilecekler\n").bold() + Text(ozetYazisi))
+                .font(.system(size: 16)).foregroundColor(Tema.metin).frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Tema.griDolgu))
+            Button { Dokunus.onay(); gonderBas() } label: {
+                Text("Çağrıyı gönder").font(.system(size: 22, weight: .bold)).foregroundColor(.white)
+                    .frame(maxWidth: .infinity, minHeight: 72)
+                    .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Tema.kirmizi)
+                        .shadow(color: Tema.kirmizi.opacity(0.35), radius: 10, y: 4)) // the one lifted control
+            }.buttonStyle(BasincStil()).accessibilityIdentifier("acilGonder").padding(.top, 2)
             if !mesh.acilDurum.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(mesh.acilDurum).font(.headline).foregroundColor(Tema.metin).accessibilityIdentifier("acilDurum")
+                    Text(mesh.acilDurum).font(.system(size: 18, weight: .semibold)).foregroundColor(Tema.metin).accessibilityIdentifier("acilDurum")
                     if mesh.oncekiVar {
                         // one tap undoes a correction or "I am safe" sent by mistake
                         Button { mesh.geriAl() } label: {
                             Text("Geri al · hâlâ yardım gerekiyor").kalinDugme(Tema.kirmizi, .white)
-                        }.accessibilityIdentifier("geriAl")
+                        }.buttonStyle(BasincStil()).accessibilityIdentifier("geriAl")
                     }
                     if mesh.sonCagriId != nil && !mesh.kurumAldi {
                         Button {
                             mesh.duzelt() // one tap, no delay; a mistaken correction is undone with "Geri al"
                         } label: {
-                            Text("Yanlışlıkla gönderdim · yardım gerekmiyor")
-                                .kalinDugme(Tema.kart, Tema.metin, kenar: Tema.cizgi)
-                        }.accessibilityIdentifier("duzelt")
+                            Text("Yanlışlıkla gönderdim · yardım gerekmiyor").kalinDugme(Tema.kart, Tema.metin, kenar: Tema.cizgi)
+                        }.buttonStyle(BasincStil()).accessibilityIdentifier("duzelt")
                     }
-                }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: 14).fill(mesh.kurumAldi ? Tema.yesilZemin : Tema.kirmiziZemin))
+                }.padding(.horizontal, 16).padding(.vertical, 14).frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(mesh.kurumAldi ? Tema.yesilZemin : Tema.kirmiziZemin))
+                .transition(.opacity.combined(with: .offset(y: 8)))
             }
         }
+        .animation(azHareket ? nil : .easeOut(duration: 0.26), value: mesh.acilDurum.isEmpty)
     }
 
-    private func durumDugmesi(_ k: String, buyuk: Bool) -> some View {
+    private func durumDugmesi(_ k: String) -> some View {
         let secili = tur == k
         return Button { secimDegistir(k) } label: {
-            VStack(alignment: buyuk ? .leading : .center, spacing: 4) {
-                Text(Cagri.ad(k)).font(buyuk ? .title3.bold() : .subheadline.bold())
-                    .foregroundColor(secili ? .white : (buyuk ? Tema.kirmizi : Tema.metin)).multilineTextAlignment(buyuk ? .leading : .center)
-                if buyuk || secili {
-                    Text(secili ? "✓ Seçildi · kaldırmak için yine dokunun" : (Cagri.altYazi[k] ?? ""))
-                        .font(buyuk ? .subheadline : .caption2).foregroundColor(secili ? .white : Tema.ikincil)
-                }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(Cagri.ad(k)).font(.system(size: 19, weight: .semibold))
+                    .foregroundColor(secili ? .white : Tema.kirmizi).multilineTextAlignment(.leading)
+                Text(secili ? "✓ Seçildi · kaldırmak için yine dokunun" : (Cagri.altYazi[k] ?? ""))
+                    .font(.system(size: 14)).foregroundColor(secili ? .white.opacity(0.92) : Tema.ikincil)
             }
-            .frame(maxWidth: .infinity, minHeight: buyuk ? 96 : 60, alignment: buyuk ? .topLeading : .center).padding(12)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(secili ? Tema.kirmizi : Tema.ozetZemin))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(secili ? Tema.kirmizi : (buyuk ? Tema.kirmiziKenar : Tema.cizgi), lineWidth: 1))
+            // tinted when idle, filled and lifted when selected
+            .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading).padding(14)
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(secili ? Tema.kirmizi : Tema.kirmiziZemin)
+                .shadow(color: secili ? Tema.kirmizi.opacity(0.3) : .clear, radius: 8, y: 3))
         }
+        .buttonStyle(BasincStil())
         .accessibilityIdentifier("tur_\(k)").accessibilityValue(secili ? "seçili" : "seçili değil")
     }
 
     private var ozetYazisi: String {
         let yazili = !metin.trimmingCharacters(in: .whitespaces).isEmpty
-        var s = "Gönderilecekler\n• Durum: \(tur.map(Cagri.ad) ?? (yazili ? "yazdığınızdan anlaşılacak" : "—"))\n"
+        var s = "• Durum: \(tur.map(Cagri.ad) ?? (yazili ? "yazdığınızdan anlaşılacak" : "—"))\n"
         s += "• Kişi sayısı: \(kisi.map(String.init) ?? "belirtilmedi")\n"
         s += "• Yanınızda: \(ozel.isEmpty ? "belirtilmedi" : ozel.sorted().map(Cagri.ozelAd).joined(separator: ", "))\n"
         if yazili { s += "• Mesaj: \"\(String(metin.trimmingCharacters(in: .whitespaces).prefix(80)))\"\n" }
@@ -196,32 +270,55 @@ struct ContentView: View {
 
     private func geriSayimKatmani(_ kalan: Int) -> some View {
         ZStack {
-            Color(red: 14 / 255, green: 26 / 255, blue: 34 / 255).opacity(0.97).ignoresSafeArea()
-            VStack(spacing: 22) {
-                Text("Çağrı \(kalan) saniye içinde\ngönderilecek").font(.title.bold()).foregroundColor(.white).multilineTextAlignment(.center)
-                Button { geriSayim = nil; mesh.iptalBildir() } label: { Text("İptal et").font(.largeTitle.bold()).frame(maxWidth: .infinity, minHeight: 96) }
-                    .foregroundColor(Tema.kirmizi).background(RoundedRectangle(cornerRadius: 16).fill(Color.white)).accessibilityIdentifier("iptal")
-                Button { gonder() } label: { Text("Hemen gönder").font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 60) }
-                    .foregroundColor(.white).background(RoundedRectangle(cornerRadius: 14).fill(Tema.kirmizi))
-                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white, lineWidth: 2)).accessibilityIdentifier("hemenGonder")
+            Tema.koyu.ignoresSafeArea() // opaque: nothing behind it can be tapped by mistake
+            VStack(spacing: 0) {
+                ZStack {
+                    Circle().stroke(Tema.kirmiziAcik, lineWidth: 4)
+                    Text("\(kalan)").font(.system(size: 76, weight: .bold)).foregroundColor(.white)
+                        .id(kalan).transition(.asymmetric(insertion: .scale(scale: 1.2).combined(with: .opacity), removal: .opacity))
+                }
+                .frame(width: 168, height: 168).accessibilityHidden(true)
+                Text("Çağrı \(kalan) saniye içinde\ngönderilecek").font(.system(size: 24, weight: .semibold)).foregroundColor(.white)
+                    .multilineTextAlignment(.center).padding(.top, 24)
+                Button { Dokunus.ret(); geriSayim = nil; mesh.iptalBildir() } label: {
+                    Text("İptal et").font(.system(size: 30, weight: .bold)).foregroundColor(Tema.kirmizi)
+                        .frame(maxWidth: .infinity, minHeight: 96)
+                        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.white))
+                }.buttonStyle(BasincStil()).accessibilityIdentifier("iptal").padding(.top, 36)
+                Button { gonder() } label: {
+                    Text("Hemen gönder").font(.system(size: 20, weight: .semibold)).foregroundColor(.white)
+                        .frame(maxWidth: .infinity, minHeight: 60)
+                        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.white.opacity(0.6), lineWidth: 1.5))
+                }.buttonStyle(BasincStil()).accessibilityIdentifier("hemenGonder").padding(.top, 14)
             }.padding(24)
         }
     }
 
     private func kart<C: View>(@ViewBuilder _ icerik: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 12, content: icerik).padding(16).frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Tema.kart).shadow(color: .black.opacity(0.06), radius: 3, y: 1))
+            .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Tema.kart))
+    }
+
+    /// A numbered step: a black disc and the heading.
+    private func adim(_ no: Int, _ t: String) -> some View {
+        HStack(spacing: 10) {
+            Text("\(no)").font(.system(size: 14, weight: .bold)).foregroundColor(.white)
+                .frame(width: 26, height: 26).background(Circle().fill(Tema.metin)).accessibilityHidden(true)
+            Text(t).font(.system(size: 19, weight: .semibold)).foregroundColor(Tema.metin)
+        }.accessibilityElement(children: .combine).accessibilityAddTraits(.isHeader)
     }
 
     // MARK: actions
 
     private func secimDegistir(_ k: String?) {
         // tapping the selected situation again clears it: a mistaken tap is undone where it happened
-        tur = (k == nil || tur == k) ? nil : k
+        withAnimation(yay) { tur = (k == nil || tur == k) ? nil : k }
+        Dokunus.sec()
         UIAccessibility.post(notification: .announcement, argument: tur.map { "\(Cagri.ad($0)) seçildi" } ?? "Seçim kaldırıldı")
     }
 
     private func gonderBas() {
+        yaziyor = false
         guard tur != nil || !metin.trimmingCharacters(in: .whitespaces).isEmpty else { return mesh.durumYaz("Önce durumunuzu seçin ya da kısaca yazın.") }
         guard mesh.kurumVar else { return mesh.kurumYok() }
         mesh.konumIste()
@@ -280,35 +377,49 @@ final class Siren {
     }
 }
 
-/// Apple's grouped light surfaces (same values as Android's MainActivity): a light grey ground with a soft sheen, white
-/// cards without frames, near-black text (secondary text 9:1, readable on a cracked screen), one accent: red.
+/// Apple's grouped light surfaces (same values as Android's MainActivity): a light grey ground, white cards without
+/// frames, near-black text (secondary text 9:1, readable on a cracked screen), one accent: red.
 enum Tema {
     static let zeminUst = Color(red: 242 / 255, green: 242 / 255, blue: 247 / 255)
-    static let zeminAlt = Color(red: 226 / 255, green: 226 / 255, blue: 232 / 255)
+    static let zeminAlt = Color(red: 228 / 255, green: 228 / 255, blue: 234 / 255)
     static let kart = Color.white
-    static let cizgi = Color(red: 209 / 255, green: 209 / 255, blue: 214 / 255)
-    static let ozetZemin = Color(red: 242 / 255, green: 242 / 255, blue: 247 / 255)
+    static let cizgi = Color(red: 199 / 255, green: 199 / 255, blue: 204 / 255)
+    static let griDolgu = Color(red: 239 / 255, green: 239 / 255, blue: 244 / 255)
     static let metin = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
     static let ikincil = Color(red: 72 / 255, green: 72 / 255, blue: 74 / 255)
+    static let koyu = Color(red: 14 / 255, green: 26 / 255, blue: 34 / 255)
     static let kirmizi = Color(red: 179 / 255, green: 38 / 255, blue: 30 / 255)
-    static let kirmiziKenar = Color(red: 240 / 255, green: 190 / 255, blue: 186 / 255)
+    static let kirmiziAcik = Color(red: 255 / 255, green: 105 / 255, blue: 97 / 255)
     static let kirmiziZemin = Color(red: 253 / 255, green: 236 / 255, blue: 234 / 255)
     static let yesil = Color(red: 11 / 255, green: 110 / 255, blue: 79 / 255)
     static let yesilZemin = Color(red: 221 / 255, green: 240 / 255, blue: 231 / 255)
     static let amber = Color(red: 138 / 255, green: 90 / 255, blue: 0)
 }
 
-private struct KutuStil: ButtonStyle {
+/// Press feedback: shrinks to 0.96 at once and springs back with a slight overshoot; no motion under Reduce Motion.
+private struct BasincStil: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var azHareket
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label.foregroundColor(Tema.metin)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(configuration.isPressed ? Tema.cizgi : Tema.ozetZemin))
+        configuration.label
+            .scaleEffect(configuration.isPressed && !azHareket ? 0.96 : 1)
+            .opacity(configuration.isPressed ? 0.92 : 1)
+            .animation(azHareket ? nil : configuration.isPressed ? .easeOut(duration: 0.08) : .spring(response: 0.32, dampingFraction: 0.55),
+                       value: configuration.isPressed)
     }
 }
 
+/// Haptics only on meaningful actions: a choice, sending, cancelling.
+enum Dokunus {
+    static func sec() { UISelectionFeedbackGenerator().selectionChanged() }
+    static func onay() { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
+    static func ret() { UINotificationFeedbackGenerator().notificationOccurred(.warning) }
+}
+
 private extension Text {
-    func kalinDugme(_ zemin: Color, _ yazi: Color, kenar: Color? = nil) -> some View {
-        self.font(.headline).foregroundColor(yazi).multilineTextAlignment(.center).frame(maxWidth: .infinity, minHeight: 56).padding(.horizontal, 12)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(zemin))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(kenar ?? zemin, lineWidth: 1))
+    func kalinDugme(_ zemin: Color, _ yazi: Color, kenar: Color? = nil, boy: CGFloat = 56) -> some View {
+        self.font(.system(size: 17, weight: .semibold)).foregroundColor(yazi).multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity, minHeight: boy).padding(.horizontal, 12)
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(zemin))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(kenar ?? zemin, lineWidth: 1))
     }
 }
