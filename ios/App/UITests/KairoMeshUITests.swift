@@ -24,10 +24,16 @@ final class KairoMeshUITests: XCTestCase {
         XCTAssertTrue(app.buttons["acilGonder"].waitForExistence(timeout: 10), "emergency screen shown")
     }
 
+    // isHittable is already true when only part of a tall button shows at the bottom edge, and a tap at its centre
+    // then lands off screen (iPhone, 0.6.1 layout): scroll until the whole element sits clear of the edges
     private func scrollTo(_ element: XCUIElement, in app: XCUIApplication, direction: String = "up") {
         let sv = app.scrollViews.firstMatch
-        for _ in 0..<10 where element.exists && !element.isHittable {
-            if direction == "up" { sv.swipeUp() } else { sv.swipeDown() }
+        let ekran = app.windows.firstMatch.frame
+        func gorunur() -> Bool {
+            element.exists && element.isHittable && element.frame.minY > ekran.minY + 100 && element.frame.maxY < ekran.maxY - 100
+        }
+        for _ in 0..<12 where !gorunur() {
+            if direction == "up" { sv.swipeUp(velocity: .slow) } else { sv.swipeDown(velocity: .slow) }
         }
     }
 
