@@ -48,8 +48,8 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # GENERATE_INFOPLIST_FILE takes the bundle version from these, overriding Info.plist; iOS will not
         # install a bundle without CFBundleVersion (same numbers as the Android build)
-        MARKETING_VERSION: "0.6.1"
-        CURRENT_PROJECT_VERSION: "9"
+        MARKETING_VERSION: "0.6.2"
+        CURRENT_PROJECT_VERSION: "10"
       configs:
         Demo:
           SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEMO

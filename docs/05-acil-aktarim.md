@@ -1,4 +1,6 @@
-# Acil durum aktarımı: şebekesiz telefondan 112'ye
+# Afet çağrısı aktarımı: şebekesiz telefondan afet birimine
+
+KairoMesh yalnız doğal afetler içindir (deprem, sel, heyelan): şebeke gerçekten çöktüğünde. Günlük acil durumlar 112'de kalır.
 
 Kişisel mesajlaşma "en yakındaki birine" bırakılıp beklenebilir. Yardım çağrısı bırakılamaz: yakındaki kişi mesajı görmeyebilir, ciddiye almayabilir, kendisi de yardım bekliyor olabilir. Bu yüzden acil çağrı **bir kişiye değil, bir kuruma** gider. Arada kimsenin bir şey yapması, hatta mesajı görmesi gerekmez.
 
@@ -10,7 +12,7 @@ sequenceDiagram
     participant A as Ayşe (enkazda, şebeke yok)
     participant K as Herhangi bir telefon (şebeke yok)
     participant G as İnterneti olan telefon
-    participant S as Kurum sunucusu (112 / ortak)
+    participant S as Kurum sunucusu (afet birimi / ortak)
     Note over A: Mesajı yazar. Cihazdaki Kairo modeli türü, aciliyeti,<br/>kişi sayısını, adresi çıkarır. GPS konumu eklenir.<br/>Zarf kurumun anahtarına mühürlenir.
     A->>K: Bluetooth: acil zarf (önce duyurulur, 8 kopya)
     Note over K: Okuyamaz. Sahibi hiçbir şey yapmaz.<br/>Telefon şebeke bulana kadar taşır.
@@ -36,7 +38,7 @@ sequenceDiagram
 | Aşama | Kurum anahtarı ve sunucu kimde | Ne zaman |
 |---|---|---|
 | Pilot | Kairodyne + ortak kurumun panosu (belediye afet birimi, AKUT, Kızılay) | Saha tatbikatı |
-| Resmî | AFAD / 112 kendi anahtarını ve sunucusunu işletir; uygulama o anahtarla dağıtılır | Protokol imzalanınca |
+| Resmî | AFAD ya da il afet birimi kendi anahtarını ve sunucusunu işletir; uygulama o anahtarla dağıtılır | Protokol imzalanınca |
 
 Anahtar uygulamaya gömülü olduğu için resmî aşamaya geçişte kod değişmez; yalnız anahtar ve adres değişir. Aynı anda birden çok kuruma göndermek (112 + yerel afet birimi) aynı zarfı her kurumun anahtarına ayrı mühürleyerek yapılır.
 

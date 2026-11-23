@@ -262,7 +262,7 @@ export function sinyaller(e, butun, dizin = dizinle(butun)) {
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 // Plain Turkish for the dispatcher (the app's own words for each situation and special status)
-const TUR_AD = { enkaz: 'Enkaz altında', saglik: 'Yaralı / hasta', yangin: 'Yangın / gaz', yardim: 'Başka acil durum',
+const TUR_AD = { enkaz: 'Enkaz altında', saglik: 'Yaralı', yangin: 'Yangın / gaz', yardim: 'Başka afet acili',
   guvende: 'Güvende', iptal: 'İptal', kayip: 'Kayıp kişi', barinma: 'Barınma', gida_su: 'Gıda / su', bilgi: 'Bilgi', alakasiz: 'İlgisiz mesaj' };
 const OZEL_AD = { bebek: 'bebek', cocuk: 'çocuk', yasli: 'yaşlı', yarali: 'yaralı', hamile: 'hamile', engelli: 'engelli' };
 const turAd = (t) => TUR_AD[t] ?? t ?? '—';

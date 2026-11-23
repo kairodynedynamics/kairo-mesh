@@ -35,9 +35,9 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     baslik
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Acil yardım çağrısı").font(.system(size: 26, weight: .bold)).foregroundColor(Tema.metin)
+                        Text("Afet yardım çağrısı").font(.system(size: 26, weight: .bold)).foregroundColor(Tema.metin)
                             .accessibilityAddTraits(.isHeader)
-                        Text("İnternet olmasa da çalışır. Durumunuzu seçin ya da yazın, sonra gönderin.")
+                        Text("Doğal afette şebeke çöktüğünde kullanın; günlük acil durumlarda 112'yi arayın. Durumunuzu seçin ya da yazın, sonra gönderin.")
                             .font(.callout).foregroundColor(Tema.ikincil)
                     }.padding(.top, 14)
                     neOldu

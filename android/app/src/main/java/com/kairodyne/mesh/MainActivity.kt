@@ -562,8 +562,8 @@ class MainActivity : Activity() {
         agSatiri = yazi("● Ağ hazırlanıyor…", 15f, AMBER, true).apply { setPadding(dp(12), dp(7), dp(12), dp(7)) }
         root.addView(agSatiri, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = dp(10) })
         agRenk(AMBER)
-        root.addView(yazi("Acil yardım çağrısı", 24f, METIN, true).apply { typeface = KALIN; isAccessibilityHeading = true }, yer(22))
-        root.addView(yazi("İnternet olmasa da çalışır. Durumunuzu seçin ya da yazın, sonra gönderin.", 16f, IKINCIL), yer(4))
+        root.addView(yazi("Afet yardım çağrısı", 24f, METIN, true).apply { typeface = KALIN; isAccessibilityHeading = true }, yer(22))
+        root.addView(yazi("Doğal afette şebeke çöktüğünde kullanın; günlük acil durumlarda 112'yi arayın. Durumunuzu seçin ya da yazın, sonra gönderin.", 16f, IKINCIL), yer(4))
 
         // 1. what happened: four life-threatening situations, large
         val ne = kart()

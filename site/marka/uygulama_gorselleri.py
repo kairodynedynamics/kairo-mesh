@@ -80,8 +80,8 @@ body {{ margin: 0; width: 1080px; height: 1920px; overflow: hidden; font-family:
 
 
 def turlar(secili=None):
-    adlar = [("enkaz", "Enkaz altındayım", "Bina çöktü, çıkamıyorum"), ("saglik", "Yaralı / hasta var", "Acil sağlık yardımı gerekiyor"),
-             ("yangin", "Yangın / gaz", "Ateş, duman ya da gaz kokusu"), ("yardim", "Başka acil durum", "Ne olduğunu yazarak anlatın")]
+    adlar = [("enkaz", "Enkaz altındayım", "Bina çöktü, çıkamıyorum"), ("saglik", "Yaralı var", "Afette yaralandık, tıbbi yardım gerekiyor"),
+             ("yangin", "Yangın / gaz", "Afetten sonra yangın ya da gaz kaçağı"), ("yardim", "Başka afet acili", "Sel, heyelan, mahsur kalma: yazarak anlatın")]
     return '<div class="izgara">' + "".join(
         f'<div class="tur{" secili" if k == secili else ""}"><b>{ad}</b><span>{"✓ Seçildi · kaldırmak için yine dokunun" if k == secili else alt}</span></div>'
         for k, ad, alt in adlar) + "</div>"
@@ -92,7 +92,7 @@ def adim(no, ad):
 
 
 def ekran(icerik, ag="● İnternet yok · yakında çağrınızı taşıyabilecek 3 telefon var", agrenk="yesil", baslik=True):
-    b = ('<div class="baslik">Acil yardım çağrısı<small>İnternet olmasa da çalışır. Durumunuzu seçin ya da yazın, sonra gönderin.</small></div>'
+    b = ('<div class="baslik">Afet yardım çağrısı<small>Doğal afette şebeke çöktüğünde kullanın; günlük acil durumlarda 112’yi arayın. Durumunuzu seçin ya da yazın, sonra gönderin.</small></div>'
          if baslik else "")
     return f"""<div class="kamera"></div><div class="ic">
 <div class="bas"><i></i>KairoMesh</div><div class="kurum">Çağrılar şu kuruma gider: KairoMesh Operatör Demo</div>

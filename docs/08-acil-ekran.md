@@ -1,6 +1,8 @@
 # 08 — Acil ekran tasarımı: neler var, neler yok, neden?
 
-KairoMesh'in tek ekranı, enkaz altındaki bir kişi için tasarlandı. Bu kişi büyük olasılıkla şu durumdadır:
+KairoMesh yalnız **doğal afetler** içindir: deprem, sel, heyelan gibi, şebekenin gerçekten çöktüğü durumlar. Günlük acil durumlar için değildir; şebeke varken 112 aranır ve ekran bunu en üstte söyler.
+
+Uygulamanın tek ekranı, enkaz altındaki bir kişi için tasarlandı. Bu kişi büyük olasılıkla şu durumdadır:
 - Karanlıktadır; telefonu çatlak, pili azdır.
 - Yaralıdır, tek eli kullanılmayabilir, panik içindedir.
 - Yaşlı, çocuk ya da okuma yazması zayıf olabilir.
@@ -21,11 +23,10 @@ Her karar bu kişiye göre verildi. Kod: `android/.../MainActivity.kt`, `ios/App
 | Seçenek | Karar | Gerekçe |
 |---|---|---|
 | Enkaz altındayım | **Büyük düğme** | Depremin asıl hayati durumu; aciliyet 1. |
-| Yaralı / hasta var | **Büyük düğme** | Enkaz dışında da hayati; aciliyet 2 (bebek, yaralı ya da hamile varsa 1). |
+| Yaralı var | **Büyük düğme** | Afette yaralanma, enkaz dışında da hayati; aciliyet 2 (bebek, yaralı ya da hamile varsa 1). |
 | Yangın / gaz | **Büyük düğme** | Deprem sonrası yangın ve gaz kaçağı ölümcül; aciliyet 1. |
-| Başka acil durum | **Büyük düğme** | Listede olmayan hayati durumlar (sel, mahsur kalma). Yazıyla anlatılır; aciliyet 2. "Seçenek yok diye çağrı yapamamak" olmasın. |
-| Açıkta kaldık | Küçük düğme | İhtiyaç, hayati değil; aciliyet 3. Büyük düğmeler arasında olursa hayati çağrıların önünde dikkat dağıtır. |
-| Su / yiyecek yok | Küçük düğme | İhtiyaç; aciliyet 3. |
+| Başka afet acili | **Büyük düğme** | Listede olmayan hayati afet durumları (sel, heyelan, mahsur kalma). Yazıyla anlatılır; aciliyet 2. "Seçenek yok diye çağrı yapamamak" olmasın. |
+| Açıkta kaldık, su / yiyecek yok | **Yok** | İhtiyaç, kurtarma çağrısı değil. Uygulama yalnız hayati afet çağrıları taşır; ihtiyaç bildirimi ağı ve kurumu meşgul eder. Model yazıdan böyle bir ihtiyaç okursa çağrı "başka afet acili" olarak gider. |
 | Yakınımı arıyorum | Küçük düğme | Kurtarma ekipleri için değerli bilgi ama başkası adına; aciliyet 2. |
 | Güvendeyim | **Ayrı yeşil düğme**, tek dokunuş | Kurtarma ekiplerinin yükünü azaltır. Geri sayımı yoktur, çünkü acil bir şey göndermez. Bekleyen bir yardım çağrısının yerine geçer; yanlışlıkla basıldıysa **"Geri al · hâlâ yardım gerekiyor"** önceki çağrıyı tek dokunuşla hemen yeniden gönderir. |
 | Kişi sayısı | +/− düğmeleri, "?" = bilmiyorum | Klavye açmak panikte zordur. Boş bırakılabilir. |

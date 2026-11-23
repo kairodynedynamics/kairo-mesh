@@ -5,9 +5,10 @@
 **When the network is down, the call for help still reaches the authority.**
 
 Phones carry each other's encrypted messages over Bluetooth with no internet. A call for help from under the rubble<br>
-is sealed to the emergency authority (112, AFAD, a municipality) and delivered by the first phone that gets online.
+is sealed to the disaster authority (AFAD, a provincial disaster unit, a municipality) and delivered by the first phone that gets online.<br>
+For natural disasters that take the network down. Not for everyday emergencies: when the network works, call 112.
 
-[![Live demo](https://img.shields.io/badge/live_demo-run_the_simulation-2da77a?style=for-the-badge)](https://kairodynedynamics.github.io/kairo-mesh/#run)
+[![Live demo](https://img.shields.io/badge/live_demo-run_the_simulation-2da77a?style=for-the-badge)](https://kairodynedynamics.com/simulasyon.html)
 
 ![status](https://img.shields.io/badge/status-research_prototype-f2b134)
 ![tests](https://img.shields.io/badge/tests-117_passing-2da77a)
@@ -83,7 +84,7 @@ node src/cli.js   # chat over the local network
 
 In the chat, `/id` prints your pairing code, `/add <name> <code>` adds a contact and `<name> <text>` sends. Run it on two machines on the same network, or twice on one machine with different profiles: `node src/cli.js a.json`.
 
-Or skip the install and [run the simulation in your browser](https://kairodynedynamics.github.io/kairo-mesh/#run).
+Or skip the install and [run the simulation in your browser](https://kairodynedynamics.com/simulasyon.html).
 
 ## Where it stands
 
@@ -140,7 +141,7 @@ We are looking for one disaster-response, operator or event app to field-test wi
 | Open in this repository (AGPL-3.0) | Not published |
 |---|---|
 | Protocol and encryption cores (JS, Kotlin, Swift), Android and iOS apps | Root keys and authority keys: never in any repository |
-| Reference authority server and dashboard, setup tool | Enterprise dashboard (maps, users and roles, audit log), 112 / AFAD integration adapters, authority-specific builds |
+| Reference authority server and dashboard, setup tool | Enterprise dashboard (maps, users and roles, audit log), AFAD / disaster-unit integration adapters, authority-specific builds |
 | Earthquake simulation, synthetic triage data generator, triage model and its measurements | Real help messages and their labels (personal data, KVKK) |
 | Tests, documents, website sources' numbers | Contracts and business documents |
 

@@ -1,6 +1,11 @@
 [
  {
   "tarih": "2026-11-23",
+  "baslik": "0.6.2: yalnız doğal afetler için",
+  "metin": "KairoMesh'in kapsamı netleşti: deprem, sel, heyelan gibi şebekenin gerçekten çöktüğü doğal afetler. Günlük acil durumlar için değil; şebeke varken 112 aranır ve uygulama ekranın en üstünde bunu söyler. Ekranın başlığı artık 'Afet yardım çağrısı'. Durum düğmeleri afete göre yeniden yazıldı: Enkaz altındayım, Yaralı var, Yangın / gaz (afetten sonra yangın ya da gaz kaçağı), Başka afet acili (sel, heyelan, mahsur kalma). Su, yiyecek ve barınak gibi ihtiyaç bildirimleri kaldırıldı: uygulama yalnız hayati kurtarma çağrısı taşır."
+ },
+ {
+  "tarih": "2026-11-23",
   "baslik": "0.6.1: daha net, daha dokunulası acil ekranı",
   "metin": "Android ve iOS'ta acil ekranı yeniden tasarlandı. Adımlar numaralı beyaz kartlarda: 1 Ne oldu, 2 Kaç kişisiniz, 3 Yanınızda, 4 Ya da kısaca yazın. Dört hayati durum düğmesi seçilince dolu kırmızıya döner ve öne çıkar. Kişi sayısı bitişik −/+ düğmeleriyle değişir, yanınızdakiler kapsül düğmelerle seçilir. Gönder düğmesi ekrandaki tek yükseltilmiş öğedir. 5 saniyelik geri sayım artık opak bir katmanda, büyük bir halka içinde. Arkasındaki hiçbir şeye yanlışlıkla dokunulamaz. Her dokunuş hafifçe küçülüp yaylanarak karşılık verir; seçimde, gönderirken ve iptalde kısa titreşim var. Telefonda hareket azaltma açıksa animasyonlar kapanır. Ağ durumu renkli bir rozetle gösterilir. Sitedeki uygulama görselleri yeni ekranla yenilendi."
  },

@@ -1,6 +1,6 @@
 # Kurum kurulumu (pilot ve resmî kullanım)
 
-Bu belge, KairoMesh'i kendi anahtarı ve sunucusuyla işletecek kurum (il afet birimi, belediye, 112, pilot ortağı) içindir. Özel anahtarlar kurumun bilgisayarında üretilir ve oradan çıkmaz; Kairodyne Dynamics çağrı içeriğine erişemez.
+Bu belge, KairoMesh'i kendi anahtarı ve sunucusuyla işletecek kurum (il afet birimi, belediye, pilot ortağı) içindir. Özel anahtarlar kurumun bilgisayarında üretilir ve oradan çıkmaz; Kairodyne Dynamics çağrı içeriğine erişemez.
 
 ## Gerekenler
 

@@ -59,20 +59,19 @@ struct Kurum {
 /// The emergency screen's choices, as the JSON record the authority receives. Same table and rule as Android
 /// (Kurum.kt `Cagri`) and the triage model.
 enum Cagri {
-    // Life-threatening situations first: the four large buttons (docs/08-acil-ekran.md). The rest are needs.
-    static let turler: [(String, String)] = [("enkaz", "Enkaz altındayım"), ("saglik", "Yaralı / hasta var"), ("yangin", "Yangın / gaz"),
-                                             ("yardim", "Başka acil durum"),
-                                             ("barinma", "Açıkta kaldık"), ("gida_su", "Su / yiyecek yok"),
+    // Natural disasters only, not everyday emergencies (those go to 112): the four large buttons are the
+    // life-threatening disaster situations (docs/08-acil-ekran.md). Needs such as water or shelter are not calls.
+    static let turler: [(String, String)] = [("enkaz", "Enkaz altındayım"), ("saglik", "Yaralı var"), ("yangin", "Yangın / gaz"),
+                                             ("yardim", "Başka afet acili"),
                                              ("kayip", "Yakınımı arıyorum"), ("guvende", "Güvendeyim")]
     static let hayati = ["enkaz", "saglik", "yangin", "yardim"]
-    static let ihtiyac = ["barinma", "gida_su", "kayip"]
-    static let altYazi = ["enkaz": "Bina çöktü, çıkamıyorum", "saglik": "Acil sağlık yardımı gerekiyor",
-                          "yangin": "Ateş, duman ya da gaz kokusu", "yardim": "Ne olduğunu yazarak anlatın"]
+    static let altYazi = ["enkaz": "Bina çöktü, çıkamıyorum", "saglik": "Afette yaralandık, tıbbi yardım gerekiyor",
+                          "yangin": "Afetten sonra yangın ya da gaz kaçağı", "yardim": "Sel, heyelan, mahsur kalma: yazarak anlatın"]
     static func ad(_ tur: String) -> String { turler.first { $0.0 == tur }?.1 ?? tur }
     static func ozelAd(_ k: String) -> String { ozel.first { $0.0 == k }?.1 ?? k }
     static let ozel: [(String, String)] = [("bebek", "Bebek"), ("cocuk", "Çocuk"), ("yasli", "Yaşlı"), ("yarali", "Yaralı"),
                                            ("hamile", "Hamile"), ("engelli", "Engelli")]
-    private static let temel = ["enkaz": 1, "yangin": 1, "saglik": 2, "yardim": 2, "kayip": 2, "barinma": 3, "gida_su": 3, "guvende": 4]
+    private static let temel = ["enkaz": 1, "yangin": 1, "saglik": 2, "yardim": 2, "kayip": 2, "guvende": 4]
 
     static func aciliyet(_ tur: String, _ secili: Set<String>) -> Int {
         let a = temel[tur] ?? 4

@@ -329,3 +329,8 @@ html:not(.js) :is(.y-kurum-hat, .y-tamam, .y-kayit), .az-hareket :is(.y-kurum-ha
 
 .marka b.mesh { color: var(--acil); font-weight: 700; }
 .ust.koyu .marka b.mesh { color: #ff6b5e; }
+
+/* the scope line in the hero: natural disasters only, 112 for everyday emergencies */
+.acilis .kapsam { max-width: 60ch; margin-top: 1rem; padding: .85rem 1.1rem; border-radius: 14px;
+  border: 1px solid rgba(255,107,94,.45); background: rgba(255,107,94,.09); color: var(--metin2); font-size: 1rem; line-height: 1.5; }
+.acilis .kapsam strong { color: #ff6b5e; }

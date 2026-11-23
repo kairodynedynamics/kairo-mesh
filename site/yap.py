@@ -34,11 +34,11 @@ GITHUB_SITE = URUN / "yayin" / "kairodynedynamics.com"  # the published site rep
 # (dosya, menü adı, başlık, açıklama)
 SAYFALAR = [
     ("index", "Ana sayfa", "KairoMesh · Kairodyne Dynamics — şebeke çöktüğünde de yardım çağrısı ulaşır",
-     "KairoMesh, telefonların internet ve baz istasyonu olmadan Bluetooth ile birbirinin şifreli mesajını taşıdığı yerli afet haberleşme sistemidir. Yardım çağrısı, internete ulaşan ilk telefon üzerinden 112 ve afet birimlerine iletilir."),
+     "KairoMesh, telefonların internet ve baz istasyonu olmadan Bluetooth ile birbirinin şifreli mesajını taşıdığı yerli afet haberleşme sistemidir. Doğal afette yardım çağrısı, internete ulaşan ilk telefon üzerinden afet birimlerine iletilir."),
     ("nasil-calisir", "Nasıl çalışır", "Nasıl çalışır — KairoMesh",
      "Taşıyıcı seçimi, çeşme kodlu parçalı aktarım, Noise X şifreleme, taklit edilemez makbuz ve izlenemeyen cihaz kimliği."),
     ("acil-aktarim", "Acil aktarım", "Acil aktarım: şebekesiz telefondan kuruma — KairoMesh",
-     "Yardım çağrısı kurum anahtarına mühürlenir, çevredeki telefonlarca taşınır ve internete ulaşan ilk telefon tarafından arka planda 112 ya da afet birimine iletilir."),
+     "Yardım çağrısı kurum anahtarına mühürlenir, çevredeki telefonlarca taşınır ve internete ulaşan ilk telefon tarafından arka planda afet birimine iletilir."),
     ("dogrulama", "Doğrulama", "Ölçümler ve testler — KairoMesh",
      "Simülasyon yöntemi ve sonuçları, parçalı aktarım ölçümleri, Türkçe yardım mesajı anlamlandırma taban çizgisi, saldırı testleri ve platform testleri."),
     ("kurumlar", "Kurumlar için", "Kurumlar için: lisans ve pilot — KairoMesh",
