@@ -138,6 +138,22 @@ EKRANLAR = [
 ]
 
 
+# for the Instagram videos only: the first screen after tapping "Enkaz altındayım", same layout as 1-internetsiz
+VIDEO_EKRANLARI = [
+    ("v-secildi", "", "",
+     ekran('<div class="kart">' + adim(1, "Ne oldu?") + turlar("enkaz") + '<div class="secim">Seçili: Enkaz altındayım <em>Kaldır</em></div></div>')),
+    *[(f"v-k{n}{'b' if bebek else ''}", "", "",
+       ekran('<div class="kart">' + adim(1, "Ne oldu?") + turlar("enkaz") + '<div class="secim">Seçili: Enkaz altındayım <em>Kaldır</em></div></div>'
+             + '<div class="kart">' + adim(2, "Kaç kişisiniz?")
+             + f'<div class="sayac"><div><strong>{n or "?"}</strong><small>? = bilinmiyor</small></div><div class="adimlar"><span>−</span><i></i><span>+</span></div></div>'
+             + adim(3, "Yanınızda")
+             + ('<div class="cipler"><div class="cip' + (' secili">✓ ' if bebek else '">') + 'Bebek</div><div class="cip">Çocuk</div><div class="cip">Yaşlı</div></div>')
+             + "</div>"))
+      for n, bebek in [(0, False), (1, False), (2, False), (3, False), (3, True)]],
+
+]
+
+
 def main():
     CIKTI.mkdir(parents=True, exist_ok=True)
     MEDYA.mkdir(parents=True, exist_ok=True)
@@ -145,7 +161,7 @@ def main():
     with sync_playwright() as p:
         t = p.chromium.launch()
         s = t.new_page(viewport={"width": 1080, "height": 1920})
-        for ad, baslik, alt, ic in EKRANLAR:
+        for ad, baslik, alt, ic in EKRANLAR + VIDEO_EKRANLARI:
             html = (f'<!doctype html><html><head><meta charset="utf-8"><style>{CSS}</style></head><body>'
                     f'<div class="ust"><div class="marka">{isaret}<span>Kairo<b>Mesh</b></span></div><h1>{baslik}</h1><p>{alt}</p></div>'
                     f'<div class="tel"><div class="ekran">{ic}</div></div></body></html>')
@@ -154,9 +170,12 @@ def main():
             s.goto(gecici.as_uri())
             s.evaluate("document.fonts.ready")
             s.wait_for_timeout(200)
-            s.screenshot(path=str(CIKTI / f"{ad}.png"))
+            # video-only frames ("v-") go to medya/ only, never to the published site
+            hedef = (MEDYA if ad.startswith("v-") else CIKTI) / f"{ad}.png"
+            s.screenshot(path=str(hedef))
             gecici.unlink()
-            shutil.copy(CIKTI / f"{ad}.png", MEDYA / f"{ad}.png")
+            if hedef.parent == CIKTI:
+                shutil.copy(hedef, MEDYA / f"{ad}.png")
         t.close()
     print("uygulama görselleri:", CIKTI)
 
